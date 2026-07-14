@@ -24,3 +24,9 @@ Phase 2 core scheduling; Phase 3 compliance and swaps; Phase 4 integrations; Pha
 ## Required credentials
 
 Firebase web config, Firebase Admin credentials, Google Calendar OAuth consent/client configuration, LibCal API/feed access, email delivery provider credentials, and optional AI provider credentials remain required. No secrets are committed.
+
+## LibCal hours feed
+
+The provided LibCal JSON-LD widget URL is now represented as `LIBCAL_HOURS_JSON_URL` with a safe default for library ID `2457`. The server route `/api/integrations/libcal/hours` uses `LibCalHoursProvider` to fetch JSON or JSONP, normalize dated `OpeningHoursSpecification` records, and return warnings when the feed cannot be parsed or reached.
+
+The current implementation intentionally does not write LibCal data into Firestore yet. Phase 2 should cache normalized intervals under the operational-hours collections, preserve manager-created exceptions, and display source discrepancies before any authoritative sync.
