@@ -2,7 +2,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:rules": "vitest run tests/firestore-rules.test.ts",
     "seed": "tsx scripts/seed.ts"

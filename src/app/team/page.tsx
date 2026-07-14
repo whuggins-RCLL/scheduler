@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>team</h1><p className="muted">Accessible workflow shell for team; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { TeamView } from "@/components/TeamView";
+
+export const metadata = { title: "Team" };
+
+export default function TeamPage() {
+  return (
+    <AppShell>
+      <TeamView />
+    </AppShell>
+  );
+}

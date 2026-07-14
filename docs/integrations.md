@@ -1,32 +1,60 @@
-# Cardinal Shift integrations
+# Cardinal Shift — Integrations
 
-## Repository audit
+Every external integration is built behind a **typed adapter interface** with a
+**working mock provider**, an **admin configuration screen**, graceful
+disconnected/error states, and no committed secrets. Live providers activate
+when credentials are supplied.
 
-- Repository began as an empty Git worktree with only `.gitkeep`.
-- Framework selected: Next.js App Router with React and strict TypeScript.
-- Package versions are resolved from `package.json` using current npm ranges for Next.js, React, Firebase, Firebase Admin, Zod, Vitest, and Firebase rules testing.
-- Current routes include `/login`, `/pending`, `/dashboard`, `/schedule` variants, employee workflow shells, and `/admin` sections required for Phase 1.
-- Authentication state: Firebase client Google Sign-In is implemented; server-side custom claims and account approval are represented in rules, middleware, and seed script but require a Firebase project.
-- Firebase configuration: client env vars are documented in `.env.example`; Firestore rules, indexes, hosting, and emulator config are present.
-- Existing env vars: none were present before this implementation; required variables are listed in `.env.example`.
-- Testing setup: Vitest unit tests and source-level Firestore rules checks are included; full emulator tests require Firebase CLI/project setup.
-- Deployment setup: Firebase Hosting framework config is documented in `firebase.json`.
-- Design system: CSS design tokens define Cardinal-inspired light/dark themes, semantic statuses, focus, reduced motion, and reduced transparency.
+## LibCal operating hours
 
-## Phase 1 scope
+`src/lib/integrations/hours.ts` defines the `HoursProvider` interface and the
+normalized `OperationalHoursInterval` shape. Providers:
 
-This document is part of the first deliverable: secure foundation, planning, Firebase auth shell, route protection, administrator seed path, admin/user shells, employee dashboard shell, security rules, and accessible schedule grid prototype.
+- `ManualHoursProvider` — manager-entered hours (authoritative by default).
+- `LibCalHoursProvider` — fetches + normalizes the LibCal JSON-LD hours feed
+  (`src/lib/integrations/libcal-hours.ts`, `normalizeLibCalJsonLd`, tested in
+  `tests/libcal-hours.test.ts`). Served through `app/api/integrations/libcal/hours`.
+- `MockHoursProvider` — deterministic sample data for local/dev.
 
-## Later phases
+Behavior: cache retrieved hours in Firestore with source + retrieval time +
+sync status; **never silently overwrite** manager-created exceptions; surface
+discrepancies; let an admin choose the authoritative source; manual + scheduled
+sync. The LibCal widget is only an optional visual fallback, never the sole
+scheduling source. The scheduler will not place service-point shifts outside
+operating hours unless a manager explicitly overrides for open/close/after-hours.
 
-Phase 2 core scheduling; Phase 3 compliance and swaps; Phase 4 integrations; Phase 5 deterministic scheduling and AI-assisted interpretation.
+Admin screen: `/admin/integrations` renders `LibCalHoursPanel` and the provider
+status. Env: `LIBCAL_HOURS_JSON_URL` (defaulted).
 
-## Required credentials
+## Google Workspace / Calendar
 
-Firebase web config, Firebase Admin credentials, Google Calendar OAuth consent/client configuration, LibCal API/feed access, email delivery provider credentials, and optional AI provider credentials remain required. No secrets are committed.
+Status: **adapter + mock**; live OAuth requires credentials (not configured in
+this environment). Planned model, simplest-first:
 
-## LibCal hours feed
+1. One-way **publish** of assigned shifts to a personal/selected calendar
+   (event carries position, location, times, tasks, break info, schedule link,
+   version, and human-readable change info).
+2. **Free/busy import** into scheduling as a *constraint* (never auto-equated to
+   leave — employees/managers classify or override it).
+3. Optional two-way sync only after the one-way model is reliable.
+4. **ICS** subscription/export as a fallback.
 
-The provided LibCal JSON-LD widget URL is now represented as `LIBCAL_HOURS_JSON_URL` with a safe default for library ID `2457`. The server route `/api/integrations/libcal/hours` uses `LibCalHoursProvider` to fetch JSON or JSONP, normalize dated `OpeningHoursSpecification` records, and return warnings when the feed cannot be parsed or reached.
+Privacy: minimum OAuth scopes; managers see busy/free only, not private event
+titles; token revocation handled; incremental sync where supported.
+Env: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
 
-The current implementation intentionally does not write LibCal data into Firestore yet. Phase 2 should cache normalized intervals under the operational-hours collections, preserve manager-created exceptions, and display source discrepancies before any authoritative sync.
+## Import / export
+
+- Export schedule as **ICS** and filtered schedules as **CSV** (Reports page
+  ships a working client-side fairness CSV export today).
+- Import employees, positions, qualifications, availability by **CSV** with a
+  downloadable template, validation preview, and row-level error reporting
+  (planned; adapter shape defined).
+
+## Notifications
+
+Extensible channel model: in-app (implemented in the local store — schedule
+publication notifies assigned employees), email, and Google Calendar update;
+SMS later. Supports user preferences, quiet hours, digest vs immediate,
+deduplication, delivery status, retry, and a plain-text email fallback. Delivery
+runs server-side in production.

@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>schedule/month</h1><p className="muted">Accessible workflow shell for schedule/month; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { ScheduleWorkspace } from "@/components/schedule/ScheduleWorkspace";
+
+export const metadata = { title: "Month schedule" };
+
+export default function MonthSchedulePage() {
+  return (
+    <AppShell>
+      <ScheduleWorkspace scope="month" />
+    </AppShell>
+  );
+}

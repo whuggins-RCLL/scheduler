@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>schedule/day</h1><p className="muted">Accessible workflow shell for schedule/day; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { ScheduleWorkspace } from "@/components/schedule/ScheduleWorkspace";
+
+export const metadata = { title: "Day schedule" };
+
+export default function DaySchedulePage() {
+  return (
+    <AppShell>
+      <ScheduleWorkspace scope="day" />
+    </AppShell>
+  );
+}

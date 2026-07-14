@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";import { BOOTSTRAP_ADMINS } from "@/lib/config";export default function Users(){return <AppShell><section className="card"><h1>User management</h1><p>Bootstrap administrators are seeded by the server script and then editable here.</p><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>State</th></tr></thead><tbody>{BOOTSTRAP_ADMINS.map(a=><tr key={a.email}><td>{a.name}</td><td>{a.email}</td><td>SUPER_ADMIN</td><td>Active</td></tr>)}</tbody></table></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { UsersAdmin } from "@/components/admin/UsersAdmin";
+
+export const metadata = { title: "Users" };
+
+export default function UsersPage() {
+  return (
+    <AppShell>
+      <UsersAdmin />
+    </AppShell>
+  );
+}

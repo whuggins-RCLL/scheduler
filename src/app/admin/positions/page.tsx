@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>Admin: positions</h1><p className="muted">Configuration screen shell with disconnected, empty, and setup states documented for Phase 1.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { PositionsAdmin } from "@/components/admin/PositionsAdmin";
+
+export const metadata = { title: "Positions" };
+
+export default function Page() {
+  return (
+    <AppShell>
+      <PositionsAdmin />
+    </AppShell>
+  );
+}

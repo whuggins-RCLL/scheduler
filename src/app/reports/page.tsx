@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>reports</h1><p className="muted">Accessible workflow shell for reports; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { ReportsView } from "@/components/ReportsView";
+
+export const metadata = { title: "Reports" };
+
+export default function ReportsPage() {
+  return (
+    <AppShell>
+      <ReportsView />
+    </AppShell>
+  );
+}

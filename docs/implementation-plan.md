@@ -1,26 +1,74 @@
-# Cardinal Shift implementation plan
+# Cardinal Shift — Implementation Plan & Status
 
-## Repository audit
+Phased, independently testable delivery. This build advances well beyond the
+Phase 1 foundation: the deterministic scheduling engine, California compliance
+engine, fairness analytics, and swap engine (Phases 3 & 5 logic) are implemented
+and unit-tested, and the core scheduling/employee workflows (Phase 2) function
+end-to-end against a real (in-memory) data store.
 
-- Repository began as an empty Git worktree with only `.gitkeep`.
-- Framework selected: Next.js App Router with React and strict TypeScript.
-- Package versions are resolved from `package.json` using current npm ranges for Next.js, React, Firebase, Firebase Admin, Zod, Vitest, and Firebase rules testing.
-- Current routes include `/login`, `/pending`, `/dashboard`, `/schedule` variants, employee workflow shells, and `/admin` sections required for Phase 1.
-- Authentication state: Firebase client Google Sign-In is implemented; server-side custom claims and account approval are represented in rules, middleware, and seed script but require a Firebase project.
-- Firebase configuration: client env vars are documented in `.env.example`; Firestore rules, indexes, hosting, and emulator config are present.
-- Existing env vars: none were present before this implementation; required variables are listed in `.env.example`.
-- Testing setup: Vitest unit tests and source-level Firestore rules checks are included; full emulator tests require Firebase CLI/project setup.
-- Deployment setup: Firebase Hosting framework config is documented in `firebase.json`.
-- Design system: CSS design tokens define Cardinal-inspired light/dark themes, semantic statuses, focus, reduced motion, and reduced transparency.
+## Phase 1 — Secure foundation ✅ (logic) / ⏳ (live Firebase)
 
-## Phase 1 scope
+- [x] Product constants, approved domains, bootstrap admins
+- [x] Domain/invitation/approval access logic + pending screen
+- [x] RBAC roles + scopes (`domain/scope.ts`)
+- [x] User profiles + admin user management (approve/role/archive)
+- [x] Firestore rules + source-level rule test
+- [x] Design-token system, light/dark, reduced motion/transparency
+- [x] Accessible schedule prototype (now a full workspace)
+- [ ] Live Firebase project + App Check + emulator behavioral tests (needs creds)
 
-This document is part of the first deliverable: secure foundation, planning, Firebase auth shell, route protection, administrator seed path, admin/user shells, employee dashboard shell, security rules, and accessible schedule grid prototype.
+## Phase 2 — Core scheduling ✅ (local) 
 
-## Later phases
+- [x] Locations, operating hours, positions, tasks, qualifications (modeled/seeded/admin views)
+- [x] Availability editor (keyboard, no-drag)
+- [x] Leave request + manager approval + on-behalf entry
+- [x] Schedule editor (board + list), draft → publish workflow, locks
+- [x] Employee + manager dashboards
+- [x] In-app notifications; fairness CSV export
+- [ ] ICS export + CSV import preview (adapters defined)
 
-Phase 2 core scheduling; Phase 3 compliance and swaps; Phase 4 integrations; Phase 5 deterministic scheduling and AI-assisted interpretation.
+## Phase 3 — Compliance & flexibility ✅
+
+- [x] California meal/rest policy engine (versioned, configurable)
+- [x] Rest/meal planning during generation
+- [x] Compliance findings with severity + remediation
+- [x] Overrides with recorded reason + audit
+- [x] Open shifts + automated shift swaps + manager-review routing
+- [x] Fairness metrics (multi-dimensional + Gini)
+- [x] Schedule versions (publishedVersion); rollback hooks (version retained)
+
+## Phase 4 — Integrations ⏳
+
+- [x] LibCal hours adapter + normalizer + mock + admin panel
+- [x] Google adapter boundary + honest disconnected state + admin screen
+- [ ] Live Google free/busy + publish (needs OAuth creds)
+- [ ] Scheduled sync monitoring; CSV import UI
+
+## Phase 5 — Intelligent scheduling ✅ (deterministic core)
+
+- [x] Deterministic constraint-solving engine (seeded)
+- [x] Day / week / month generation scopes; fill-only & coverage-only modes
+- [x] Locked-assignment preservation; unfilled-reason reporting
+- [x] Fairness-aware scoring with adjustable weights
+- [x] Manager-note → structured-rule interpreter (rule-based; LLM optional)
+- [x] Explainable per-assignment + per-schedule output
+- [ ] LLM-assisted natural-language query interface (deterministic resolver first)
+
+## Definition of done (per phase)
+
+Workflows function with the data store · authorization enforced server-side
+(production) · rules have tests · TypeScript passes with no suppressed errors ·
+lint passes · unit/integration tests pass · critical Playwright + axe checks
+(planned) · loading/empty/error/disconnected states exist · mobile layouts work ·
+docs updated · env vars documented · no secrets committed · no placeholder
+actions that pretend to work · runnable locally with documented steps.
 
 ## Recommended next phase
 
-Complete Firebase-backed profile provisioning and invitation redemption Cloud Functions, then implement locations, positions, tasks, availability, leave, and draft schedule persistence with emulator-backed rules tests.
+1. Stand up a Firebase project; wire the Firestore `Database` adapter behind the
+   same `actions.*` functions; move privileged actions into Cloud Functions.
+2. Add `@firebase/rules-unit-testing` emulator tests for the security invariants
+   listed in `security-model.md`.
+3. Add Playwright + axe E2E for the critical keyboard-only workflows.
+4. Implement Google OAuth (free/busy import, one-way publish) and LibCal
+   scheduled sync with the existing adapters.

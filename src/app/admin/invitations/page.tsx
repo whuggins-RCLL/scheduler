@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>Admin: invitations</h1><p className="muted">Configuration screen shell with disconnected, empty, and setup states documented for Phase 1.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { InvitationsAdmin } from "@/components/admin/InvitationsAdmin";
+
+export const metadata = { title: "Invitations" };
+
+export default function Page() {
+  return (
+    <AppShell>
+      <InvitationsAdmin />
+    </AppShell>
+  );
+}
