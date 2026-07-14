@@ -24,16 +24,16 @@ production each maps to a Firestore collection under
 | `positions` | Where/how someone is scheduled | staffing min/pref/max, public-service, swap/self-claim flags, color/icon |
 | `tasks` | Discrete duties | category, duration, checklist, opening/closing dependency |
 | `availability` | Recurring availability patterns | blocks[] (weekday, start, end, kind), effective dates, audit attribution |
-| `leaveTypes` | Configurable leave/exception types | paid, approvalRequired, blocksScheduling, visibility |
-| `leave` | Leave records | type, dates, status, enteredBy/decidedBy (audit), note |
+| `leaveTypes` | Availability-exception type(s) — only the "Unavailable" exception is shipped; no paid-leave categories | blocksScheduling, visibility, employeeSelectable |
+| `leave` | Availability-exception records (recorded directly; no approval queue) | dates, partial-day window, enteredBy (audit), note |
 | `schedules` | Schedule versions | startDate, endDate, status, version, publishedVersion |
 | `shifts` | Assignments | employee|null, position, location, date, start/end, breaks[], taskIds[], status, source, locked, scheduleVersion |
 | `coverage` | Coverage requirements the engine fills | date, position, location, window, count |
 | `swaps` | Swap requests | kind, shift, from/to, status, immutable history[] |
 | `notes` | Structured manager notes | type, scope, visibility, usableByEngine, ruleClass, structuredRule? |
+| `dailyNotes` | Dashboard announcement feed | body, authorId, published, pinned, visibleFrom/visibleTo |
 | `breakPolicies` | Versioned compliance policy | meal/rest/overtime/turnaround thresholds, version |
 | `overrides` | Compliance overrides | findingRuleId, employee, date, reason, actor |
-| `invitations` | Signed, expiring, single-use invites | email, token, role, expiresAt, revoked |
 | `notifications` | In-app notifications | userId, type, title, body, read |
 | `audit` | Append-only audit trail | actor, action, target, before/after, reason, source, createdAt |
 

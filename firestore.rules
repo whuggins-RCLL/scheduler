@@ -1,19 +1,169 @@
 rules_version = '2';
+
+// ==========================================================================
+// RCLL Scheduler — Firestore security rules
+//
+// Data is tenant-scoped under /organizations/{orgId}/<collection>/{id}. The
+// store's in-memory collections map to Firestore collections as follows:
+//   users        -> users                employees  -> employeeProfiles
+//   availability -> availabilityPatterns leave       -> leaveRecords
+//   notes        -> managerNotes         dailyNotes  -> dailyNotes
+//   coverage     -> coverageRequirements swaps       -> swapRequests
+//   overrides    -> complianceOverrides  audit       -> auditEvents
+//   (others keep their name: schedules, shifts, positions, tasks, leaveTypes,
+//    locations, operatingHours, departments, teams, breakPolicies, notifications)
+//
+// Model notes:
+//   * The platform tracks only availability exceptions (leaveRecords) — no
+//     paid-leave categories and no approval queue. Employees record their own
+//     exceptions; admins/managers may record or update them on an employee's
+//     behalf. Reasons stay confidential to admin/manager/owner.
+//   * dailyNotes are dashboard announcements. Anyone signed in may read a
+//     PUBLISHED note; managers author their own drafts; only admins may
+//     publish/unpublish. Historical operational records are never deletable.
+// ==========================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn(){ return request.auth != null; }
-    function hasRole(role){ return signedIn() && request.auth.token.roles != null && role in request.auth.token.roles; }
-    function isAdmin(){ return hasRole('SUPER_ADMIN'); }
-    function isManager(){ return hasRole('MANAGER') || hasRole('SCHEDULER'); }
-    function isSelf(userId){ return signedIn() && request.auth.uid == userId; }
-    match /organizations/{orgId}/users/{userId} { allow read: if isAdmin() || isManager() || isSelf(userId); allow create, update: if isAdmin(); allow delete: if false; }
-    match /organizations/{orgId}/employeeProfiles/{userId} { allow read: if isAdmin() || isManager() || isSelf(userId); allow create, update: if isAdmin() || isManager(); allow delete: if false; }
-    match /organizations/{orgId}/managerNotes/{noteId} { allow read, write: if isAdmin() || isManager(); }
-    match /organizations/{orgId}/leaveRecords/{leaveId} { allow read: if isAdmin() || isManager() || resource.data.employeeId == request.auth.uid; allow create: if signedIn(); allow update: if isAdmin() || isManager(); allow delete: if false; }
-    match /organizations/{orgId}/schedules/{scheduleId} { allow read: if signedIn(); allow create, update: if isAdmin() || isManager(); allow delete: if false; }
-    match /organizations/{orgId}/shifts/{shiftId} { allow read: if signedIn(); allow create, update: if isAdmin() || isManager(); allow delete: if false; }
-    match /organizations/{orgId}/complianceOverrides/{id} { allow read: if isAdmin() || isManager(); allow write: if isAdmin() || isManager(); }
-    match /organizations/{orgId}/auditEvents/{id} { allow read: if isAdmin() || hasRole('AUDITOR'); allow write: if false; }
+    // ---- Identity / role helpers (coarse checks via custom claims) ----
+    function signedIn() { return request.auth != null; }
+    function hasRole(role) { return signedIn() && request.auth.token.roles != null && role in request.auth.token.roles; }
+    function isAdmin() { return hasRole('SUPER_ADMIN'); }
+    function isManager() { return hasRole('MANAGER') || hasRole('SCHEDULER'); }
+    function isStaff() { return isAdmin() || isManager(); }
+    function isSelf(userId) { return signedIn() && request.auth.uid == userId; }
+    // The field named `field` is unchanged between the current and incoming doc.
+    function unchanged(field) { return request.resource.data[field] == resource.data[field]; }
+
+    // ---- Accounts & profiles ----
+    match /organizations/{orgId}/users/{userId} {
+      allow read: if isStaff() || isSelf(userId);
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/employeeProfiles/{userId} {
+      allow read: if isStaff() || isSelf(userId);
+      allow create, update: if isAdmin() || isManager();
+      allow delete: if false;
+    }
+
+    // ---- Availability & exceptions ----
+    // Owners manage their own; managers/admins may edit on an employee's behalf
+    // (e.g. recording a call-out). Not deletable — supersede instead.
+    match /organizations/{orgId}/availabilityPatterns/{patternId} {
+      allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
+      allow update: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/leaveRecords/{leaveId} {
+      allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
+      allow update: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ---- Manager notes (private scheduling rules) ----
+    match /organizations/{orgId}/managerNotes/{noteId} {
+      allow read, write: if isStaff();
+    }
+
+    // ---- Daily notes (dashboard feed) ----
+    // Signed-in users read published notes; managers author their own drafts;
+    // only admins may flip `published` (publish/unpublish).
+    match /organizations/{orgId}/dailyNotes/{noteId} {
+      allow read: if isStaff() || (signedIn() && resource.data.published == true);
+      allow create: if isAdmin() || (isManager() && request.resource.data.published == false);
+      allow update: if isAdmin()
+        || (isManager() && resource.data.authorId == request.auth.uid && unchanged('published'));
+      allow delete: if isAdmin() || (isManager() && resource.data.authorId == request.auth.uid);
+    }
+
+    // ---- Scheduling ----
+    match /organizations/{orgId}/schedules/{scheduleId} {
+      allow read: if signedIn();
+      allow create, update: if isStaff();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/shifts/{shiftId} {
+      allow read: if signedIn();
+      allow create, update: if isStaff();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/coverageRequirements/{reqId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isStaff(); // transient planning data
+    }
+    match /organizations/{orgId}/swapRequests/{swapId} {
+      allow read: if isStaff()
+        || resource.data.fromEmployeeId == request.auth.uid
+        || resource.data.toEmployeeId == request.auth.uid;
+      allow create: if signedIn();
+      allow update: if isStaff(); // approvals/decisions are manager-gated
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/complianceOverrides/{id} {
+      allow read, write: if isStaff();
+    }
+
+    // ---- Operational configuration (admin- or manager-managed) ----
+    match /organizations/{orgId}/positions/{id} {
+      allow read: if signedIn();
+      allow create, update: if isStaff();
+      allow delete: if false; // archive via `active`
+    }
+    match /organizations/{orgId}/tasks/{id} {
+      allow read: if signedIn();
+      allow create, update: if isStaff();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/operatingHours/{id} {
+      allow read: if signedIn();
+      allow create, update: if isStaff();
+      allow delete: if false;
+    }
+
+    // ---- Structural configuration (admin-managed reference data) ----
+    match /organizations/{orgId}/leaveTypes/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/locations/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/departments/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/teams/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/breakPolicies/{id} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ---- Notifications (per-user; created by trusted server on publish) ----
+    match /organizations/{orgId}/notifications/{id} {
+      allow read: if isAdmin() || isSelf(resource.data.userId);
+      allow create: if isStaff();
+      allow update: if isSelf(resource.data.userId) && unchanged('userId'); // mark read only
+      allow delete: if false;
+    }
+
+    // ---- Audit trail (append-only; written only by trusted server code) ----
+    match /organizations/{orgId}/auditEvents/{id} {
+      allow read: if isAdmin() || hasRole('AUDITOR');
+      allow write: if false;
+    }
+
+    // Default deny — anything not explicitly allowed above is refused.
     match /{document=**} { allow read, write: if false; }
   }
 }

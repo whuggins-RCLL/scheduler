@@ -36,14 +36,31 @@ pure `actions.*` functions are the shared implementation.
 
 ## Firestore rules (`firestore.rules`)
 
-- Default deny (`match /{document=**} { allow read, write: if false; }`).
+Data is tenant-scoped under `/organizations/{orgId}/<collection>/{id}`; the rule
+header documents the store-key → collection-name mapping.
+
+- Default deny (`match /{document=**} { allow read, write: if false; }`) — every
+  collection is allowed explicitly or refused.
 - Users/profiles: readable by admins, in-scope managers, or self; mutable only
   by admins (users) / admins+managers (profiles); **never deletable**.
+- Availability patterns & exceptions (`leaveRecords`): readable by admin/manager
+  or the owning employee only; the owner may create/update their own, and
+  admins/managers may record or update them on an employee's behalf (call-outs).
+  **Never deletable** — superseded, not removed. There is no approval queue.
 - Manager notes: admin/manager only (employees cannot read private notes).
-- Leave: readable by admin/manager or the owning employee only (confidential
-  reasons are not exposed to coworkers).
+- Daily notes (dashboard feed): any signed-in user may read a **published** note;
+  managers create their own drafts (`published == false`); **only admins may flip
+  `published`** (publish/unpublish); an author or admin may delete.
 - Schedules/shifts: readable by signed-in users; writable by admin/manager;
-  never deletable.
+  never deletable. Coverage requirements are manager-writable planning data.
+- Swap requests: readable by admin/manager or a participant; created by any
+  signed-in user; decisions (updates) are manager-gated.
+- Configuration: readable by any signed-in user. Operational config
+  (positions, tasks, operating hours) is admin/manager-writable; structural
+  reference data (locations, departments, teams, leave types, break policies) is
+  admin-only. None is deletable (archive via `active`).
+- Notifications: readable by the owner (or admin); an owner may only mark their
+  own read; created by trusted server code on publish.
 - Compliance overrides: admin/manager only.
 - Audit events: readable by admin/auditor; **client writes forbidden** (written
   only by trusted server code).
@@ -53,10 +70,12 @@ pure `actions.*` functions are the shared implementation.
 `npm run test:rules` currently asserts the rules source enforces the key
 invariants. Full behavioral emulator tests (via `@firebase/rules-unit-testing`
 against `firebase emulators:exec`) should prove that an EMPLOYEE cannot: promote
-themselves, read private manager notes, read others' confidential leave, modify
-published schedules, assign themselves unqualified work, override compliance, or
-access unauthorized departments. These require the Firebase CLI in the
-environment; the rule structure above already encodes each invariant.
+themselves, read private manager notes, read others' confidential exceptions,
+publish/unpublish a daily note, modify published schedules, assign themselves
+unqualified work, override compliance, or access unauthorized departments. These
+require the Firebase CLI in the environment; the rule structure above already
+encodes each invariant, and `tests/firestore-rules.test.ts` asserts the
+source-level invariants in the meantime.
 
 ## Other requirements
 
