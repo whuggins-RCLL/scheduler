@@ -11,7 +11,7 @@ import { ThemeControls } from "./ThemeControls";
 const employeeLinks: [string, string][] = [
   ["/dashboard", "Dashboard"],
   ["/schedule", "Schedule"],
-  ["/availability", "Availability & Time Off"],
+  ["/availability", "Availability & Exceptions"],
   ["/swaps", "Swaps"],
   ["/tasks", "Tasks"],
   ["/calendar", "Calendar"],

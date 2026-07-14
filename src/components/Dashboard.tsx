@@ -35,7 +35,7 @@ function EmployeeDashboard() {
   const loc = (id: string) => db.locations.find((l) => l.id === id);
   const notifications = db.notifications.filter((n) => n.userId === currentUser.id);
   const pendingSwaps = db.swaps.filter((s) => s.toEmployeeId === currentUser.id && s.status === "manager_review");
-  const myLeave = db.leave.filter((l) => l.employeeId === currentUser.id && l.status !== "cancelled");
+  const myExceptions = db.leave.filter((l) => l.employeeId === currentUser.id && l.leaveTypeId === "lt-unavailable" && l.status !== "cancelled");
 
   return (
     <div className="stack">
@@ -93,11 +93,11 @@ function EmployeeDashboard() {
         </div>
 
         <aside className="stack">
-          <DashCard title="Availability & Time Off" href="/availability" badge={profile ? { cls: "ok", text: "Current" } : { cls: "warn", text: "Not set" }}>
-            Keep your recurring availability current and request vacation or exceptions — all in one place.
+          <DashCard title="Availability & Exceptions" href="/availability" badge={profile ? { cls: "ok", text: "Current" } : { cls: "warn", text: "Not set" }}>
+            Keep your recurring availability current and note unavailable exceptions — all in one place.
           </DashCard>
-          <DashCard title="My time off" href="/availability" badge={{ cls: myLeave.length ? "info" : "", text: `${myLeave.length} on file` }}>
-            {myLeave.filter((l) => l.status === "requested").length} awaiting a decision.
+          <DashCard title="My exceptions" href="/availability" badge={{ cls: myExceptions.length ? "info" : "", text: `${myExceptions.length} on file` }}>
+            {myExceptions.length} saved for scheduling.
           </DashCard>
           <DashCard title="Swaps" href="/swaps" badge={{ cls: pendingSwaps.length ? "warn" : "", text: `${pendingSwaps.length} to review` }}>
             Offer a shift or pick up an open one from the marketplace.
