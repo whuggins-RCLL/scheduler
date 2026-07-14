@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>Admin: tasks</h1><p className="muted">Configuration screen shell with disconnected, empty, and setup states documented for Phase 1.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { TasksAdmin } from "@/components/admin/TasksAdmin";
+
+export const metadata = { title: "Tasks" };
+
+export default function Page() {
+  return (
+    <AppShell>
+      <TasksAdmin />
+    </AppShell>
+  );
+}

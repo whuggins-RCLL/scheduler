@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>settings</h1><p className="muted">Accessible workflow shell for settings; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { SettingsView } from "@/components/SettingsView";
+
+export const metadata = { title: "Settings" };
+
+export default function SettingsPage() {
+  return (
+    <AppShell>
+      <SettingsView />
+    </AppShell>
+  );
+}

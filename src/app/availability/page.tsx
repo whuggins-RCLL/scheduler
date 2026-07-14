@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>availability</h1><p className="muted">Accessible workflow shell for availability; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { AvailabilityEditor } from "@/components/AvailabilityEditor";
+
+export const metadata = { title: "Availability" };
+
+export default function AvailabilityPage() {
+  return (
+    <AppShell>
+      <AvailabilityEditor />
+    </AppShell>
+  );
+}

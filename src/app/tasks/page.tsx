@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>tasks</h1><p className="muted">Accessible workflow shell for tasks; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { TasksView } from "@/components/TasksView";
+
+export const metadata = { title: "Tasks" };
+
+export default function TasksPage() {
+  return (
+    <AppShell>
+      <TasksView />
+    </AppShell>
+  );
+}

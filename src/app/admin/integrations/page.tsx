@@ -1,11 +1,12 @@
 import { AppShell } from "@/components/AppShell";
-import { LibCalHoursPanel } from "@/components/integrations/LibCalHoursPanel";
+import { IntegrationsAdmin } from "@/components/admin/IntegrationsAdmin";
+
+export const metadata = { title: "Integrations" };
 
 export default function Page() {
   return (
     <AppShell>
-      <h1>Admin: integrations</h1>
-      <LibCalHoursPanel />
+      <IntegrationsAdmin />
     </AppShell>
   );
 }

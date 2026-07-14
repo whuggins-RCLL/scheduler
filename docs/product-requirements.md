@@ -1,26 +1,69 @@
-# Cardinal Shift product requirements
+# Cardinal Shift — Product Requirements
 
-## Repository audit
+## Mission
 
-- Repository began as an empty Git worktree with only `.gitkeep`.
-- Framework selected: Next.js App Router with React and strict TypeScript.
-- Package versions are resolved from `package.json` using current npm ranges for Next.js, React, Firebase, Firebase Admin, Zod, Vitest, and Firebase rules testing.
-- Current routes include `/login`, `/pending`, `/dashboard`, `/schedule` variants, employee workflow shells, and `/admin` sections required for Phase 1.
-- Authentication state: Firebase client Google Sign-In is implemented; server-side custom claims and account approval are represented in rules, middleware, and seed script but require a Firebase project.
-- Firebase configuration: client env vars are documented in `.env.example`; Firestore rules, indexes, hosting, and emulator config are present.
-- Existing env vars: none were present before this implementation; required variables are listed in `.env.example`.
-- Testing setup: Vitest unit tests and source-level Firestore rules checks are included; full emulator tests require Firebase CLI/project setup.
-- Deployment setup: Firebase Hosting framework config is documented in `firebase.json`.
-- Design system: CSS design tokens define Cardinal-inspired light/dark themes, semantic statuses, focus, reduced motion, and reduced transparency.
+A production-quality, responsive workforce scheduling and operations platform
+for an academic law library, combining workforce scheduling, service-point
+coverage, task assignment, availability, leave, California meal/rest compliance,
+shift swaps and open-shift pickup, AI-assisted (but human-reviewed, deterministic)
+schedule generation, manager notes, Google Workspace and LibCal integration,
+fairness analytics, role-based administration, and a complete audit history.
 
-## Phase 1 scope
+The experience aims to feel premium, calm, trustworthy, and exceptionally easy
+to understand. Cardinal Shift is an original system inspired by — not a clone of
+— existing scheduling tools, and is not represented as an official Stanford
+product.
 
-This document is part of the first deliverable: secure foundation, planning, Firebase auth shell, route protection, administrator seed path, admin/user shells, employee dashboard shell, security rules, and accessible schedule grid prototype.
+## Personas & roles
 
-## Later phases
+- **Super admin** — full system + configuration + integrations + audit.
+- **Manager** — scheduling, publication, leave decisions, notes, compliance
+  review, fairness reports, within assigned scope.
+- **Scheduler** — build/generate/repair schedules within departments.
+- **Employee** — availability, leave, view schedules, swaps, open-shift pickup,
+  tasks, calendar connection, notification preferences.
+- **Viewer/Auditor** — read-only access to permitted schedules/reports/audit.
 
-Phase 2 core scheduling; Phase 3 compliance and swaps; Phase 4 integrations; Phase 5 deterministic scheduling and AI-assisted interpretation.
+Roles support scope by location, department, team, employment group, and
+reporting relationship; a person may hold several.
 
-## Product requirements
+## Core capabilities (status in this build)
 
-Cardinal Shift supports academic law library workforce scheduling, service-point coverage, operational tasks, availability, leave, swaps, compliance assistance, fairness analytics, integrations, and audit history. External integrations must use typed adapters with mock providers until credentials are supplied.
+| Capability | Status |
+|---|---|
+| Domain-restricted Google auth + invitation + pending approval | Auth + logic built; live OAuth needs credentials |
+| Bootstrap admins seeded idempotently | Built (`scripts/seed.ts`, `config.ts`) |
+| RBAC with scope | Built (`domain/scope.ts`) |
+| Locations, operating hours, positions, tasks, qualifications | Modeled + seeded + admin views |
+| Availability editor (no-drag, keyboard) | Built |
+| Leave request + manager approval + on-behalf entry | Built |
+| Schedule editor (board + list), draft/publish, versions, locks | Built |
+| California meal/rest compliance engine + overrides | Built + tested |
+| Fairness analytics (multi-dimensional + Gini) | Built + tested |
+| Shift swaps (auto-approve vs manager review) + open shifts | Built + tested |
+| Deterministic AI-assisted generation + explanations | Built + tested |
+| Manager notes → structured rules (rule-based interpreter) | Built + tested |
+| Notifications (in-app) | Built (in-app); email/calendar planned |
+| Audit trail (append-only) | Built |
+| Admin portal (users, positions, tasks, compliance, integrations, audit, …) | Built |
+| Google Calendar / LibCal integration | Adapters + mocks + admin screens |
+| CSV/ICS export & import | Fairness CSV live; ICS/import adapters defined |
+
+## Non-negotiables honored
+
+- Server-side domain validation and authorization (browser never trusted).
+- Archive/cancel, never delete historical records.
+- Compliance rules are versioned, configurable data — not scattered in UI.
+- Fairness normalizes by availability & %FTE and is never a bare number.
+- AI never authorizes, changes roles, approves overrides, or publishes;
+  managers review before publication; AI can be disabled.
+- No secrets committed; adapters + mocks + graceful states for un-credentialed
+  integrations.
+- Accessibility: WCAG 2.2 AA targets, keyboard-first, color never the only
+  signal, list/table alternatives to grids.
+
+## Out of scope for now
+
+Emergency-contact collection, SMS notifications, partial-shift-split swaps,
+and two-way calendar sync are deferred to later phases (see
+`implementation-plan.md`).

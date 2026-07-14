@@ -1,1 +1,12 @@
-import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>swaps</h1><p className="muted">Accessible workflow shell for swaps; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}
+import { AppShell } from "@/components/AppShell";
+import { SwapsView } from "@/components/SwapsView";
+
+export const metadata = { title: "Swaps" };
+
+export default function SwapsPage() {
+  return (
+    <AppShell>
+      <SwapsView />
+    </AppShell>
+  );
+}
