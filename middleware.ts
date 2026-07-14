@@ -1,0 +1,4 @@
+import { NextRequest, NextResponse } from "next/server";
+const protectedPrefixes=["/dashboard","/schedule","/availability","/leave","/swaps","/tasks","/team","/reports","/settings","/admin"];
+export function middleware(req:NextRequest){const path=req.nextUrl.pathname; if(!protectedPrefixes.some(p=>path.startsWith(p))) return NextResponse.next(); const state=req.cookies.get('cs_account_state')?.value; const roles=(req.cookies.get('cs_roles')?.value??'').split(','); if(!state) return NextResponse.redirect(new URL('/login',req.url)); if(state==='pending_approval') return NextResponse.redirect(new URL('/pending',req.url)); if(path.startsWith('/admin') && !roles.includes('SUPER_ADMIN') && !roles.includes('MANAGER')) return NextResponse.redirect(new URL('/dashboard',req.url)); return NextResponse.next();}
+export const config={matcher:["/((?!_next/static|_next/image|favicon.ico).*)"]};

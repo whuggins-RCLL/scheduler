@@ -1,0 +1,5 @@
+import { initializeApp, cert } from "firebase-admin/app";import { getFirestore, FieldValue } from "firebase-admin/firestore";import { getAuth } from "firebase-admin/auth";import { BOOTSTRAP_ADMINS, ORGANIZATION_ID } from "../src/lib/config";
+initializeApp(process.env.GOOGLE_APPLICATION_CREDENTIALS?{credential:cert(process.env.GOOGLE_APPLICATION_CREDENTIALS)}:undefined);
+const db=getFirestore();
+async function main(){for(const admin of BOOTSTRAP_ADMINS){const user=await getAuth().getUserByEmail(admin.email).catch(()=>getAuth().createUser({email:admin.email,displayName:admin.name,emailVerified:true}));await getAuth().setCustomUserClaims(user.uid,{roles:["SUPER_ADMIN"],orgId:ORGANIZATION_ID});await db.doc(`organizations/${ORGANIZATION_ID}/users/${user.uid}`).set({email:admin.email,displayName:admin.name,state:"active",roles:["SUPER_ADMIN"],updatedAt:FieldValue.serverTimestamp()}, {merge:true});} console.log(`Seeded ${BOOTSTRAP_ADMINS.length} bootstrap administrators.`)}
+main().catch((e)=>{console.error(e);process.exit(1)});

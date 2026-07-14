@@ -1,0 +1,1 @@
+import { AppShell } from "@/components/AppShell";export default function Page(){return <AppShell><section className="card"><h1>schedule/week</h1><p className="muted">Accessible workflow shell for schedule/week; Firebase-backed actions are planned in the next phase.</p></section></AppShell>}

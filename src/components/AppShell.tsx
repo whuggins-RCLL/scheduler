@@ -1,0 +1,3 @@
+import Link from "next/link";import { PRODUCT_NAME } from "@/lib/config";
+const links=[['/dashboard','Dashboard'],['/schedule','Schedule'],['/availability','Availability'],['/leave','Leave'],['/swaps','Swaps'],['/tasks','Tasks'],['/team','Team'],['/reports','Reports'],['/settings','Settings'],['/admin','Admin']];
+export function AppShell({children}:{children:React.ReactNode}){return <div className="shell"><header className="topbar"><Link className="brand" href="/dashboard">{PRODUCT_NAME}</Link><nav className="nav" aria-label="Primary">{links.map(([href,label])=><Link key={href} href={href}>{label}</Link>)}</nav></header><main id="main">{children}</main></div>}
