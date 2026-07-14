@@ -22,10 +22,14 @@ Firebase. The product name lives in one constant (`src/lib/config.ts`).
   activates once Firebase is configured; until then, sign in as an existing
   account. No example/staff users are shipped — only the five real
   administrators plus configuration.
-- **Availability & Time Off (one place)** — the keyboard, no-drag availability
-  editor and employee time-off/exception requests live together on one page.
-  **Sick leave is manager-only**; managers record it (and any leave) on an
-  employee's behalf from the Leave approvals screen. All entries are audited.
+- **Availability & Time Off (one place)** — on one page: the keyboard, no-drag
+  recurring availability grid; an **Exceptions** section where employees flag
+  specific dates/hours they're *unavailable* (generic reason, all-day or hourly,
+  recorded immediately — not a request — to alert the scheduler and manager to
+  one-off deviations from the grid); and a **time-off request** section for
+  vacation/PTO that routes to manager approval. **Sick leave is manager-only**;
+  managers record it (and any leave) on an employee's behalf from Leave
+  approvals. All entries are audited.
 - **Positions & Tasks are admin-managed** — created, edited, and archived from
   the admin portal (not hard-coded).
 - **Schedule workspace** (board + list, draft/publish, locks), **dashboards**,
