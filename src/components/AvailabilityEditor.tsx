@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
+import { canManage } from "@/domain/scope";
 import { WEEKDAY_LABELS, formatTime } from "@/domain/time";
 import type { AvailabilityKind, AvailabilityBlock, AvailabilityPattern } from "@/domain/types";
 
@@ -46,9 +47,12 @@ function cellsToBlocks(cell: Cell): AvailabilityBlock[] {
 
 export function AvailabilityEditor() {
   const { db, currentUser, saveAvailability } = useStore();
+  const manager = canManage(currentUser);
+  const [targetEmployeeId, setTargetEmployeeId] = useState(currentUser.id);
+  const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId);
   const existing = useMemo(
-    () => db.availability.find((p) => p.employeeId === currentUser.id),
-    [db.availability, currentUser.id],
+    () => db.availability.find((p) => p.employeeId === targetEmployeeId),
+    [db.availability, targetEmployeeId],
   );
   const [cells, setCells] = useState<Cell>(() => blocksToCells(existing?.blocks ?? []));
   const [note, setNote] = useState(existing?.note ?? "");
@@ -62,7 +66,7 @@ export function AvailabilityEditor() {
     setSaved(false);
     // Resync only when the active employee changes (e.g. demo user switch).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id]);
+  }, [targetEmployeeId]);
 
   function cycle(day: number, hour: number) {
     const key = `${day}-${hour}`;
@@ -85,8 +89,8 @@ export function AvailabilityEditor() {
 
   function save() {
     const pattern: AvailabilityPattern = {
-      id: existing?.id ?? `avail-${currentUser.id}`,
-      employeeId: currentUser.id,
+      id: existing?.id ?? `avail-${targetEmployeeId}`,
+      employeeId: targetEmployeeId,
       label: existing?.label ?? "Current term",
       blocks: cellsToBlocks(cells),
       note,
@@ -100,12 +104,25 @@ export function AvailabilityEditor() {
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>My availability</h1>
+        <h1>{targetEmployeeId === currentUser.id ? "My availability" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} availability`}</h1>
         <p className="muted">
           Click a cell to cycle Unavailable → Available → Preferred. Every action is keyboard-operable —
           no dragging required. Managers schedule around these windows.
         </p>
       </div>
+
+      {manager && (
+        <section className="card" aria-labelledby="employee-availability-picker">
+          <h2 id="employee-availability-picker">Edit employee availability</h2>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>Admins and managers can open an employee's availability and enter recurring changes or exceptions directly.</p>
+          <div className="field" style={{ maxWidth: 420 }}>
+            <label htmlFor="availability-employee">Employee</label>
+            <select id="availability-employee" value={targetEmployeeId} onChange={(e) => setTargetEmployeeId(e.target.value)}>
+              {db.employees.filter((e) => e.active).map((e) => <option key={e.id} value={e.id}>{e.preferredName ?? e.legalName}</option>)}
+            </select>
+          </div>
+        </section>
+      )}
 
       <div className="card">
         <div className="row" style={{ marginBottom: "0.75rem" }}>
@@ -155,7 +172,7 @@ export function AvailabilityEditor() {
         </div>
 
         <div className="row">
-          <button className="button primary" onClick={save}>Save availability</button>
+          <button className="button primary" onClick={save}>Save {targetEmployeeId === currentUser.id ? "availability" : "employee availability"}</button>
           {saved && <span role="status" className="badge ok">Saved</span>}
         </div>
       </div>

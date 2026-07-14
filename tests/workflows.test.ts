@@ -3,7 +3,6 @@ import { buildFixture as buildSeed, SEED_WEEK_START } from "./fixtures";
 import {
   cancelShift,
   computeCompliance,
-  decideLeave,
   overrideCompliance,
   publishSchedule,
   requestSwap,
@@ -28,7 +27,7 @@ describe("end-to-end workflows on the data store", () => {
     expect(next.audit[0].actorId).toBe("emp-maya");
   });
 
-  it("submits leave requiring approval and a manager approves it", () => {
+  it("records submitted leave immediately without approval", () => {
     const db = buildSeed();
     const record: LeaveRecord = {
       id: "leave-new", employeeId: "emp-sam", leaveTypeId: "lt-vacation",
@@ -36,10 +35,8 @@ describe("end-to-end workflows on the data store", () => {
       partialDay: false, status: "requested", enteredBy: "emp-sam", createdAt: "", updatedAt: "",
     };
     const submitted = submitLeave(db, record, "emp-sam", NOW);
-    expect(submitted.leave.find((l) => l.id === "leave-new")?.status).toBe("requested");
-    const approved = decideLeave(submitted, "leave-new", "approved", "admin-whuggins", NOW);
-    expect(approved.leave.find((l) => l.id === "leave-new")?.status).toBe("approved");
-    expect(approved.audit[0].action).toBe("leave.approved");
+    expect(submitted.leave.find((l) => l.id === "leave-new")?.status).toBe("recorded");
+    expect(submitted.audit[0].action).toBe("leave.submit");
   });
 
   it("generates a draft schedule, preserving the locked seed shift", () => {

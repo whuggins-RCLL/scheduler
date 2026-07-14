@@ -8,13 +8,10 @@ import { humanDate } from "@/lib/ui";
 import type { LeaveRecord } from "@/domain/types";
 
 /**
- * Manager leave console: approve/deny pending requests and record leave —
- * including manager-only types such as Sick — on an employee's behalf. Every
- * manager-entered change is attributed in the audit log. Employees manage
- * their own unavailable exceptions on the Availability page.
+ * Manager leave console for viewing recorded leave. Approval queues are intentionally removed; managers enter employee unavailable exceptions from the Availability page.
  */
 export function LeaveView() {
-  const { db, currentUser, submitLeave, decideLeave } = useStore();
+  const { db, currentUser, submitLeave } = useStore();
   const manager = canManage(currentUser);
 
   const [employeeId, setEmployeeId] = useState("");
@@ -28,7 +25,7 @@ export function LeaveView() {
   const empName = (id: string) => db.employees.find((e) => e.id === id)?.preferredName ?? db.employees.find((e) => e.id === id)?.legalName ?? id;
   const typeName = (id: string) => db.leaveTypes.find((t) => t.id === id)?.name ?? id;
   const staff = db.employees.filter((e) => e.active && e.id !== currentUser.id);
-  const pending = db.leave.filter((l) => l.status === "requested");
+  const recordedLeave = db.leave.filter((l) => l.status !== "cancelled").sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   if (!manager) {
     const mine = db.leave.filter((l) => l.employeeId === currentUser.id);
@@ -90,34 +87,34 @@ export function LeaveView() {
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>Leave approvals</h1>
-        <p className="muted">Approve requests and record leave (including sick) on an employee&apos;s behalf. All entries are audited.</p>
+        <h1>Leave records</h1>
+        <p className="muted">Leave is recorded directly. Availability exceptions are entered on the employee&apos;s Availability &amp; Exceptions page; no approval queue is required.</p>
       </div>
 
       <section className="card">
-        <h2>Pending approvals ({pending.length})</h2>
-        {pending.length === 0 ? (
-          <p className="muted">No requests awaiting a decision.</p>
+        <div className="spread">
+          <div>
+            <h2>Recorded leave</h2>
+            <p className="muted">All submitted leave is recorded immediately for scheduling visibility.</p>
+          </div>
+          <Link href="/availability" className="button sm primary">Enter availability exception</Link>
+        </div>
+        {recordedLeave.length === 0 ? (
+          <p className="muted">No leave records on file.</p>
         ) : (
           <div className="table-wrap">
             <table className="data">
-              <caption className="muted" style={{ padding: "0.5rem", textAlign: "left" }}>Leave requests awaiting a manager decision.</caption>
               <thead>
-                <tr><th scope="col">Employee</th><th scope="col">Type</th><th scope="col">Dates</th><th scope="col">Note</th><th scope="col">Action</th></tr>
+                <tr><th scope="col">Employee</th><th scope="col">Type</th><th scope="col">Dates</th><th scope="col">Note</th><th scope="col">Status</th></tr>
               </thead>
               <tbody>
-                {pending.map((l) => (
+                {recordedLeave.map((l) => (
                   <tr key={l.id}>
                     <td>{empName(l.employeeId)}</td>
                     <td>{typeName(l.leaveTypeId)}</td>
                     <td>{humanDate(l.startDate)}{l.endDate !== l.startDate ? `–${humanDate(l.endDate)}` : ""}</td>
                     <td className="muted">{l.note ?? "—"}</td>
-                    <td>
-                      <div className="row">
-                        <button className="button sm primary" onClick={() => decideLeave(l.id, "approved")}>Approve</button>
-                        <button className="button sm" onClick={() => decideLeave(l.id, "denied")}>Deny</button>
-                      </div>
-                    </td>
+                    <td><span className="badge ok">{l.status}</span></td>
                   </tr>
                 ))}
               </tbody>

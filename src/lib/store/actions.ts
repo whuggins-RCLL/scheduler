@@ -166,9 +166,7 @@ export function saveAvailability(
 
 export function submitLeave(db: Database, record: LeaveRecord, actorId: string, now: string): Database {
   const next = clone(db);
-  const type = next.leaveTypes.find((t) => t.id === record.leaveTypeId);
-  const status: LeaveRecord["status"] = type?.approvalRequired ? "requested" : "recorded";
-  const rec = { ...record, status, enteredBy: actorId, createdAt: now, updatedAt: now };
+  const rec = { ...record, status: "recorded" as const, enteredBy: actorId, createdAt: now, updatedAt: now };
   next.leave.push(rec);
   audit(next, actorId, "leave.submit", "leave", rec.id, { after: rec, now });
   return next;

@@ -139,7 +139,7 @@ function ManagerDashboard() {
   const findings = schedule ? store.compliance(schedule.id) : [];
   const hard = findings.filter((f) => f.severity === "hard");
   const overrideable = findings.filter((f) => f.severity === "overrideable" || f.severity === "warning");
-  const pendingLeave = db.leave.filter((l) => l.status === "requested");
+  const recordedExceptions = db.leave.filter((l) => l.leaveTypeId === "lt-unavailable" && l.status !== "cancelled");
   const swapReview = db.swaps.filter((s) => s.status === "manager_review");
   const openShifts = db.shifts.filter((s) => !s.employeeId && s.status !== "cancelled");
   const notesToday = db.notes.filter(
@@ -158,7 +158,7 @@ function ManagerDashboard() {
       <div className="grid">
         <StatCard value={todayShifts.length} label="Shifts today" href="/schedule/day" />
         <StatCard value={hard.length} label="Blocking compliance" href="/admin/compliance" tone={hard.length ? "err" : "ok"} />
-        <StatCard value={pendingLeave.length} label="Leave to approve" href="/leave" tone={pendingLeave.length ? "warn" : ""} />
+        <StatCard value={recordedExceptions.length} label="Availability exceptions" href="/availability" tone={recordedExceptions.length ? "warn" : ""} />
         <StatCard value={swapReview.length} label="Swaps to review" href="/swaps" tone={swapReview.length ? "warn" : ""} />
         <StatCard value={openShifts.length} label="Open / uncovered" href="/schedule" tone={openShifts.length ? "warn" : ""} />
       </div>
