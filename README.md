@@ -22,10 +22,17 @@ Firebase. The product name lives in one constant (`src/lib/config.ts`).
   activates once Firebase is configured; until then, sign in as an existing
   account. No example/staff users are shipped — only the five real
   administrators plus configuration.
-- **Availability & Time Off (one place)** — the keyboard, no-drag availability
-  editor and employee time-off/exception requests live together on one page.
-  **Sick leave is manager-only**; managers record it (and any leave) on an
-  employee's behalf from the Leave approvals screen. All entries are audited.
+- **Availability & Exceptions (one place)** — the keyboard, no-drag availability
+  editor and availability-exception entry live together on one page. The
+  platform tracks only availability exceptions (no paid-leave categories or
+  approval queues): staff mark when they are unavailable, and managers can enter
+  or update an employee's exceptions on their behalf when someone calls out. All
+  entries are audited.
+- **Dashboard** — glass-effect welcome layout with a rolling daily-notes feed
+  (managers post with a visibility window; admins publish/unpublish), embedded
+  operating hours, and a link to Stanford's time-keeping system. Admins can load
+  a sample schedule and "view as" a student or staff member to sample those
+  experiences.
 - **Positions & Tasks are admin-managed** — created, edited, and archived from
   the admin portal (not hard-coded).
 - **Schedule workspace** (board + list, draft/publish, locks), **dashboards**,

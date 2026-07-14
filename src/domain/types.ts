@@ -244,7 +244,7 @@ export interface LeaveType {
   eligibleClassifications: EmploymentClassification[];
   /**
    * Whether an employee may submit this type themselves. When false, only a
-   * manager may record it on the employee's behalf (e.g. Sick leave).
+   * manager may record it on the employee's behalf.
    */
   employeeSelectable: boolean;
   active: boolean;
@@ -491,6 +491,24 @@ export interface AuditEvent {
   source: string;
   scheduleVersion?: number;
   createdAt: ISODateTime;
+}
+
+/**
+ * A short dashboard announcement that rolls in an embedded feed. Managers author
+ * notes and set a visibility window (begin/end date); admins publish/unpublish.
+ * Only published notes within their window appear in the staff-facing feed.
+ */
+export interface DailyNote {
+  id: string;
+  body: string;
+  authorId: string;
+  published: boolean;
+  /** Inclusive visibility window. Empty = always visible while published. */
+  visibleFrom?: ISODate;
+  visibleTo?: ISODate;
+  pinned: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
 }
 
 export interface Invitation {

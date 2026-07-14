@@ -20,7 +20,6 @@ const employeeLinks: [string, string][] = [
 
 const managerLinks: [string, string][] = [
   ["/team", "Team"],
-  ["/leave", "Leave records"],
   ["/reports", "Reports"],
 ];
 
@@ -28,7 +27,6 @@ const adminLinks: [string, string][] = [
   ["/admin", "Overview"],
   ["/admin/preview", "View previews"],
   ["/admin/users", "Users"],
-  ["/admin/invitations", "Invitations"],
   ["/admin/positions", "Positions"],
   ["/admin/tasks", "Tasks"],
   ["/admin/compliance", "Compliance"],
@@ -39,7 +37,7 @@ const adminLinks: [string, string][] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, isAuthenticated, hydrated, signOut } = useStore();
+  const { currentUser, realUser, isAuthenticated, hydrated, signOut, viewAs, setViewAs } = useStore();
 
   useEffect(() => {
     if (hydrated && !isAuthenticated) router.replace("/login");
@@ -54,6 +52,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const manager = canManage(currentUser);
   const admin = isAdmin(currentUser);
+  const realAdmin = isAdmin(realUser);
+  const viewingAs = viewAs !== "self";
 
   const NavGroup = ({ label, links }: { label: string; links: [string, string][] }) => (
     <>
@@ -98,13 +98,38 @@ export function AppShell({ children }: { children: ReactNode }) {
             {primaryRole(currentUser) === "EMPLOYEE" ? "Employee workspace" : "Manager workspace"}
           </strong>
           <div className="row">
+            {realAdmin && (
+              <label className="viewas-select" title="Sample the site as a student or staff member">
+                <span className="muted" style={{ fontSize: "0.78rem" }}>View as</span>
+                <select
+                  value={viewAs}
+                  onChange={(e) => setViewAs(e.target.value as typeof viewAs)}
+                  aria-label="View the site as"
+                >
+                  <option value="self">Admin (me)</option>
+                  <option value="student">Student</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </label>
+            )}
             <ThemeControls />
-            <span className="badge info" aria-label={`Signed in as ${currentUser.displayName}`}>
-              {currentUser.displayName}
+            <span className="badge info" aria-label={`Signed in as ${realUser.displayName}`}>
+              {realUser.displayName}
             </span>
           </div>
         </header>
-        <main id="main">{children}</main>
+        <main id="main">
+          {viewingAs && (
+            <div className="viewas-banner" role="status">
+              <span>
+                👁 You are sampling the <strong>{viewAs === "student" ? "student" : "staff"}</strong> experience
+                {currentUser.displayName ? ` as ${currentUser.displayName}` : ""}.
+              </span>
+              <button className="button sm" onClick={() => setViewAs("self")}>Exit preview</button>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

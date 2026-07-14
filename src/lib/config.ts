@@ -28,6 +28,13 @@ export const DESK_COVERAGE_BUFFER_MINUTES = 120;
  */
 export const GOOGLE_CALENDAR_EMBED_SRC =
   "https://calendar.google.com/calendar/embed?src=law.stanford.edu_uebptk4kikenndgjq8lfdpbvjo%40group.calendar.google.com&ctz=America%2FLos_Angeles";
+
+/**
+ * Stanford time-keeping system (Oracle Identity Cloud sign-in). Surfaced on the
+ * dashboard so staff can jump straight to clocking in/out.
+ */
+export const TIMEKEEPING_URL =
+  "https://idcs-03e6b91957d24ff4b4e573973a0ad407.identity.oraclecloud.com/ui/v1/signin";
 export const BOOTSTRAP_ADMINS = [
   { name: "Will Huggins", email: "whuggins@law.stanford.edu" },
   { name: "Kay Cadena", email: "cadena@law.stanford.edu" },

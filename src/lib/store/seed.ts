@@ -69,16 +69,11 @@ function operatingHours(): OperatingHours[] {
 
 function leaveTypes(): LeaveType[] {
   const c = { eligibleClassifications: [] as EmployeeProfile["classification"][], active: true };
-  // `employeeSelectable: false` means only a manager may record it — Sick leave
-  // per policy. Everything else employees may request themselves.
+  // The platform tracks only availability exceptions — no paid-leave categories.
+  // Staff mark when they are unavailable; managers may record the same on an
+  // employee's behalf when they call out. There is no approval queue and no
+  // leave-balance accounting of any kind.
   return [
-    { ...c, id: "lt-sick", name: "Sick", paid: true, approvalRequired: false, countsAgainstBalance: true, visibility: "manager", blocksScheduling: true, requiresNote: false, employeeSelectable: false },
-    { ...c, id: "lt-vacation", name: "Vacation", paid: true, approvalRequired: true, countsAgainstBalance: true, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
-    { ...c, id: "lt-pto", name: "PTO", paid: true, approvalRequired: true, countsAgainstBalance: true, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
-    { ...c, id: "lt-rdo", name: "Regular day off", paid: false, approvalRequired: false, countsAgainstBalance: false, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
-    { ...c, id: "lt-floating", name: "Floating holiday", paid: true, approvalRequired: true, countsAgainstBalance: true, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
-    { ...c, id: "lt-holiday", name: "Holiday", paid: true, approvalRequired: false, countsAgainstBalance: false, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
-    { ...c, id: "lt-appointment", name: "Appointment", paid: false, approvalRequired: false, countsAgainstBalance: false, visibility: "manager", blocksScheduling: false, requiresNote: false, employeeSelectable: true },
     { ...c, id: "lt-unavailable", name: "Unavailable", paid: false, approvalRequired: false, countsAgainstBalance: false, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
   ];
 }
