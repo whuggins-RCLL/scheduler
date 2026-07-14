@@ -2,6 +2,7 @@ import type {
   AvailabilityPattern,
   ComplianceFinding,
   ComplianceOverride,
+  DailyNote,
   FairnessSnapshot,
   LeaveRecord,
   Position,
@@ -9,6 +10,7 @@ import type {
   SwapRequest,
   Task,
 } from "@/domain/types";
+import { applySampleData, mondayOf } from "./sample";
 import {
   computeFairness,
   evaluateSwap,
@@ -172,22 +174,60 @@ export function submitLeave(db: Database, record: LeaveRecord, actorId: string, 
   return next;
 }
 
-export function decideLeave(
-  db: Database,
-  leaveId: string,
-  status: "approved" | "denied" | "cancelled",
-  actorId: string,
-  now: string,
-  reason?: string,
-): Database {
+export function cancelLeave(db: Database, leaveId: string, actorId: string, now: string): Database {
   const next = clone(db);
   const rec = next.leave.find((l) => l.id === leaveId);
   if (!rec) return db;
   const before = { ...rec };
-  rec.status = status;
-  rec.decidedBy = actorId;
+  rec.status = "cancelled";
   rec.updatedAt = now;
-  audit(next, actorId, `leave.${status}`, "leave", leaveId, { before, after: { ...rec }, reason, now });
+  audit(next, actorId, "leave.cancel", "leave", leaveId, { before, after: { ...rec }, now });
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Daily notes (dashboard feed)
+// ---------------------------------------------------------------------------
+
+export function upsertDailyNote(db: Database, note: DailyNote, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.dailyNotes.findIndex((n) => n.id === note.id);
+  const before = idx >= 0 ? next.dailyNotes[idx] : undefined;
+  const updated = { ...note, updatedAt: now, createdAt: before?.createdAt ?? now };
+  if (idx >= 0) next.dailyNotes[idx] = updated;
+  else next.dailyNotes.unshift(updated);
+  audit(next, actorId, idx >= 0 ? "dailyNote.update" : "dailyNote.create", "dailyNote", note.id, { before, after: updated, now });
+  return next;
+}
+
+export function setDailyNotePublished(db: Database, noteId: string, published: boolean, actorId: string, now: string): Database {
+  const next = clone(db);
+  const n = next.dailyNotes.find((x) => x.id === noteId);
+  if (!n) return db;
+  n.published = published;
+  n.updatedAt = now;
+  audit(next, actorId, published ? "dailyNote.publish" : "dailyNote.unpublish", "dailyNote", noteId, { after: { published }, now });
+  return next;
+}
+
+export function deleteDailyNote(db: Database, noteId: string, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.dailyNotes.findIndex((x) => x.id === noteId);
+  if (idx < 0) return db;
+  const [removed] = next.dailyNotes.splice(idx, 1);
+  audit(next, actorId, "dailyNote.delete", "dailyNote", noteId, { before: removed, now });
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Sample data (admin demo)
+// ---------------------------------------------------------------------------
+
+export function loadSampleData(db: Database, actorId: string, now: string): Database {
+  const weekStart = mondayOf(now.slice(0, 10));
+  const next = applySampleData(db, weekStart, now);
+  if (next === db) return db; // already loaded
+  audit(next, actorId, "sample.load", "database", "sample", { now });
   return next;
 }
 

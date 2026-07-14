@@ -3,18 +3,74 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
-import { canManage } from "@/domain/scope";
-import { hoursLabel, humanDate, timeRange } from "@/lib/ui";
+import { canManage, isAdmin } from "@/domain/scope";
+import { humanDate, timeRange } from "@/lib/ui";
+import { TIMEKEEPING_URL } from "@/lib/config";
+import { DailyNotesFeed } from "./DailyNotesFeed";
+import { OperatingHoursCard } from "./OperatingHoursCard";
 import type { Shift } from "@/domain/types";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function longDate(): string {
+  return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+}
+
 export function Dashboard() {
-  const store = useStore();
-  const { db, currentUser } = store;
+  const { currentUser } = useStore();
   return canManage(currentUser) ? <ManagerDashboard /> : <EmployeeDashboard />;
+}
+
+/** Shared right-rail: rolling notes, hours, and quick links. */
+function SideRail({ children }: { children?: React.ReactNode }) {
+  return (
+    <aside className="stack">
+      <DailyNotesFeed />
+      <OperatingHoursCard />
+      <QuickLinks />
+      {children}
+    </aside>
+  );
+}
+
+function QuickLinks() {
+  const tiles: { href: string; icon: string; title: string; hint: string; external?: boolean }[] = [
+    { href: TIMEKEEPING_URL, icon: "🕐", title: "Time-keeping", hint: "Stanford Oracle sign-in", external: true },
+    { href: "/schedule", icon: "🗓️", title: "Schedule", hint: "View the full schedule" },
+    { href: "/availability", icon: "✅", title: "Availability", hint: "Update exceptions" },
+    { href: "/swaps", icon: "🔄", title: "Swaps", hint: "Offer or pick up shifts" },
+  ];
+  return (
+    <section className="card glass" aria-labelledby="quick-links">
+      <h2 id="quick-links">Quick links</h2>
+      <div className="link-tiles">
+        {tiles.map((t) =>
+          t.external ? (
+            <a key={t.title} className="link-tile glass-strong" href={t.href} target="_blank" rel="noopener noreferrer">
+              <span className="tile-icon" aria-hidden>{t.icon}</span>
+              <strong>{t.title} ↗</strong>
+              <span>{t.hint}</span>
+            </a>
+          ) : (
+            <Link key={t.title} className="link-tile glass-strong" href={t.href}>
+              <span className="tile-icon" aria-hidden>{t.icon}</span>
+              <strong>{t.title}</strong>
+              <span>{t.hint}</span>
+            </Link>
+          ),
+        )}
+      </div>
+    </section>
+  );
 }
 
 function EmployeeDashboard() {
@@ -34,23 +90,27 @@ function EmployeeDashboard() {
   const pos = (id: string) => db.positions.find((p) => p.id === id);
   const loc = (id: string) => db.locations.find((l) => l.id === id);
   const notifications = db.notifications.filter((n) => n.userId === currentUser.id);
-  const pendingSwaps = db.swaps.filter((s) => s.toEmployeeId === currentUser.id && s.status === "manager_review");
-  const myExceptions = db.leave.filter((l) => l.employeeId === currentUser.id && l.leaveTypeId === "lt-unavailable" && l.status !== "cancelled");
+  const myExceptions = db.leave.filter((l) => l.employeeId === currentUser.id && l.status !== "cancelled");
 
   return (
     <div className="stack">
-      <div className="page-head">
-        <h1>Welcome, {profile?.preferredName ?? currentUser.displayName}</h1>
-        <p className="muted">Your schedule, tasks, and requests at a glance.</p>
-      </div>
+      <section className="dash-hero">
+        <div className="eyebrow">{longDate()}</div>
+        <h1>{greeting()}, {profile?.preferredName ?? currentUser.displayName}</h1>
+        <p className="muted" style={{ margin: 0 }}>Your schedule, exceptions, and team updates at a glance.</p>
+        <div className="hero-actions">
+          <Link href="/schedule" className="button primary glass-button">View my schedule</Link>
+          <Link href="/availability" className="button glass-button">Availability &amp; exceptions</Link>
+        </div>
+      </section>
 
-      <div className="grid-hero">
+      <div className="dash-columns">
         <div className="stack">
-          <section className="card pad-lg" aria-labelledby="next-shift">
+          <section className="card glass pad-lg" aria-labelledby="next-shift">
             <h2 id="next-shift">Your next shift</h2>
             {next ? (
               <div>
-                <p className="metric" style={{ fontSize: "1.4rem" }}>
+                <p className="metric" style={{ fontSize: "1.5rem" }}>
                   {humanDate(next.date)} · {timeRange(next.start, next.end)}
                 </p>
                 <p className="muted" style={{ marginBottom: "0.75rem" }}>
@@ -74,8 +134,8 @@ function EmployeeDashboard() {
             )}
           </section>
 
-          <section className="card" aria-labelledby="week-glance">
-            <h2 id="week-glance">This week</h2>
+          <section className="card glass" aria-labelledby="week-glance">
+            <h2 id="week-glance">Upcoming shifts</h2>
             {upcoming.length === 0 ? (
               <p className="muted">Nothing scheduled yet.</p>
             ) : (
@@ -88,28 +148,23 @@ function EmployeeDashboard() {
                 ))}
               </ul>
             )}
-            <Link href="/schedule" className="button sm mt">View full schedule</Link>
+            <Link href="/schedule" className="button sm glass-button mt">View full schedule</Link>
+          </section>
+
+          <section className="card glass" aria-labelledby="my-exceptions">
+            <div className="spread">
+              <h2 id="my-exceptions" style={{ margin: 0 }}>My availability exceptions</h2>
+              <span className={`badge ${myExceptions.length ? "info" : ""}`}>{myExceptions.length} on file</span>
+            </div>
+            <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.88rem" }}>
+              Flag dates or hours you are unavailable so scheduling works around them.
+            </p>
+            <Link href="/availability" className="button sm glass-button mt">Manage exceptions</Link>
           </section>
         </div>
 
-        <aside className="stack">
-          <DashCard title="Availability & Exceptions" href="/availability" badge={profile ? { cls: "ok", text: "Current" } : { cls: "warn", text: "Not set" }}>
-            Keep your recurring availability current and note unavailable exceptions — all in one place.
-          </DashCard>
-          <DashCard title="My exceptions" href="/availability" badge={{ cls: myExceptions.length ? "info" : "", text: `${myExceptions.length} on file` }}>
-            {myExceptions.length} saved for scheduling.
-          </DashCard>
-          <DashCard title="Swaps" href="/swaps" badge={{ cls: pendingSwaps.length ? "warn" : "", text: `${pendingSwaps.length} to review` }}>
-            Offer a shift or pick up an open one from the marketplace.
-          </DashCard>
-          <DashCard
-            title="Google Calendar"
-            href="/settings"
-            badge={{ cls: profile?.googleCalendarConnected ? "ok" : "", text: profile?.googleCalendarConnected ? "Connected" : "Disconnected" }}
-          >
-            Sync your published shifts to your personal calendar.
-          </DashCard>
-          <section className="card" aria-labelledby="notifs">
+        <SideRail>
+          <section className="card glass" aria-labelledby="notifs">
             <h2 id="notifs">Notifications</h2>
             {notifications.length === 0 ? (
               <p className="muted">You&apos;re all caught up.</p>
@@ -124,7 +179,7 @@ function EmployeeDashboard() {
               </ul>
             )}
           </section>
-        </aside>
+        </SideRail>
       </div>
     </div>
   );
@@ -132,9 +187,11 @@ function EmployeeDashboard() {
 
 function ManagerDashboard() {
   const store = useStore();
-  const { db } = store;
+  const { db, currentUser, loadSampleData } = store;
   const today = todayISO();
+  const admin = isAdmin(currentUser);
   const schedule = db.schedules[0];
+  const sampleLoaded = db.employees.some((e) => e.id === "emp-sample-riley");
   const todayShifts = db.shifts.filter((s) => s.date === today && s.status !== "cancelled");
   const findings = schedule ? store.compliance(schedule.id) : [];
   const hard = findings.filter((f) => f.severity === "hard");
@@ -142,18 +199,23 @@ function ManagerDashboard() {
   const recordedExceptions = db.leave.filter((l) => l.leaveTypeId === "lt-unavailable" && l.status !== "cancelled");
   const swapReview = db.swaps.filter((s) => s.status === "manager_review");
   const openShifts = db.shifts.filter((s) => !s.employeeId && s.status !== "cancelled");
-  const notesToday = db.notes.filter(
-    (n) => !n.archived && (!n.effectiveStart || n.effectiveStart <= today) && (!n.effectiveEnd || n.effectiveEnd >= today),
-  );
   const empName = (id: string | null) => (id ? db.employees.find((e) => e.id === id)?.preferredName ?? "—" : "Open");
   const pos = (id: string) => db.positions.find((p) => p.id === id);
 
   return (
     <div className="stack">
-      <div className="page-head">
-        <h1>Manager dashboard</h1>
-        <p className="muted">Actionable operational status for today, {humanDate(today)}.</p>
-      </div>
+      <section className="dash-hero">
+        <div className="eyebrow">{longDate()}</div>
+        <h1>{greeting()}, {db.employees.find((e) => e.id === currentUser.id)?.preferredName ?? currentUser.displayName}</h1>
+        <p className="muted" style={{ margin: 0 }}>Operational status and team updates for today.</p>
+        <div className="hero-actions">
+          <Link href="/schedule" className="button primary glass-button">Scheduling workspace</Link>
+          <Link href="/team" className="button glass-button">Team</Link>
+          {admin && !sampleLoaded && (
+            <button className="button glass-button" onClick={loadSampleData}>Load sample schedule</button>
+          )}
+        </div>
+      </section>
 
       <div className="grid">
         <StatCard value={todayShifts.length} label="Shifts today" href="/schedule/day" />
@@ -163,95 +225,71 @@ function ManagerDashboard() {
         <StatCard value={openShifts.length} label="Open / uncovered" href="/schedule" tone={openShifts.length ? "warn" : ""} />
       </div>
 
-      <div className="grid-2">
-        <section className="card" aria-labelledby="working-now">
-          <h2 id="working-now">On the schedule today</h2>
-          {todayShifts.length === 0 ? (
-            <p className="muted">No shifts scheduled today.</p>
-          ) : (
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr><th scope="col">Time</th><th scope="col">Employee</th><th scope="col">Position</th></tr>
-                </thead>
-                <tbody>
-                  {todayShifts.sort((a, b) => a.start - b.start).map((s: Shift) => (
-                    <tr key={s.id}>
-                      <td>{timeRange(s.start, s.end)}</td>
-                      <td>{empName(s.employeeId)}</td>
-                      <td>{pos(s.positionId)?.name}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+      <div className="dash-columns">
+        <div className="stack">
+          <section className="card glass" aria-labelledby="working-now">
+            <h2 id="working-now">On the schedule today</h2>
+            {todayShifts.length === 0 ? (
+              <p className="muted">No shifts scheduled today.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="data">
+                  <thead>
+                    <tr><th scope="col">Time</th><th scope="col">Employee</th><th scope="col">Position</th></tr>
+                  </thead>
+                  <tbody>
+                    {todayShifts.sort((a, b) => a.start - b.start).map((s: Shift) => (
+                      <tr key={s.id}>
+                        <td>{timeRange(s.start, s.end)}</td>
+                        <td>{empName(s.employeeId)}</td>
+                        <td>{pos(s.positionId)?.name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
-        <section className="card" aria-labelledby="risks">
-          <h2 id="risks">Compliance risks</h2>
-          {findings.length === 0 ? (
-            <p className="muted">No compliance issues detected.</p>
-          ) : (
-            <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-              {[...hard, ...overrideable].slice(0, 5).map((f) => (
-                <li key={f.id} className="spread">
-                  <span style={{ fontSize: "0.88rem" }}>{f.message}</span>
-                  <span className={`badge ${f.severity === "hard" ? "err" : "warn"}`}>{f.severity}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Link href="/admin/compliance" className="button sm mt">Compliance center</Link>
-        </section>
+          <section className="card glass" aria-labelledby="risks">
+            <h2 id="risks">Compliance risks</h2>
+            {findings.length === 0 ? (
+              <p className="muted">No compliance issues detected.</p>
+            ) : (
+              <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
+                {[...hard, ...overrideable].slice(0, 5).map((f) => (
+                  <li key={f.id} className="spread">
+                    <span style={{ fontSize: "0.88rem" }}>{f.message}</span>
+                    <span className={`badge ${f.severity === "hard" ? "err" : "warn"}`}>{f.severity}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link href="/admin/compliance" className="button sm glass-button mt">Compliance center</Link>
+          </section>
 
-        <section className="card" aria-labelledby="notes-today">
-          <h2 id="notes-today">Notes effective today</h2>
-          {notesToday.length === 0 ? (
-            <p className="muted">No active scheduling notes.</p>
-          ) : (
-            <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-              {notesToday.map((n) => (
-                <li key={n.id}>
-                  <strong style={{ fontSize: "0.9rem" }}>{n.title}</strong>
-                  <div className="muted" style={{ fontSize: "0.82rem" }}>{n.body}</div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+          <section className="card glass" aria-labelledby="draft">
+            <h2 id="draft">Schedule status</h2>
+            {schedule && (
+              <p>
+                {schedule.name}:{" "}
+                <span className={`badge ${schedule.status === "published" ? "ok" : "draft"}`}>{schedule.status}</span>
+              </p>
+            )}
+            <Link href="/schedule" className="button sm glass-button">Open scheduling workspace</Link>
+          </section>
+        </div>
 
-        <section className="card" aria-labelledby="draft">
-          <h2 id="draft">Draft schedule</h2>
-          {schedule && (
-            <p>
-              {schedule.name}:{" "}
-              <span className={`badge ${schedule.status === "published" ? "ok" : "draft"}`}>{schedule.status}</span>
-            </p>
-          )}
-          <Link href="/schedule" className="button sm">Open scheduling workspace</Link>
-        </section>
+        <SideRail />
       </div>
     </div>
   );
 }
 
-function DashCard({ title, href, badge, children }: { title: string; href: string; badge: { cls: string; text: string }; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="card card-link">
-      <div className="spread">
-        <h2 style={{ margin: 0 }}>{title}</h2>
-        <span className={`badge ${badge.cls}`}>{badge.text}</span>
-      </div>
-      <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.88rem" }}>{children}</p>
-    </Link>
-  );
-}
-
 function StatCard({ value, label, href, tone = "" }: { value: number; label: string; href: string; tone?: string }) {
   return (
-    <Link href={href} className="card card-link">
-      <div className={`metric`} style={{ color: tone === "err" ? "var(--error)" : tone === "warn" ? "var(--warning)" : undefined }}>
+    <Link href={href} className="card glass card-link">
+      <div className="metric" style={{ color: tone === "err" ? "var(--error)" : tone === "warn" ? "var(--warning)" : undefined }}>
         {value}
       </div>
       <div className="metric-label">{label}</div>

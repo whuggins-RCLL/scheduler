@@ -3,6 +3,7 @@ import type {
   AvailabilityPattern,
   BreakPolicy,
   ComplianceOverride,
+  DailyNote,
   Department,
   EmployeeProfile,
   Invitation,
@@ -44,6 +45,7 @@ export interface Database {
   coverage: CoverageRequirement[];
   swaps: SwapRequest[];
   notes: ManagerNote[];
+  dailyNotes: DailyNote[];
   breakPolicies: BreakPolicy[];
   overrides: ComplianceOverride[];
   invitations: Invitation[];
@@ -69,6 +71,7 @@ export function emptyDatabase(): Database {
     coverage: [],
     swaps: [],
     notes: [],
+    dailyNotes: [],
     breakPolicies: [],
     overrides: [],
     invitations: [],
