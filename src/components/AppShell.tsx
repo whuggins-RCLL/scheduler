@@ -15,16 +15,18 @@ const employeeLinks: [string, string][] = [
   ["/swaps", "Swaps"],
   ["/tasks", "Tasks"],
   ["/calendar", "Calendar"],
+  ["/tours", "Tours"],
 ];
 
 const managerLinks: [string, string][] = [
   ["/team", "Team"],
-  ["/leave", "Leave approvals"],
+  ["/leave", "Leave records"],
   ["/reports", "Reports"],
 ];
 
 const adminLinks: [string, string][] = [
   ["/admin", "Overview"],
+  ["/admin/preview", "View previews"],
   ["/admin/users", "Users"],
   ["/admin/invitations", "Invitations"],
   ["/admin/positions", "Positions"],

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
+import { canManage } from "@/domain/scope";
 import { humanDate } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
 import type { LeaveRecord } from "@/domain/types";
@@ -16,6 +17,9 @@ const UNAVAILABLE_TYPE_ID = "lt-unavailable";
  */
 export function TimeOffPanel() {
   const { db, currentUser, submitLeave } = useStore();
+  const manager = canManage(currentUser);
+  const [targetEmployeeId, setTargetEmployeeId] = useState(currentUser.id);
+  const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId);
   const unavailableType = db.leaveTypes.find((t) => t.id === UNAVAILABLE_TYPE_ID && t.active);
   const [startDate, setStartDate] = useState(db.schedules[0]?.startDate ?? "");
   const [endDate, setEndDate] = useState(db.schedules[0]?.startDate ?? "");
@@ -26,7 +30,7 @@ export function TimeOffPanel() {
   const [confirmation, setConfirmation] = useState("");
 
   const mine = db.leave
-    .filter((l) => l.employeeId === currentUser.id && l.status !== "cancelled")
+    .filter((l) => l.employeeId === targetEmployeeId && l.status !== "cancelled")
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   function submit(e: React.FormEvent) {
@@ -55,7 +59,7 @@ export function TimeOffPanel() {
 
     const record: LeaveRecord = {
       id: `leave-${Date.now()}`,
-      employeeId: currentUser.id,
+      employeeId: targetEmployeeId,
       leaveTypeId: unavailableType.id,
       startDate,
       endDate,
@@ -68,13 +72,13 @@ export function TimeOffPanel() {
       updatedAt: "",
     };
     submitLeave(record);
-    setConfirmation("Unavailable exception saved.");
+    setConfirmation(targetEmployeeId === currentUser.id ? "Unavailable exception saved." : "Employee unavailable exception saved.");
     setErrors([]);
   }
 
   return (
     <section className="card" aria-labelledby="exceptions-heading">
-      <h2 id="exceptions-heading">Exceptions</h2>
+      <h2 id="exceptions-heading">{targetEmployeeId === currentUser.id ? "Exceptions" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} exceptions`}</h2>
       <p className="muted" style={{ fontSize: "0.85rem" }}>
         Mark dates or hours when you are unavailable outside your regular availability grid. This is not a
         time-off request; it only alerts scheduling AI and managers that these times are exceptions.
@@ -84,6 +88,15 @@ export function TimeOffPanel() {
         <div className="error-summary" role="alert">
           <strong>Please fix:</strong>
           <ul>{errors.map((er) => <li key={er}>{er}</li>)}</ul>
+        </div>
+      )}
+
+      {manager && (
+        <div className="field" style={{ maxWidth: 420, marginBottom: "1rem" }}>
+          <label htmlFor="exception-employee">Employee</label>
+          <select id="exception-employee" value={targetEmployeeId} onChange={(e) => setTargetEmployeeId(e.target.value)}>
+            {db.employees.filter((e) => e.active).map((e) => <option key={e.id} value={e.id}>{e.preferredName ?? e.legalName}</option>)}
+          </select>
         </div>
       )}
 
@@ -131,7 +144,7 @@ export function TimeOffPanel() {
       </form>
 
       <hr className="divider" />
-      <h3>My exceptions</h3>
+      <h3>{targetEmployeeId === currentUser.id ? "My exceptions" : "Employee exceptions"}</h3>
       {mine.length === 0 ? (
         <p className="muted">No exceptions on file.</p>
       ) : (
