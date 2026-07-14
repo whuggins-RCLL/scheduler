@@ -11,6 +11,7 @@ import type {
   UserAccount,
 } from "@/domain/types";
 import type { GenerationMode, GenerationResult, ScheduleWeights } from "@/domain";
+import { canManage, canPublishSchedule } from "@/domain/scope";
 import * as actions from "./actions";
 import { buildSeed } from "./seed";
 import type { Database } from "./types";
@@ -104,11 +105,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertTask: (task) => setDb((d) => actions.upsertTask(d, task, actorId, now())),
       archiveTask: (id) => setDb((d) => actions.archiveTask(d, id, actorId, now())),
       runGeneration: (scheduleId, opts) => {
+        if (!canManage(currentUser)) throw new Error("AI scheduler tools are restricted to managers, schedulers, and admins.");
         const res = actions.runGeneration(db, scheduleId, { ...opts, actorId, now: now() });
         setDb(res.db);
         return res.result;
       },
       publishSchedule: (scheduleId) => {
+        if (!canPublishSchedule(currentUser)) throw new Error("Publishing is restricted to managers and admins.");
         const res = actions.publishSchedule(db, scheduleId, actorId, now());
         if (res.published) setDb(res.db);
         return res;
