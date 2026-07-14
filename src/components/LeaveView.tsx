@@ -11,7 +11,7 @@ import type { LeaveRecord } from "@/domain/types";
  * Manager leave console: approve/deny pending requests and record leave —
  * including manager-only types such as Sick — on an employee's behalf. Every
  * manager-entered change is attributed in the audit log. Employees manage
- * their own vacation and availability exceptions on the Availability page.
+ * their own unavailable exceptions on the Availability page.
  */
 export function LeaveView() {
   const { db, currentUser, submitLeave, decideLeave } = useStore();
@@ -36,9 +36,9 @@ export function LeaveView() {
       <div className="stack">
         <div className="page-head">
           <h1>Leave</h1>
-          <p className="muted">Request vacation and exceptions on the Availability &amp; Time Off page. Sick leave is recorded by your manager.</p>
+          <p className="muted">Availability exceptions are recorded on the Availability &amp; Exceptions page. Sick leave is recorded by your manager.</p>
         </div>
-        <Link href="/availability" className="button primary" style={{ justifySelf: "start" }}>Go to Availability &amp; Time Off</Link>
+        <Link href="/availability" className="button primary" style={{ justifySelf: "start" }}>Go to Availability &amp; Exceptions</Link>
         <section className="card">
           <h2>My leave</h2>
           {mine.length === 0 ? <p className="muted">No leave on file.</p> : (
