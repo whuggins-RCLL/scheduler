@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
+import { buildSchedulerHelper } from "@/domain/scheduling";
 import { addDays, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { Shift } from "@/domain/types";
 import { canManage, canOverrideCompliance } from "@/domain/scope";
@@ -33,6 +34,11 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
 
   const findings = useMemo(() => (schedule ? store.compliance(schedule.id) : []), [store, schedule]);
   const fairness = useMemo(() => (schedule ? store.fairness(schedule.id) : null), [store, schedule]);
+  const helperSuggestions = useMemo(() => {
+    if (!schedule || !manager) return [];
+    const requirements = db.coverage.filter((c) => c.date >= schedule.startDate && c.date <= schedule.endDate);
+    return buildSchedulerHelper({ schedule, shifts, requirements, findings });
+  }, [db.coverage, findings, manager, schedule, shifts]);
 
   if (!schedule) return <div className="empty-state">No schedule found.</div>;
 
@@ -103,6 +109,30 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
                 </span>
               )}
             </div>
+          </div>
+          <div className="mt" aria-label="AI scheduler helper">
+            <h2 style={{ marginTop: 0 }}>AI scheduler helper</h2>
+            <p className="muted">
+              Manager-only assistance for coverage generation, compliance review, fairness checks, and publication readiness.
+              Suggestions are deterministic and require manager review before changes are published.
+            </p>
+            {helperSuggestions.length === 0 ? (
+              <p className="muted">No helper actions right now.</p>
+            ) : (
+              <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
+                {helperSuggestions.map((item, index) => (
+                  <li key={`${item.kind}-${index}`} className="card" style={{ padding: "0.65rem 0.75rem", boxShadow: "none" }}>
+                    <div className="spread">
+                      <strong>{item.title}</strong>
+                      <span className={`badge ${item.priority === "high" ? "err" : item.priority === "medium" ? "warn" : "info"}`}>
+                        {item.priority} priority
+                      </span>
+                    </div>
+                    <p className="muted" style={{ margin: "0.35rem 0 0" }}>{item.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           {message && (
             <p role="status" className="mt muted" style={{ marginBottom: 0 }}>

@@ -9,6 +9,7 @@ import type {
   LeaveType,
   MinuteOfDay,
   Position,
+  Schedule,
   Shift,
   StructuredRule,
 } from "./types";
@@ -417,4 +418,82 @@ function explain(e: EmployeeProfile, req: CoverageRequirement, pos: Position, l:
   if (e.qualifiedPositionIds.includes(pos.id)) parts.push("qualified for the position");
   parts.push(`now at ${(l.minutes / 60).toFixed(1)} h this week (target ${e.targetWeeklyHours} h)`);
   return parts.join("; ") + ".";
+}
+
+
+export interface SchedulerHelperInput {
+  schedule: Schedule;
+  shifts: Shift[];
+  requirements: CoverageRequirement[];
+  findings: ComplianceFinding[];
+  coverageScore?: number;
+}
+
+export interface SchedulerHelperSuggestion {
+  kind: "generate" | "repair" | "compliance" | "fairness" | "publish";
+  priority: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+}
+
+/**
+ * Deterministic AI-scheduler helper: summarizes schedule health and recommends
+ * the next manager-reviewed action. It never mutates data or publishes.
+ */
+export function buildSchedulerHelper(input: SchedulerHelperInput): SchedulerHelperSuggestion[] {
+  const activeShifts = input.shifts.filter((s) => s.status !== "cancelled");
+  const assigned = activeShifts.filter((s) => s.employeeId).length;
+  const open = activeShifts.filter((s) => !s.employeeId).length;
+  const hardFindings = input.findings.filter((f) => f.severity === "hard");
+  const warnings = input.findings.filter((f) => f.severity !== "hard");
+  const totalRequired = input.requirements.reduce((sum, req) => sum + req.count, 0);
+  const coverageScore = input.coverageScore ?? (totalRequired === 0 ? 1 : Math.min(1, assigned / totalRequired));
+  const suggestions: SchedulerHelperSuggestion[] = [];
+
+  if (coverageScore < 1 || open > 0) {
+    suggestions.push({
+      kind: assigned === 0 ? "generate" : "repair",
+      priority: "high",
+      title: assigned === 0 ? "Generate a manager-reviewed draft" : "Repair coverage gaps",
+      detail: `${Math.round(coverageScore * 100)}% of required coverage is assigned${open ? `, with ${open} open shift(s)` : ""}. Run deterministic generation in fill-only mode or adjust requirements before publishing.`,
+    });
+  }
+
+  if (hardFindings.length > 0) {
+    suggestions.push({
+      kind: "compliance",
+      priority: "high",
+      title: "Resolve blocking compliance",
+      detail: `${hardFindings.length} hard compliance issue(s) must be fixed by editing shifts, adding coverage, or recording an allowed manager override before publication.`,
+    });
+  }
+
+  if (warnings.length > 0) {
+    suggestions.push({
+      kind: "compliance",
+      priority: "medium",
+      title: "Review advisory findings",
+      detail: `${warnings.length} advisory finding(s) should be acknowledged so managers understand the tradeoffs in this draft.`,
+    });
+  }
+
+  if (assigned > 0 && hardFindings.length === 0 && coverageScore >= 1 && input.schedule.status !== "published") {
+    suggestions.push({
+      kind: "publish",
+      priority: "low",
+      title: "Ready for manager publication",
+      detail: "Coverage is filled and no hard compliance findings remain. Review fairness and locked shifts, then publish when ready.",
+    });
+  }
+
+  if (assigned > 0) {
+    suggestions.push({
+      kind: "fairness",
+      priority: "low",
+      title: "Check load fairness",
+      detail: "Compare public-service load against availability and FTE before publication; adjust individual assignments if the distribution looks uneven.",
+    });
+  }
+
+  return suggestions;
 }
