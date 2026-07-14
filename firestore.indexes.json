@@ -1,0 +1,1 @@
+{"indexes":[{"collectionGroup":"shifts","queryScope":"COLLECTION","fields":[{"fieldPath":"employeeId","order":"ASCENDING"},{"fieldPath":"startAt","order":"ASCENDING"}]},{"collectionGroup":"auditEvents","queryScope":"COLLECTION","fields":[{"fieldPath":"actorId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]}],"fieldOverrides":[]}

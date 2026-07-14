@@ -1,0 +1,1 @@
+import { PRODUCT_NAME } from "@/lib/config";export default function Pending(){return <main id="main"><section className="card"><p className="status">Pending approval</p><h1>Your {PRODUCT_NAME} access is being reviewed</h1><p>A platform administrator must approve your account or redeem your invitation before you can view schedules.</p></section></main>}
