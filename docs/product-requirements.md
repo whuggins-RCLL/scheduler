@@ -1,4 +1,4 @@
-# Cardinal Shift — Product Requirements
+# RCLL Scheduler — Product Requirements
 
 ## Mission
 
@@ -10,7 +10,7 @@ schedule generation, manager notes, Google Workspace and LibCal integration,
 fairness analytics, role-based administration, and a complete audit history.
 
 The experience aims to feel premium, calm, trustworthy, and exceptionally easy
-to understand. Cardinal Shift is an original system inspired by — not a clone of
+to understand. RCLL Scheduler is an original system inspired by — not a clone of
 — existing scheduling tools, and is not represented as an official Stanford
 product.
 

@@ -1,24 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { PRODUCT_NAME } from "@/lib/config";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
+import { PRODUCT_NAME, PRODUCT_MARK } from "@/lib/config";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin, primaryRole } from "@/domain/scope";
 import { ThemeControls } from "./ThemeControls";
-import type { ReactNode } from "react";
 
 const employeeLinks: [string, string][] = [
   ["/dashboard", "Dashboard"],
   ["/schedule", "Schedule"],
-  ["/availability", "Availability"],
-  ["/leave", "Leave"],
+  ["/availability", "Availability & Time Off"],
   ["/swaps", "Swaps"],
   ["/tasks", "Tasks"],
+  ["/calendar", "Calendar"],
 ];
 
 const managerLinks: [string, string][] = [
   ["/team", "Team"],
+  ["/leave", "Leave approvals"],
   ["/reports", "Reports"],
 ];
 
@@ -35,7 +36,20 @@ const adminLinks: [string, string][] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { currentUser, setCurrentUserId, db } = useStore();
+  const router = useRouter();
+  const { currentUser, isAuthenticated, hydrated, signOut } = useStore();
+
+  useEffect(() => {
+    if (hydrated && !isAuthenticated) router.replace("/login");
+  }, [hydrated, isAuthenticated, router]);
+
+  if (!hydrated) {
+    return <main id="main" style={{ padding: "2rem" }} aria-busy="true"><p className="muted">Loading…</p></main>;
+  }
+  if (!isAuthenticated) {
+    return <main id="main" style={{ padding: "2rem" }}><p className="muted">Redirecting to sign in…</p></main>;
+  }
+
   const manager = canManage(currentUser);
   const admin = isAdmin(currentUser);
 
@@ -59,27 +73,21 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="shell">
       <nav className="sidebar" aria-label="Primary">
         <Link href="/dashboard" className="brand">
-          <span className="brand-mark" aria-hidden>CS</span>
+          <span className="brand-mark" aria-hidden>{PRODUCT_MARK}</span>
           {PRODUCT_NAME}
         </Link>
         <NavGroup label="Workspace" links={employeeLinks} />
         {manager && <NavGroup label="Manager" links={managerLinks} />}
         {(admin || manager) && <NavGroup label="Administration" links={adminLinks} />}
         <div className="sidebar-foot">
-          <label className="field" style={{ fontSize: "0.8rem" }}>
-            <span className="hint">Preview as (demo)</span>
-            <select
-              value={currentUser.id}
-              onChange={(e) => setCurrentUserId(e.target.value)}
-              aria-label="Preview as user"
-            >
-              {db.users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.displayName} · {primaryRole(u)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.4rem" }}>
+            {currentUser.displayName}
+            <br />
+            <span style={{ fontSize: "0.72rem" }}>{primaryRole(currentUser)}</span>
+          </div>
+          <button className="button sm" style={{ width: "100%" }} onClick={signOut}>
+            Sign out
+          </button>
         </div>
       </nav>
       <div className="content">

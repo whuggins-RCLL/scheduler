@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateSwap } from "../src/domain/swaps";
 import { defaultCaliforniaPolicy } from "../src/domain/compliance";
-import { buildSeed } from "../src/lib/store/seed";
+import { buildFixture as buildSeed } from "./fixtures";
 
 describe("swap eligibility", () => {
   const db = buildSeed();

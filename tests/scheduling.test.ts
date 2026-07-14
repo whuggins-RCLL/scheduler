@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateSchedule, type GenerationInput } from "../src/domain/scheduling";
-import { buildSeed } from "../src/lib/store/seed";
+import { buildFixture as buildSeed } from "./fixtures";
 import type { AvailabilityPattern, LeaveRecord } from "../src/domain/types";
 import { defaultCaliforniaPolicy } from "../src/domain/compliance";
 

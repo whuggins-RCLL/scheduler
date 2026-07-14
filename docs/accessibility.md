@@ -1,4 +1,4 @@
-# Cardinal Shift — Accessibility
+# RCLL Scheduler — Accessibility
 
 Target: **WCAG 2.2 AA** across all major workflows.
 

@@ -1,4 +1,4 @@
-# Cardinal Shift — Integrations
+# RCLL Scheduler — Integrations
 
 Every external integration is built behind a **typed adapter interface** with a
 **working mock provider**, an **admin configuration screen**, graceful
@@ -24,9 +24,31 @@ scheduling source. The scheduler will not place service-point shifts outside
 operating hours unless a manager explicitly overrides for open/close/after-hours.
 
 Admin screen: `/admin/integrations` renders `LibCalHoursPanel` and the provider
-status. Env: `LIBCAL_HOURS_JSON_URL` (defaulted).
+status. Env: `LIBCAL_HOURS_JSON_URL` (defaulted to the RCLL LibCal grid feed,
+location id `2457`).
 
-## Google Workspace / Calendar
+### Desk-coverage buffer (+2h rule)
+
+Operations require the service desk to remain staffed past the library's
+*staffed* closing time. `deskCoverageInterval` / `deriveDeskCoverage`
+(`src/lib/integrations/libcal-hours.ts`) extend the LibCal close by
+`DESK_COVERAGE_BUFFER_MINUTES` (default **120 min**): e.g. LibCal staffed close
+3:00pm → desk coverage until 5:00pm. Configurable via `config.ts`; proven in
+`tests/desk-coverage.test.ts`.
+
+## Library operations calendar (Google)
+
+The shared Google operations calendar is wired for **viewing today**:
+
+- **Public embed** — `GOOGLE_CALENDAR_EMBED_SRC` (in `config.ts`; safe to
+  expose) renders in an accessible iframe at `/calendar` (`CalendarEmbed`).
+- **Event import** — `/api/integrations/calendar/ics` fetches the **secret**
+  iCal feed from `GOOGLE_CALENDAR_ICAL_URL` (server-side only, never committed;
+  add it in Vercel → Environment Variables), parses VEVENTs with a dependency-free
+  ICS parser, and returns upcoming events. Graceful "not configured" and
+  unreachable-feed states; the secret URL is never logged or returned.
+
+## Google Workspace / Calendar (staff OAuth)
 
 Status: **adapter + mock**; live OAuth requires credentials (not configured in
 this environment). Planned model, simplest-first:

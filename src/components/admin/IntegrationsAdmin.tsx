@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
 import { LibCalHoursPanel } from "@/components/integrations/LibCalHoursPanel";
+import { DESK_COVERAGE_BUFFER_MINUTES } from "@/lib/config";
 
 export function IntegrationsAdmin() {
   const { currentUser } = useStore();
@@ -32,14 +34,16 @@ export function IntegrationsAdmin() {
         </p>
         <p className="muted">Required environment variables:</p>
         <ul className="list-reset stack" style={{ gap: "0.25rem" }}>
-          <li>
-            <code>GOOGLE_OAUTH_CLIENT_ID</code>
-          </li>
-          <li>
-            <code>GOOGLE_OAUTH_CLIENT_SECRET</code>
-          </li>
+          <li><code>GOOGLE_OAUTH_CLIENT_ID</code></li>
+          <li><code>GOOGLE_OAUTH_CLIENT_SECRET</code></li>
         </ul>
-        <div className="mt">
+        <p className="muted mt">
+          The shared library operations calendar is already wired for viewing. To pull events into the app,
+          add the secret iCal feed as <code>GOOGLE_CALENDAR_ICAL_URL</code> in Vercel (Google Calendar →
+          Settings → &ldquo;Secret address in iCal format&rdquo;). It is read server-side and never committed.
+        </p>
+        <div className="mt row">
+          <Link className="button" href="/calendar">Open library calendar</Link>
           <button
             className="button primary"
             disabled
@@ -54,7 +58,9 @@ export function IntegrationsAdmin() {
       <section className="stack">
         <p className="muted">
           Hours use a provider abstraction (Manual / LibCal / Mock). Manager-created exceptions are never
-          overwritten by a synced source.
+          overwritten by a synced source. Desk coverage automatically extends{" "}
+          <strong>{DESK_COVERAGE_BUFFER_MINUTES / 60} hours past</strong> the library&rsquo;s staffed
+          closing time (e.g. LibCal close 3:00pm → desk staffed until 5:00pm).
         </p>
         <LibCalHoursPanel />
       </section>

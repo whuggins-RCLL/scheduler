@@ -242,6 +242,11 @@ export interface LeaveType {
   blocksScheduling: boolean; // true=hard block, false=warn only
   requiresNote: boolean;
   eligibleClassifications: EmploymentClassification[];
+  /**
+   * Whether an employee may submit this type themselves. When false, only a
+   * manager may record it on the employee's behalf (e.g. Sick leave).
+   */
+  employeeSelectable: boolean;
   active: boolean;
 }
 

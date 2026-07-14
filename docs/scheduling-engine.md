@@ -1,4 +1,4 @@
-# Cardinal Shift — Scheduling & Compliance Engine
+# RCLL Scheduler — Scheduling & Compliance Engine
 
 Implemented in `src/domain/scheduling.ts`, `src/domain/compliance.ts`,
 `src/domain/fairness.ts`, and `src/domain/note-interpreter.ts`.

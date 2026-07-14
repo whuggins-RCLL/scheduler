@@ -1,11 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
 import { hoursLabel } from "@/lib/ui";
+import type { Task, TaskPriority } from "@/domain/types";
+
+const PRIORITIES: TaskPriority[] = ["low", "normal", "high", "urgent"];
+
+function blankTask(order: number): Task {
+  return {
+    id: `task-${Date.now()}`,
+    name: "",
+    description: undefined,
+    category: "General",
+    colorToken: "task-neutral",
+    icon: "check",
+    requiredQualification: undefined,
+    applicableLocationIds: [],
+    estimatedMinutes: 30,
+    priority: "normal",
+    minAssignees: 1,
+    maxAssignees: 1,
+    allowedDuringPosition: true,
+    requiresAcknowledgement: false,
+    checklist: [],
+    openingDependency: false,
+    closingDependency: false,
+    order,
+    active: true,
+  };
+}
 
 export function TasksAdmin() {
-  const { db, currentUser } = useStore();
+  const { db, currentUser, upsertTask, archiveTask } = useStore();
+  const [editing, setEditing] = useState<Task | null>(null);
 
   if (!canManage(currentUser)) {
     return <div className="empty-state">You do not have access to this section.</div>;
@@ -17,51 +46,134 @@ export function TasksAdmin() {
     <div className="stack">
       <div className="page-head">
         <h1>Tasks</h1>
-        <p className="muted">
-          Recurring and one-off duties that can be assigned alongside positions. Read-only reference.
-        </p>
+        <p className="muted">Create the recurring and one-off duties that can be assigned alongside positions.</p>
       </div>
 
-      <div className="table-wrap">
-        <table className="data">
-          <caption>Tasks ordered by display order</caption>
-          <thead>
-            <tr>
-              <th scope="col">Task</th>
-              <th scope="col">Category</th>
-              <th scope="col">Priority</th>
-              <th scope="col">Est. duration</th>
-              <th scope="col">Assignees</th>
-              <th scope="col">Checklist</th>
-              <th scope="col">Dependency</th>
-              <th scope="col">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((t) => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
-                <td>{t.category}</td>
-                <td>{t.priority}</td>
-                <td>{hoursLabel(t.estimatedMinutes)}</td>
-                <td>
-                  {t.minAssignees}–{t.maxAssignees}
-                </td>
-                <td>{t.checklist.length} steps</td>
-                <td>
-                  <span className="row" style={{ gap: "0.35rem" }}>
-                    {t.openingDependency ? <span className="badge info">Opening</span> : null}
-                    {t.closingDependency ? <span className="badge info">Closing</span> : null}
-                    {!t.openingDependency && !t.closingDependency ? <span className="muted">None</span> : null}
-                  </span>
-                </td>
-                <td>
-                  <span className={`badge ${t.active ? "ok" : ""}`}>{t.active ? "Active" : "Inactive"}</span>
-                </td>
+      <div className="spread">
+        <span className="muted" style={{ fontSize: "0.85rem" }}>{tasks.length} task(s)</span>
+        <button className="button primary" onClick={() => setEditing(blankTask(tasks.length))}>+ Add task</button>
+      </div>
+
+      {tasks.length === 0 ? (
+        <div className="empty-state">No tasks yet. Add duties like Shelving, Opening, or Closing.</div>
+      ) : (
+        <div className="table-wrap">
+          <table className="data">
+            <caption>Tasks ordered by display order</caption>
+            <thead>
+              <tr>
+                <th scope="col">Task</th>
+                <th scope="col">Category</th>
+                <th scope="col">Priority</th>
+                <th scope="col">Est.</th>
+                <th scope="col">Assignees</th>
+                <th scope="col">Checklist</th>
+                <th scope="col">Dependency</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {tasks.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.name}</td>
+                  <td>{t.category}</td>
+                  <td>{t.priority}</td>
+                  <td>{hoursLabel(t.estimatedMinutes)}</td>
+                  <td>{t.minAssignees}–{t.maxAssignees}</td>
+                  <td>{t.checklist.length} steps</td>
+                  <td>
+                    <span className="row" style={{ gap: "0.35rem" }}>
+                      {t.openingDependency ? <span className="badge info">Opening</span> : null}
+                      {t.closingDependency ? <span className="badge info">Closing</span> : null}
+                      {!t.openingDependency && !t.closingDependency ? <span className="muted">None</span> : null}
+                    </span>
+                  </td>
+                  <td><span className={`badge ${t.active ? "ok" : ""}`}>{t.active ? "Active" : "Archived"}</span></td>
+                  <td>
+                    <div className="row">
+                      <button className="button sm" onClick={() => setEditing({ ...t })}>Edit</button>
+                      {t.active && <button className="button sm danger" onClick={() => archiveTask(t.id)} aria-label={`Archive ${t.name}`}>Archive</button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editing && (
+        <TaskDialog task={editing} onCancel={() => setEditing(null)} onSave={(t) => { upsertTask(t); setEditing(null); }} />
+      )}
+    </div>
+  );
+}
+
+function TaskDialog({ task, onCancel, onSave }: { task: Task; onCancel: () => void; onSave: (t: Task) => void }) {
+  const [t, setT] = useState<Task>(task);
+  const [checklistText, setChecklistText] = useState(task.checklist.join("\n"));
+  const [error, setError] = useState("");
+  const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((cur) => ({ ...cur, [k]: v }));
+
+  function save() {
+    if (!t.name.trim()) { setError("Name is required."); return; }
+    if (t.maxAssignees < t.minAssignees) { setError("Max assignees must be ≥ min."); return; }
+    const checklist = checklistText.split("\n").map((s) => s.trim()).filter(Boolean);
+    onSave({ ...t, checklist });
+  }
+
+  return (
+    <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="task-dialog-title" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="dialog">
+        <h2 id="task-dialog-title">{task.name ? "Edit task" : "Add task"}</h2>
+        {error && <div className="error-summary" role="alert">{error}</div>}
+        <div className="form" style={{ maxWidth: "none" }}>
+          <div className="field">
+            <label htmlFor="t-name">Name</label>
+            <input id="t-name" value={t.name} onChange={(e) => set("name", e.target.value)} />
+          </div>
+          <div className="row">
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="t-cat">Category</label>
+              <input id="t-cat" value={t.category} onChange={(e) => set("category", e.target.value)} />
+            </div>
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="t-pri">Priority</label>
+              <select id="t-pri" value={t.priority} onChange={(e) => set("priority", e.target.value as TaskPriority)}>
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="row">
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="t-est">Est. minutes</label>
+              <input id="t-est" type="number" min={0} step={5} value={t.estimatedMinutes} onChange={(e) => set("estimatedMinutes", Number(e.target.value))} />
+            </div>
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="t-min">Min assignees</label>
+              <input id="t-min" type="number" min={0} value={t.minAssignees} onChange={(e) => set("minAssignees", Number(e.target.value))} />
+            </div>
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="t-maxa">Max assignees</label>
+              <input id="t-maxa" type="number" min={1} value={t.maxAssignees} onChange={(e) => set("maxAssignees", Number(e.target.value))} />
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="t-check">Checklist steps (one per line)</label>
+            <textarea id="t-check" value={checklistText} onChange={(e) => setChecklistText(e.target.value)} />
+          </div>
+          <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Options</legend>
+            <label className="row" style={{ gap: "0.4rem" }}><input type="checkbox" style={{ width: "auto", minHeight: 0 }} checked={t.openingDependency} onChange={(e) => set("openingDependency", e.target.checked)} /> Opening dependency</label>
+            <label className="row" style={{ gap: "0.4rem" }}><input type="checkbox" style={{ width: "auto", minHeight: 0 }} checked={t.closingDependency} onChange={(e) => set("closingDependency", e.target.checked)} /> Closing dependency</label>
+            <label className="row" style={{ gap: "0.4rem" }}><input type="checkbox" style={{ width: "auto", minHeight: 0 }} checked={t.requiresAcknowledgement} onChange={(e) => set("requiresAcknowledgement", e.target.checked)} /> Requires completion acknowledgement</label>
+          </fieldset>
+          <div className="row">
+            <button className="button primary" onClick={save}>Save task</button>
+            <button className="button" onClick={onCancel}>Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
   );

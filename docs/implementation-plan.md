@@ -1,4 +1,4 @@
-# Cardinal Shift — Implementation Plan & Status
+# RCLL Scheduler — Implementation Plan & Status
 
 Phased, independently testable delivery. This build advances well beyond the
 Phase 1 foundation: the deterministic scheduling engine, California compliance

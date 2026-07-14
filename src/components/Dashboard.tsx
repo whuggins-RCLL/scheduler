@@ -93,10 +93,10 @@ function EmployeeDashboard() {
         </div>
 
         <aside className="stack">
-          <DashCard title="Availability" href="/availability" badge={profile ? { cls: "ok", text: "Current" } : { cls: "warn", text: "Not set" }}>
-            Keep your recurring availability up to date so schedules fit around you.
+          <DashCard title="Availability & Time Off" href="/availability" badge={profile ? { cls: "ok", text: "Current" } : { cls: "warn", text: "Not set" }}>
+            Keep your recurring availability current and request vacation or exceptions — all in one place.
           </DashCard>
-          <DashCard title="Leave" href="/leave" badge={{ cls: myLeave.length ? "info" : "", text: `${myLeave.length} on file` }}>
+          <DashCard title="My time off" href="/availability" badge={{ cls: myLeave.length ? "info" : "", text: `${myLeave.length} on file` }}>
             {myLeave.filter((l) => l.status === "requested").length} awaiting a decision.
           </DashCard>
           <DashCard title="Swaps" href="/swaps" badge={{ cls: pendingSwaps.length ? "warn" : "", text: `${pendingSwaps.length} to review` }}>
