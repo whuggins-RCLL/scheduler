@@ -1,12 +1,16 @@
 import { AppShell } from "@/components/AppShell";
 import { AvailabilityEditor } from "@/components/AvailabilityEditor";
+import { TimeOffPanel } from "@/components/TimeOffPanel";
 
-export const metadata = { title: "Availability" };
+export const metadata = { title: "Availability & Time Off" };
 
 export default function AvailabilityPage() {
   return (
     <AppShell>
-      <AvailabilityEditor />
+      <div className="stack">
+        <AvailabilityEditor />
+        <TimeOffPanel />
+      </div>
     </AppShell>
   );
 }

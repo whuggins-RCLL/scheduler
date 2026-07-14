@@ -1,4 +1,4 @@
-# Cardinal Shift — Security Model
+# RCLL Scheduler — Security Model
 
 ## Authentication
 

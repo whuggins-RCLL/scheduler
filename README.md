@@ -1,10 +1,10 @@
-# Cardinal Shift
+# RCLL Scheduler
 
 AI-assisted workforce scheduling and operations platform for an academic law
 library. Built with Next.js (App Router), React, TypeScript (strict), and
 Firebase. The product name lives in one constant (`src/lib/config.ts`).
 
-> Cardinal Shift is an original system inspired by modern scheduling tools. It
+> RCLL Scheduler is an original system inspired by modern scheduling tools. It
 > is not an officially approved Stanford product.
 
 ## What's implemented
@@ -18,11 +18,22 @@ Firebase. The product name lives in one constant (`src/lib/config.ts`).
   (by availability & %FTE) + Gini.
 - **Shift swaps** — auto-approve when every policy gate passes, else manager
   review; open-shift marketplace.
-- **Availability editor** (keyboard, no drag), **leave** (request + manager
-  approval + on-behalf), **schedule workspace** (board + list, draft/publish,
-  locks), **dashboards**, **admin portal**, **audit trail**.
-- **Integrations** — LibCal hours adapter (+ mock + normalizer), Google adapter
-  boundary with honest disconnected state.
+- **Sign in / sign out** — real session with a `/login` screen. Google sign-in
+  activates once Firebase is configured; until then, sign in as an existing
+  account. No example/staff users are shipped — only the five real
+  administrators plus configuration.
+- **Availability & Time Off (one place)** — the keyboard, no-drag availability
+  editor and employee time-off/exception requests live together on one page.
+  **Sick leave is manager-only**; managers record it (and any leave) on an
+  employee's behalf from the Leave approvals screen. All entries are audited.
+- **Positions & Tasks are admin-managed** — created, edited, and archived from
+  the admin portal (not hard-coded).
+- **Schedule workspace** (board + list, draft/publish, locks), **dashboards**,
+  **admin portal**, **audit trail**.
+- **Integrations** — LibCal hours adapter (+ mock + normalizer) with the **+2h
+  desk-coverage rule**, the shared **Google operations calendar** (public embed
+  + secret iCal import), and a Google Workspace OAuth boundary with honest
+  disconnected state.
 
 Business logic lives in `src/domain/` as pure, tested functions and runs
 identically in the browser, in tests, and (in production) in Cloud Functions.
@@ -36,11 +47,16 @@ npm run dev          # start the app at http://localhost:3000
 npx tsc --noEmit     # type-check (strict, no suppressed errors)
 ```
 
-The dev server runs in **local/demo mode**: the whole tenant is an in-memory
-dataset seeded with fictional staff (`src/lib/store/seed.ts`), so every workflow
-functions end-to-end **without live Firebase credentials**. Use the "Preview as"
-switcher in the sidebar to experience manager vs. employee views, and the theme /
-reduce-transparency controls in the top bar.
+The dev server runs in **local mode**: the tenant is an in-memory dataset
+containing only the five real administrators plus baseline configuration
+(`src/lib/store/seed.ts`) — no example staff. Every workflow functions
+end-to-end **without live Firebase credentials**. At `/login`, sign in as one of
+the seeded administrators (Google sign-in activates once Firebase env vars are
+set). Positions, tasks, and staff are added from the admin portal. Theme and
+reduce-transparency controls live in the top bar.
+
+> Test fixtures with rich sample data live in `tests/fixtures.ts` (used by the
+> engine/workflow tests) and are never shipped in the application seed.
 
 ## Environment variables
 
@@ -52,7 +68,8 @@ values):
 | `NEXT_PUBLIC_FIREBASE_API_KEY` … `_APP_ID` | Firebase web app config (client auth) |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Admin SDK service account for the seed script |
 | `LIBCAL_HOURS_JSON_URL` | LibCal hours JSON-LD feed (has a default) |
-| `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | Google Calendar integration (planned) |
+| `GOOGLE_CALENDAR_ICAL_URL` | **Secret** iCal feed for the ops calendar — set in Vercel, never commit |
+| `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | Google Workspace staff-calendar OAuth (planned) |
 
 ## Seeding bootstrap administrators (production)
 

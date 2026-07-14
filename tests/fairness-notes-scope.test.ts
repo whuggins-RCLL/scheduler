@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { gini } from "../src/domain/fairness";
 import { interpretNote, describeRule } from "../src/domain/note-interpreter";
 import { canViewEmployee, visibleEmployees } from "../src/domain/scope";
-import { buildSeed } from "../src/lib/store/seed";
+import { buildFixture as buildSeed } from "./fixtures";
 import { computeScheduleFairness } from "../src/lib/store/actions";
 import type { UserAccount } from "../src/domain/types";
 

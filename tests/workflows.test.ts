@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSeed, SEED_WEEK_START } from "../src/lib/store/seed";
+import { buildFixture as buildSeed, SEED_WEEK_START } from "./fixtures";
 import {
   cancelShift,
   computeCompliance,

@@ -4,8 +4,10 @@ import type {
   ComplianceOverride,
   FairnessSnapshot,
   LeaveRecord,
+  Position,
   Shift,
   SwapRequest,
+  Task,
 } from "@/domain/types";
 import {
   computeFairness,
@@ -415,6 +417,48 @@ export function requestSwap(
     audit(next, input.actorId, "swap.manager_review", "swap", req.id, { after: req, reason: evaluation.reasons.join("; "), now: input.now });
   }
   return { db: next, status, reasons: evaluation.reasons };
+}
+
+// ---------------------------------------------------------------------------
+// Positions & Tasks (admin/manager CRUD — not hard-coded)
+// ---------------------------------------------------------------------------
+
+export function upsertPosition(db: Database, position: Position, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.positions.findIndex((p) => p.id === position.id);
+  const before = idx >= 0 ? next.positions[idx] : undefined;
+  if (idx >= 0) next.positions[idx] = position;
+  else next.positions.push(position);
+  audit(next, actorId, idx >= 0 ? "position.update" : "position.create", "position", position.id, { before, after: position, now });
+  return next;
+}
+
+export function archivePosition(db: Database, positionId: string, actorId: string, now: string): Database {
+  const next = clone(db);
+  const p = next.positions.find((x) => x.id === positionId);
+  if (!p) return db;
+  p.active = false;
+  audit(next, actorId, "position.archive", "position", positionId, { after: { active: false }, now });
+  return next;
+}
+
+export function upsertTask(db: Database, task: Task, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.tasks.findIndex((t) => t.id === task.id);
+  const before = idx >= 0 ? next.tasks[idx] : undefined;
+  if (idx >= 0) next.tasks[idx] = task;
+  else next.tasks.push(task);
+  audit(next, actorId, idx >= 0 ? "task.update" : "task.create", "task", task.id, { before, after: task, now });
+  return next;
+}
+
+export function archiveTask(db: Database, taskId: string, actorId: string, now: string): Database {
+  const next = clone(db);
+  const t = next.tasks.find((x) => x.id === taskId);
+  if (!t) return db;
+  t.active = false;
+  audit(next, actorId, "task.archive", "task", taskId, { after: { active: false }, now });
+  return next;
 }
 
 // ---------------------------------------------------------------------------

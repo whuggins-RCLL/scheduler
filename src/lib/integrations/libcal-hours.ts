@@ -1,4 +1,6 @@
 import { HoursProvider, HoursProviderResult, LIBCAL_HOURS_URL, OperationalHoursInterval } from "./hours";
+import { DESK_COVERAGE_BUFFER_MINUTES } from "@/lib/config";
+import { formatTime, parseTime } from "@/domain/time";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -107,6 +109,37 @@ export function normalizeLibCalJsonLd(data: unknown, retrievedAt = new Date().to
     raw: data,
     warnings: intervals.length === 0 ? ["No dated opening-hours intervals were found in the LibCal JSON-LD payload."] : [],
   };
+}
+
+/**
+ * Desk coverage must extend past the library's staffed closing time. Given a
+ * staffed-library interval from LibCal, return the corresponding *desk coverage*
+ * interval whose close is pushed out by the coverage buffer (default 2h). Per
+ * operations: if LibCal lists staffed hours ending 3:00pm, the desk stays
+ * staffed until 5:00pm. Opening is unchanged. Closed days stay closed.
+ */
+export function deskCoverageInterval(
+  staffed: OperationalHoursInterval,
+  bufferMinutes: number = DESK_COVERAGE_BUFFER_MINUTES,
+): OperationalHoursInterval {
+  if (staffed.isClosed || !staffed.opensAt || !staffed.closesAt) {
+    return { ...staffed, note: "Closed" };
+  }
+  const close = parseTime(staffed.closesAt.slice(0, 5));
+  const extended = Math.min(23 * 60 + 59, close + bufferMinutes);
+  return {
+    ...staffed,
+    closesAt: formatTime(extended),
+    note: `Desk staffed ${(bufferMinutes / 60).toFixed(bufferMinutes % 60 === 0 ? 0 : 1)}h past library close`,
+  };
+}
+
+/** Apply the desk-coverage buffer across a set of staffed intervals. */
+export function deriveDeskCoverage(
+  staffed: OperationalHoursInterval[],
+  bufferMinutes: number = DESK_COVERAGE_BUFFER_MINUTES,
+): OperationalHoursInterval[] {
+  return staffed.map((i) => deskCoverageInterval(i, bufferMinutes));
 }
 
 export class LibCalHoursProvider implements HoursProvider {

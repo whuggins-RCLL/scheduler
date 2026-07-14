@@ -19,8 +19,8 @@ const pattern: AvailabilityPattern = {
 };
 
 const leaveTypes: LeaveType[] = [
-  { id: "lt-vac", name: "Vacation", paid: true, approvalRequired: true, countsAgainstBalance: true, visibility: "team_generic", blocksScheduling: true, requiresNote: false, eligibleClassifications: [], active: true },
-  { id: "lt-appt", name: "Appointment", paid: false, approvalRequired: false, countsAgainstBalance: false, visibility: "manager", blocksScheduling: false, requiresNote: false, eligibleClassifications: [], active: true },
+  { id: "lt-vac", name: "Vacation", paid: true, approvalRequired: true, countsAgainstBalance: true, visibility: "team_generic", blocksScheduling: true, requiresNote: false, eligibleClassifications: [], employeeSelectable: true, active: true },
+  { id: "lt-appt", name: "Appointment", paid: false, approvalRequired: false, countsAgainstBalance: false, visibility: "manager", blocksScheduling: false, requiresNote: false, eligibleClassifications: [], employeeSelectable: true, active: true },
 ];
 
 describe("availability resolution", () => {

@@ -1,8 +1,8 @@
-# Cardinal Shift — Architecture
+# RCLL Scheduler — Architecture
 
 ## Overview
 
-Cardinal Shift is an AI-assisted workforce scheduling platform for an academic
+RCLL Scheduler is an AI-assisted workforce scheduling platform for an academic
 law library. This document describes the architecture as actually implemented in
 this repository.
 

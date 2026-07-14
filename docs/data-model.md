@@ -1,4 +1,4 @@
-# Cardinal Shift — Data Model
+# RCLL Scheduler — Data Model
 
 All entity shapes live in `src/domain/types.ts`. The tenant snapshot
 (`src/lib/store/types.ts → Database`) holds every collection as an array; in
