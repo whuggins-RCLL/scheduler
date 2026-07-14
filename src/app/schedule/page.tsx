@@ -1,0 +1,1 @@
+import { AppShell } from "@/components/AppShell";import { ScheduleGrid } from "@/components/ScheduleGrid";export default function Schedule(){return <AppShell><h1>Schedule workspace</h1><ScheduleGrid/></AppShell>}

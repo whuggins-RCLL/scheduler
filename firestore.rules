@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function hasRole(role){ return signedIn() && request.auth.token.roles != null && role in request.auth.token.roles; }
+    function isAdmin(){ return hasRole('SUPER_ADMIN'); }
+    function isManager(){ return hasRole('MANAGER') || hasRole('SCHEDULER'); }
+    function isSelf(userId){ return signedIn() && request.auth.uid == userId; }
+    match /organizations/{orgId}/users/{userId} { allow read: if isAdmin() || isManager() || isSelf(userId); allow create, update: if isAdmin(); allow delete: if false; }
+    match /organizations/{orgId}/employeeProfiles/{userId} { allow read: if isAdmin() || isManager() || isSelf(userId); allow create, update: if isAdmin() || isManager(); allow delete: if false; }
+    match /organizations/{orgId}/managerNotes/{noteId} { allow read, write: if isAdmin() || isManager(); }
+    match /organizations/{orgId}/leaveRecords/{leaveId} { allow read: if isAdmin() || isManager() || resource.data.employeeId == request.auth.uid; allow create: if signedIn(); allow update: if isAdmin() || isManager(); allow delete: if false; }
+    match /organizations/{orgId}/schedules/{scheduleId} { allow read: if signedIn(); allow create, update: if isAdmin() || isManager(); allow delete: if false; }
+    match /organizations/{orgId}/shifts/{shiftId} { allow read: if signedIn(); allow create, update: if isAdmin() || isManager(); allow delete: if false; }
+    match /organizations/{orgId}/complianceOverrides/{id} { allow read: if isAdmin() || isManager(); allow write: if isAdmin() || isManager(); }
+    match /organizations/{orgId}/auditEvents/{id} { allow read: if isAdmin() || hasRole('AUDITOR'); allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
