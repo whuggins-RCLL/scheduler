@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { BOOTSTRAP_ADMINS } from "../src/lib/config";
 
 const rules = readFileSync("firestore.rules", "utf8");
 
@@ -21,6 +22,17 @@ describe("firestore rules source", () => {
   it("lets a new signup self-register only a pending, role-less account", () => {
     expect(rules).toContain("request.resource.data.state == 'pending_approval'");
     expect(rules).toContain("request.resource.data.roles.size() == 0");
+  });
+
+  it("treats bootstrap admins as admins by verified email (break-glass)", () => {
+    expect(rules).toContain("function isBootstrapAdmin()");
+    expect(rules).toContain("request.auth.token.email_verified == true");
+    expect(rules).toContain("request.auth.token.email.lower() in bootstrapAdminEmails()");
+    expect(rules).toContain("function isAdmin() { return hasRole('SUPER_ADMIN') || isBootstrapAdmin(); }");
+    // Every bootstrap email from config must appear so none can be locked out.
+    for (const admin of BOOTSTRAP_ADMINS) {
+      expect(rules).toContain(admin.email);
+    }
   });
 
   it("keeps a default-deny catch-all", () => {
