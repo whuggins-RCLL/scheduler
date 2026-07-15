@@ -79,6 +79,13 @@ validation, sync, audit logging) are enforced **server-side**; the browser is
 never trusted for authorization or compliance decisions. Firestore security
 rules (`firestore.rules`) are the first server-enforced boundary.
 
+The `functions/` codebase holds the deployed Cloud Functions. The first is
+`syncUserClaims`, an `onDocumentWritten` trigger on the `users` collection that
+mirrors each account's role/approval state onto its Firebase Auth custom claims
+(what the rules enforce). Its reconciliation core (`functions/src/claims.ts`) is
+pure and unit-tested; see `docs/security-model.md` → *Custom-claims
+synchronization*.
+
 ## Authorization model
 
 Two tiers, matching the spec:

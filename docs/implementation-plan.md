@@ -67,6 +67,10 @@ actions that pretend to work · runnable locally with documented steps.
 
 1. Stand up a Firebase project; wire the Firestore `Database` adapter behind the
    same `actions.*` functions; move privileged actions into Cloud Functions.
+   - [x] `syncUserClaims` Cloud Function (`functions/`) mirrors user
+     role/approval state onto Firebase Auth custom claims (idempotent; handles
+     demotion/rejection/deletion), plus a one-time `npm run backfill:claims`
+     script. See `docs/security-model.md` → *Custom-claims synchronization*.
 2. Add `@firebase/rules-unit-testing` emulator tests for the security invariants
    listed in `security-model.md`.
 3. Add Playwright + axe E2E for the critical keyboard-only workflows.

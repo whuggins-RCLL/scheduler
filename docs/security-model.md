@@ -46,10 +46,11 @@ header documents the store-key → collection-name mapping.
   as `pending_approval` with no roles (so admins can see and act on them);
   approval, role assignment, and suspension are **admin-only** (`allow update: if
   isAdmin()`). Profiles are mutable by admins+managers. **Never deletable**.
-  Custom claims (`roles`) enforced by rules are set by the Admin SDK; an in-app
-  role change updates the user document (which drives the app's own UI gating) —
-  a Cloud Function mirroring that field onto claims is the remaining step for
-  full rule-level enforcement of the other collections.
+  Custom claims (`roles`) enforced by rules are kept in sync with the user
+  document by the `syncUserClaims` Cloud Function (see **Custom-claims
+  synchronization** below): an in-app role/approval change updates the document,
+  and the trigger mirrors it onto the `roles` claim so rule-level enforcement of
+  the other collections follows automatically.
 - Availability patterns & exceptions (`leaveRecords`): readable by admin/manager
   or the owning employee only; the owner may create/update their own, and
   admins/managers may record or update them on an employee's behalf (call-outs).
@@ -83,6 +84,35 @@ unqualified work, override compliance, or access unauthorized departments. These
 require the Firebase CLI in the environment; the rule structure above already
 encodes each invariant, and `tests/firestore-rules.test.ts` asserts the
 source-level invariants in the meantime.
+
+## Custom-claims synchronization
+
+Firestore rules gate the *database layer* on Firebase Auth **custom claims**
+(`request.auth.token.roles`), while the application UI gates on the user
+**document**. The `syncUserClaims` Cloud Function
+(`functions/src/index.ts`) keeps the two in lockstep so a role or approval
+change made in the app takes effect at the rules layer too.
+
+- **Trigger:** `onDocumentWritten` on
+  `organizations/{orgId}/users/{userId}` — one trigger covers create, approval,
+  role change, suspension, rejection, and document deletion.
+- **Rule:** the `roles` claim is present only while `state === "active"`; every
+  other state (invited, pending, `temporarily_inactive`, archived,
+  `access_revoked`) and a deleted document **removes** it. `orgId` is set as a
+  tenant tag and never stripped. All unrelated claims are preserved.
+- **Idempotent:** the desired claims are compared (order-insensitively on
+  `roles`) with the account's current claims and written only when they differ,
+  so replays and the backfill never churn.
+- **Prompt effect:** on any change the function also calls
+  `revokeRefreshTokens`, forcing existing sessions to pick up the new claims on
+  their next refresh rather than after the ~1h token lifetime — important for
+  demotion and revocation.
+- **Reconciliation logic** lives in the dependency-free `functions/src/claims.ts`
+  and is unit-tested by `tests/claims.test.ts` (approval, demotion, rejection,
+  suspension, deletion, claim preservation, idempotency).
+- **Backfill:** `npm run backfill:claims` applies the same logic once across all
+  existing user documents, for accounts approved before the trigger was
+  deployed. See `README` → *Custom-claims synchronization*.
 
 ## Other requirements
 
