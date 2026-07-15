@@ -8,7 +8,8 @@
     "test": "vitest run",
     "test:rules": "vitest run tests/firestore-rules.test.ts",
     "seed": "tsx scripts/seed.ts",
-    "backfill:claims": "tsx scripts/backfill-claims.ts"
+    "backfill:claims": "tsx scripts/backfill-claims.ts",
+    "backfill:users": "tsx scripts/backfill-users.ts"
   },
   "dependencies": {
     "firebase": "^12.0.0",

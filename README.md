@@ -86,6 +86,21 @@ With a Firebase project + service account configured:
 npm run seed          # idempotently seeds the five SUPER_ADMIN accounts
 ```
 
+### Backfilling users who signed in before self-registration existed
+
+People who authenticated with Google before the app wrote user documents have a
+Firebase Auth account but no Firestore `users/{uid}` document, so they don't
+appear in **Admin → Users** for approval. New sign-ins self-register from now on;
+run this one-time, idempotent catch-up for the earlier ones (approved-domain
+users become `pending_approval`; bootstrap admins become active `SUPER_ADMIN`):
+
+```bash
+# Authenticate the Admin SDK once (either works):
+gcloud auth application-default login
+#   ...or: export GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
+npm run backfill:users
+```
+
 ## Custom-claims synchronization (production)
 
 Firestore rules enforce permissions from Firebase Auth **custom claims**, while
