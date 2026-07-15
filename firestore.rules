@@ -27,7 +27,26 @@ service cloud.firestore {
     // ---- Identity / role helpers (coarse checks via custom claims) ----
     function signedIn() { return request.auth != null; }
     function hasRole(role) { return signedIn() && request.auth.token.roles != null && role in request.auth.token.roles; }
-    function isAdmin() { return hasRole('SUPER_ADMIN'); }
+    // Break-glass: the bootstrap administrators are trusted by verified email, so
+    // they are always admins even before their custom claims are set (e.g. before
+    // `npm run seed` runs, or if it targeted the wrong project). This lets them
+    // self-provision/repair their own user document and never lock themselves out.
+    // KEEP IN SYNC with BOOTSTRAP_ADMINS in src/lib/config.ts.
+    function bootstrapAdminEmails() {
+      return [
+        'whuggins@law.stanford.edu',
+        'cadena@law.stanford.edu',
+        'blalfaro@law.stanford.edu',
+        'gwilson@law.stanford.edu',
+        'bwilli@law.stanford.edu'
+      ];
+    }
+    function isBootstrapAdmin() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in bootstrapAdminEmails();
+    }
+    function isAdmin() { return hasRole('SUPER_ADMIN') || isBootstrapAdmin(); }
     function isManager() { return hasRole('MANAGER') || hasRole('SCHEDULER'); }
     function isStaff() { return isAdmin() || isManager(); }
     function isSelf(userId) { return signedIn() && request.auth.uid == userId; }

@@ -11,6 +11,15 @@
 - A user must additionally satisfy one of: a valid unexpired invitation, prior
   administrator approval, or membership in the seeded bootstrap admins.
   Authenticated-but-unapproved users see `/pending`.
+- **Bootstrap-admin break-glass.** The five bootstrap administrators are trusted
+  by **verified email** — both in `firestore.rules` (`isBootstrapAdmin()`, which
+  makes `isAdmin()` true for them) and in the app (`ensureUserAccount` creates or
+  repairs their document to active `SUPER_ADMIN` on sign-in). This guarantees
+  they can never be locked out even if `npm run seed` never ran, targeted the
+  wrong project, or left their document role-less, and it breaks the
+  chicken-and-egg where setting an admin's claim requires an admin. The email
+  list in the rules must stay in sync with `BOOTSTRAP_ADMINS` in
+  `src/lib/config.ts` (a test asserts every configured email is present).
 
 ## Authorization
 

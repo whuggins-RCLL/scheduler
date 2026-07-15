@@ -88,25 +88,62 @@ function mapDoc(id: string, data: DocumentData): UserAccount {
   };
 }
 
+/** The account a bootstrap administrator must always have (break-glass). */
+export const BOOTSTRAP_ROLES: RoleGrant[] = [{ role: "SUPER_ADMIN" }, { role: "MANAGER" }];
+
+function hasSuperAdmin(roles: RoleGrant[]): boolean {
+  return roles.some((g) => g.role === "SUPER_ADMIN");
+}
+
 /**
- * Ensure a `users/{uid}` document exists for the signed-in Firebase user, then
- * return the resulting account. Existing documents are returned untouched (we
- * never clobber an admin-assigned role or state). Bootstrap administrators are
- * self-provisioned as active SUPER_ADMIN + MANAGER; everyone else starts as
- * `pending_approval` with no roles, awaiting administrator approval.
+ * Whether a bootstrap administrator's existing document must be repaired to the
+ * break-glass account (active SUPER_ADMIN). Pure so it can be unit-tested.
+ */
+export function bootstrapRepairNeeded(
+  account: Pick<UserAccount, "state" | "roles">,
+  isBootstrap: boolean,
+): boolean {
+  if (!isBootstrap) return false;
+  return !(account.state === "active" && hasSuperAdmin(account.roles));
+}
+
+/**
+ * Ensure a `users/{uid}` document exists (and is correct) for the signed-in
+ * Firebase user, then return the resulting account.
+ *
+ * Bootstrap administrators are a break-glass identity: they must ALWAYS resolve
+ * to an active SUPER_ADMIN, so their document is created — or repaired — on
+ * sign-in even if a prior seed missed this project/UID or left them role-less.
+ * This is safe because the same five emails are trusted by `firestore.rules`
+ * (see `isBootstrapAdmin`), which is what authorizes this self-write. Everyone
+ * else self-registers as `pending_approval` with no roles, and an existing
+ * non-admin document is returned untouched (we never clobber assigned roles).
  */
 export async function ensureUserAccount(fbUser: FirebaseUser): Promise<UserAccount | null> {
   const db = getDb();
   if (!db) return null;
   const email = normalizeEmail(fbUser.email ?? "");
-  const ref = doc(db, usersCollectionPath(), fbUser.uid);
-
-  const existing = await getDoc(ref);
-  if (existing.exists()) return mapDoc(existing.id, existing.data());
-
   const displayName = fbUser.displayName ?? email;
   const bootstrap = isBootstrapAdmin(email);
-  const roles: RoleGrant[] = bootstrap ? [{ role: "SUPER_ADMIN" }, { role: "MANAGER" }] : [];
+  const ref = doc(db, usersCollectionPath(), fbUser.uid);
+  const now = new Date().toISOString();
+
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    const account = mapDoc(existing.id, existing.data());
+    // Self-heal a bootstrap admin whose document lost (or never had) its role.
+    if (bootstrapRepairNeeded(account, bootstrap)) {
+      await updateDoc(ref, {
+        state: "active",
+        roles: roleNames(BOOTSTRAP_ROLES),
+        updatedAt: serverTimestamp(),
+      });
+      return { ...account, state: "active", roles: BOOTSTRAP_ROLES, updatedAt: now };
+    }
+    return account;
+  }
+
+  const roles: RoleGrant[] = bootstrap ? BOOTSTRAP_ROLES : [];
   const state: AccountState = bootstrap ? "active" : "pending_approval";
 
   await setDoc(ref, {
@@ -120,7 +157,6 @@ export async function ensureUserAccount(fbUser: FirebaseUser): Promise<UserAccou
     updatedAt: serverTimestamp(),
   });
 
-  const now = new Date().toISOString();
   return { id: fbUser.uid, email, displayName, state, roles, createdAt: now, updatedAt: now };
 }
 
