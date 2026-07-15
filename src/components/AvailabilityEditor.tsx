@@ -48,6 +48,14 @@ function cellsToBlocks(cell: Cell): AvailabilityBlock[] {
 export function AvailabilityEditor() {
   const { db, currentUser, saveAvailability } = useStore();
   const manager = canManage(currentUser);
+  const activeUserIds = useMemo(
+    () => new Set(db.users.filter((user) => user.state === "active").map((user) => user.id)),
+    [db.users],
+  );
+  const activeEmployees = useMemo(
+    () => db.employees.filter((employee) => employee.active && activeUserIds.has(employee.id)),
+    [activeUserIds, db.employees],
+  );
   const [targetEmployeeId, setTargetEmployeeId] = useState(currentUser.id);
   const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId);
   const existing = useMemo(
@@ -57,16 +65,27 @@ export function AvailabilityEditor() {
   const [cells, setCells] = useState<Cell>(() => blocksToCells(existing?.blocks ?? []));
   const [note, setNote] = useState(existing?.note ?? "");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Resync the editor when the active employee changes (e.g. demo user switch)
-  // or when their stored pattern is updated elsewhere.
+  useEffect(() => {
+    if (!manager) {
+      if (targetEmployeeId !== currentUser.id) setTargetEmployeeId(currentUser.id);
+      return;
+    }
+    if (!activeEmployees.some((employee) => employee.id === targetEmployeeId)) {
+      const fallback = activeEmployees.find((employee) => employee.id === currentUser.id) ?? activeEmployees[0];
+      if (fallback) setTargetEmployeeId(fallback.id);
+    }
+  }, [activeEmployees, currentUser.id, manager, targetEmployeeId]);
+
+  // Resync when the employee changes or the live Firestore record arrives.
   useEffect(() => {
     setCells(blocksToCells(existing?.blocks ?? []));
     setNote(existing?.note ?? "");
     setSaved(false);
-    // Resync only when the active employee changes (e.g. demo user switch).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetEmployeeId]);
+    setSaveError(null);
+  }, [existing, targetEmployeeId]);
 
   function cycle(day: number, hour: number) {
     const key = `${day}-${hour}`;
@@ -87,7 +106,7 @@ export function AvailabilityEditor() {
     });
   }
 
-  function save() {
+  async function save() {
     const pattern: AvailabilityPattern = {
       id: existing?.id ?? `avail-${targetEmployeeId}`,
       employeeId: targetEmployeeId,
@@ -97,8 +116,17 @@ export function AvailabilityEditor() {
       updatedBy: currentUser.id,
       updatedAt: new Date().toISOString(),
     };
-    saveAvailability(pattern);
-    setSaved(true);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveAvailability(pattern);
+      setSaved(true);
+    } catch (error) {
+      setSaved(false);
+      setSaveError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -118,7 +146,11 @@ export function AvailabilityEditor() {
           <div className="field" style={{ maxWidth: 420 }}>
             <label htmlFor="availability-employee">Employee</label>
             <select id="availability-employee" value={targetEmployeeId} onChange={(e) => setTargetEmployeeId(e.target.value)}>
-              {db.employees.filter((e) => e.active).map((e) => <option key={e.id} value={e.id}>{e.preferredName ?? e.legalName}</option>)}
+              {activeEmployees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.preferredName ?? employee.legalName}{employee.setupComplete ? "" : " (setup needed)"}
+                  </option>
+                ))}
             </select>
           </div>
         </section>
@@ -172,8 +204,11 @@ export function AvailabilityEditor() {
         </div>
 
         <div className="row">
-          <button className="button primary" onClick={save}>Save {targetEmployeeId === currentUser.id ? "availability" : "employee availability"}</button>
+          <button className="button primary" onClick={() => void save()} disabled={saving}>
+            {saving ? "Saving…" : `Save ${targetEmployeeId === currentUser.id ? "availability" : "employee availability"}`}
+          </button>
           {saved && <span role="status" className="badge ok">Saved</span>}
+          {saveError && <span role="alert" className="badge err">Save failed: {saveError}</span>}
         </div>
       </div>
     </div>

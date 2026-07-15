@@ -29,6 +29,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { reconcileClaims } from "./claims";
+import { defaultEmployeeProfileData, shouldHaveEmployeeProfile } from "./employee-profile";
 import {
   ORGANIZATION_ID,
   isApprovedDomain,
@@ -43,7 +44,9 @@ export const syncUserClaims = onDocumentWritten(
   "organizations/{orgId}/users/{userId}",
   async (event) => {
     const { orgId, userId } = event.params as { orgId: string; userId: string };
+    const before = event.data?.before;
     const after = event.data?.after;
+    const previousUserDoc = before?.exists ? before.data() : undefined;
     const userDoc = after?.exists ? after.data() : undefined; // undefined => deleted
 
     const auth = getAuth();
@@ -59,18 +62,39 @@ export const syncUserClaims = onDocumentWritten(
     }
 
     const { claims, changed } = reconcileClaims({ existingClaims, userDoc, orgId });
-    if (!changed) {
+    if (changed) {
+      await auth.setCustomUserClaims(userId, claims);
+      // Force existing sessions to pick up the new claims on their next refresh,
+      // so a demotion or revocation takes effect promptly instead of after ~1h.
+      await auth.revokeRefreshTokens(userId);
+      logger.info(`syncUserClaims: updated claims for ${userId}`, {
+        roles: claims.roles ?? [],
+      });
+    } else {
       logger.debug(`syncUserClaims: claims already in sync for ${userId}`);
-      return;
     }
 
-    await auth.setCustomUserClaims(userId, claims);
-    // Force existing sessions to pick up the new claims on their next refresh,
-    // so a demotion or revocation takes effect promptly instead of after ~1h.
-    await auth.revokeRefreshTokens(userId);
-    logger.info(`syncUserClaims: updated claims for ${userId}`, {
-      roles: claims.roles ?? [],
-    });
+    const profileRef = getFirestore().doc(`organizations/${orgId}/employeeProfiles/${userId}`);
+    const profile = await profileRef.get();
+    if (shouldHaveEmployeeProfile(userDoc)) {
+      if (!profile.exists) {
+        await profileRef.set({
+          ...defaultEmployeeProfileData(userId, userDoc ?? {}),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        logger.info(`syncUserClaims: created draft employee profile for ${userId}`);
+      } else if (!shouldHaveEmployeeProfile(previousUserDoc) && profile.data()?.active !== true) {
+        // Restore scheduling membership when an account is reactivated or gains
+        // its first staff role. Staff-to-staff role changes preserve an admin's
+        // explicit decision to exclude an otherwise active profile.
+        await profileRef.set({ active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        logger.info(`syncUserClaims: reactivated employee profile for ${userId}`);
+      }
+    } else if (!shouldHaveEmployeeProfile(userDoc) && profile.exists && profile.data()?.active === true) {
+      await profileRef.set({ active: false, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      logger.info(`syncUserClaims: disabled employee profile for ${userId}`);
+    }
   },
 );
 
@@ -113,7 +137,7 @@ async function provisionMissingUserDocs(orgId: string): Promise<ProvisionResult>
         email,
         displayName: user.displayName ?? email,
         state: bootstrap ? "active" : "pending_approval",
-        roles: bootstrap ? ["SUPER_ADMIN"] : [],
+        roles: bootstrap ? ["SUPER_ADMIN", "MANAGER"] : [],
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });

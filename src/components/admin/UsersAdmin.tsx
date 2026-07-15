@@ -4,13 +4,14 @@ import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { requestProvisionUsers } from "@/lib/store/firestore-users";
+import { StaffProfileEditor } from "./StaffProfileEditor";
 import { isAdmin, primaryRole } from "@/domain/scope";
 import type { Role } from "@/domain/types";
 
 const ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "EMPLOYEE", "VIEWER", "AUDITOR"];
 
 export function UsersAdmin() {
-  const { db, currentUser, realUser, setUserState, setUserRoles } = useStore();
+  const { db, currentUser, realUser, approveUser, setUserState, setUserRoles } = useStore();
   const admin = isAdmin(currentUser);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -80,7 +81,7 @@ export function UsersAdmin() {
                     <td><span className="badge warn">{u.state.replace("_", " ")}</span></td>
                     <td>
                       <div className="row">
-                        <button className="button sm primary" onClick={() => setUserState(u.id, "active")}>Approve</button>
+                        <button className="button sm primary" onClick={() => approveUser(u.id)}>Approve as employee</button>
                         <button className="button sm danger" onClick={() => setUserState(u.id, "access_revoked")}>Deny</button>
                       </div>
                     </td>
@@ -107,9 +108,10 @@ export function UsersAdmin() {
                   <td>
                     <select
                       aria-label={`Primary role for ${u.displayName}`}
-                      value={primaryRole(u)}
+                      value={u.roles.length > 0 ? primaryRole(u) : ""}
                       onChange={(e) => setUserRoles(u.id, [{ role: e.target.value as Role }])}
                     >
+                      <option value="" disabled>Select a role</option>
                       {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </td>
@@ -134,6 +136,8 @@ export function UsersAdmin() {
           </table>
         </div>
       </section>
+
+      <StaffProfileEditor />
     </div>
   );
 }

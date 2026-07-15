@@ -6,6 +6,7 @@ import type {
   AvailabilityPattern,
   ComplianceOverride,
   DailyNote,
+  EmployeeProfile,
   LeaveRecord,
   Position,
   Shift,
@@ -20,9 +21,16 @@ import {
   ensureUserAccount,
   roleNames,
   subscribeUsers,
+  writeUserApproval,
   writeUserRoles,
   writeUserState,
 } from "./firestore-users";
+import {
+  subscribeAvailabilityPatterns,
+  subscribeEmployeeProfiles,
+  writeAvailabilityPattern,
+  writeEmployeeProfile,
+} from "./firestore-workforce";
 import { buildSeed } from "./seed";
 import type { Database } from "./types";
 
@@ -33,6 +41,14 @@ function mergeUser(db: Database, account: UserAccount): Database {
   const idx = db.users.findIndex((u) => u.id === account.id);
   const users = idx >= 0 ? db.users.map((u) => (u.id === account.id ? account : u)) : [...db.users, account];
   return { ...db, users };
+}
+
+function mergeEmployeeProfile(db: Database, profile: EmployeeProfile): Database {
+  const exists = db.employees.some((employee) => employee.id === profile.id);
+  const employees = exists
+    ? db.employees.map((employee) => employee.id === profile.id ? profile : employee)
+    : [...db.employees, profile];
+  return { ...db, employees };
 }
 
 /**
@@ -78,7 +94,8 @@ export interface StoreContextValue {
   signIn: (userId: string) => void;
   signOut: () => void;
   now: () => string;
-  saveAvailability: (pattern: AvailabilityPattern) => void;
+  saveAvailability: (pattern: AvailabilityPattern) => Promise<void>;
+  saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
   submitLeave: (record: LeaveRecord) => void;
   cancelLeave: (id: string) => void;
   upsertDailyNote: (note: DailyNote) => void;
@@ -96,6 +113,7 @@ export interface StoreContextValue {
   publishSchedule: (scheduleId: string) => actions.PublishResult;
   overrideCompliance: (o: Omit<ComplianceOverride, "id" | "createdAt">) => void;
   requestSwap: (input: { shiftId: string; toEmployeeId: string; reason?: string }) => actions.SwapOutcome;
+  approveUser: (userId: string) => void;
   setUserState: (userId: string, state: UserAccount["state"]) => void;
   setUserRoles: (userId: string, roles: UserAccount["roles"]) => void;
   compliance: (scheduleId: string) => ReturnType<typeof actions.computeCompliance>;
@@ -168,23 +186,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     let unsubscribeUsers: () => void = () => {};
+    let unsubscribeProfiles: () => void = () => {};
+    let unsubscribeAvailability: () => void = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       unsubscribeUsers();
+      unsubscribeProfiles();
+      unsubscribeAvailability();
       unsubscribeUsers = () => {};
+      unsubscribeProfiles = () => {};
+      unsubscribeAvailability = () => {};
       if (!fbUser) {
         writeSessionCookies(null);
         setSessionUserId(null);
         setHydrated(true);
         return;
       }
+      let account: UserAccount | null = null;
       try {
-        const account = await ensureUserAccount(fbUser);
-        if (account) {
+        const ensuredAccount = await ensureUserAccount(fbUser);
+        account = ensuredAccount;
+        if (ensuredAccount) {
           // Merge the signed-in account so the session resolves even for a
           // pending, non-admin user (who cannot read the full collection).
-          setDb((d) => mergeUser(d, account));
-          setSessionUserId(account.id);
-          writeSessionCookies(account);
+          setDb((d) => mergeUser(d, ensuredAccount));
+          setSessionUserId(ensuredAccount.id);
+          writeSessionCookies(ensuredAccount);
         }
       } catch {
         /* ensure failed (e.g. offline) — leave unauthenticated */
@@ -197,12 +223,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           /* not staff: self-only view already merged above */
         },
       );
+      const selfOnly = account && canManage(account) ? undefined : fbUser.uid;
+      unsubscribeProfiles = subscribeEmployeeProfiles(
+        (employees) => setDb((d) => ({ ...d, employees })),
+        () => setDb((d) => ({ ...d, employees: [] })),
+        selfOnly,
+      );
+      unsubscribeAvailability = subscribeAvailabilityPatterns(
+        (availability) => setDb((d) => ({ ...d, availability })),
+        () => setDb((d) => ({ ...d, availability: [] })),
+        selfOnly,
+      );
       setHydrated(true);
     });
 
     return () => {
       unsubscribeAuth();
       unsubscribeUsers();
+      unsubscribeProfiles();
+      unsubscribeAvailability();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -242,7 +281,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSessionUserId(null);
       },
       now,
-      saveAvailability: (pattern) => setDb((d) => actions.saveAvailability(d, pattern, actorId, now())),
+      saveAvailability: async (pattern) => {
+        const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
+        if (isFirebaseConfigured) await writeAvailabilityPattern(persisted);
+        setDb((d) => actions.saveAvailability(d, persisted, actorId, persisted.updatedAt));
+      },
+      saveEmployeeProfile: async (profile) => {
+        if (isFirebaseConfigured) await writeEmployeeProfile(profile);
+        setDb((d) => mergeEmployeeProfile(d, profile));
+      },
       submitLeave: (record) => setDb((d) => actions.submitLeave(d, record, actorId, now())),
       cancelLeave: (id) => setDb((d) => actions.cancelLeave(d, id, actorId, now())),
       upsertDailyNote: (note) => setDb((d) => actions.upsertDailyNote(d, note, actorId, now())),
@@ -273,6 +320,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const res = actions.requestSwap(db, { ...input, actorId, now: now() });
         setDb(res.db);
         return res;
+      },
+      approveUser: (userId) => {
+        setDb((d) => {
+          const withRole = actions.setUserRoles(d, userId, [{ role: "EMPLOYEE" }], actorId, now());
+          return actions.setUserState(withRole, userId, "active", actorId, now());
+        });
+        if (isFirebaseConfigured) void writeUserApproval(userId);
       },
       setUserState: (userId, state) => {
         setDb((d) => actions.setUserState(d, userId, state, actorId, now()));

@@ -13,7 +13,7 @@ export const BOOTSTRAP_ADMIN_EMAILS = [
   "whuggins@law.stanford.edu",
   "cadena@law.stanford.edu",
   "blalfaro@law.stanford.edu",
-  "gwilson@law.stanford.edu",
+  "gwilson@stanford.edu",
   "bwilli@law.stanford.edu",
 ];
 

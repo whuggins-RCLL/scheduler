@@ -79,6 +79,8 @@ export interface EmployeeProfile {
   startDate?: ISODate;
   endDate?: ISODate;
   active: boolean;
+  /** False until an administrator confirms scheduling fields such as classification and hours. */
+  setupComplete?: boolean;
   targetWeeklyHours: number;
   minWeeklyHours: number;
   maxWeeklyHours: number;

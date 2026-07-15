@@ -17,7 +17,7 @@ production each maps to a Firestore collection under
 | Collection | Purpose | Key fields |
 |---|---|---|
 | `users` | Auth account + roles | id, email, displayName, state, roles[] (RoleGrant) |
-| `employees` | Employment profile | classification, managers, locations, hour limits, qualifications, %FTE, break policy |
+| `employees` (`employeeProfiles` in Firestore) | Employment profile, separate from authorization roles | classification, managers, locations, hour limits, qualifications, %FTE, break policy, setupComplete |
 | `departments` / `teams` | Org units | id, name, (team→departmentId) |
 | `locations` | Service points | timeZone, minStaffing, buffers, libcalId |
 | `operatingHours` | Weekly hours + exceptions | weekly[weekday]→intervals, exceptions[] |
@@ -71,3 +71,13 @@ atomically.
 Everything is scoped to one organization (`ORGANIZATION_ID`). Firestore paths
 are `organizations/{orgId}/{collection}/{doc}` and rules verify the caller's
 `orgId` claim, keeping the model multi-tenant-ready.
+
+## Account versus employee profile
+
+`users/{uid}` controls sign-in state and authorization. An independent
+`employeeProfiles/{uid}` document controls whether that same person participates
+in Team, Availability, and scheduling. This lets an administrator or manager
+also work employee shifts without replacing their elevated role. The IDs match
+the Firebase Auth UID. Active staff accounts are provisioned automatically by
+the user-document trigger; imported historical accounts are repaired with
+`npm run backfill:workforce`.

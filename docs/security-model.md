@@ -116,6 +116,10 @@ change made in the app takes effect at the rules layer too.
   `revokeRefreshTokens`, forcing existing sessions to pick up the new claims on
   their next refresh rather than after the ~1h token lifetime — important for
   demotion and revocation.
+- **Workforce profile lifecycle:** the same trigger creates a safe
+  `employeeProfiles/{uid}` draft when an active account receives a staff role,
+  including for administrators who also work shifts. Removing access or the
+  staff role deactivates the profile without deleting historical records.
 - **Reconciliation logic** lives in the dependency-free `functions/src/claims.ts`
   and is unit-tested by `tests/claims.test.ts` (approval, demotion, rejection,
   suspension, deletion, claim preservation, idempotency).

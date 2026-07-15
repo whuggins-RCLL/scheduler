@@ -83,7 +83,7 @@ values):
 With a Firebase project + service account configured:
 
 ```bash
-npm run seed          # idempotently seeds the five SUPER_ADMIN accounts
+npm run seed          # seeds five SUPER_ADMIN+MANAGER accounts and staff profiles
 ```
 
 ### Backfilling users who signed in before self-registration existed
@@ -100,6 +100,27 @@ gcloud auth application-default login
 #   ...or: export GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
 npm run backfill:users
 ```
+
+### Repairing staff profiles and canonical duplicate accounts
+
+Authentication accounts and scheduling profiles are intentionally separate. A
+Super Admin can also be schedulable without replacing their administrator role.
+The app reads Team and Availability from `employeeProfiles`, so a `users`
+document alone is not enough to appear on those screens.
+
+After importing older sign-ins, run the idempotent workforce repair once:
+
+```bash
+npm run backfill:workforce
+```
+
+It applies the agreed canonical identities (`whuggins@law.stanford.edu` and
+`gwilson@stanford.edu`), archives the two alternate accounts, moves any linked
+availability/leave/shift records to the canonical UID, and creates a profile for
+each active staff account. Managers receive the known 40-hour manager defaults;
+other employees receive a safe zero-hour draft marked **Setup needed**. Complete
+their classification, hours, location, manager, and qualifications in **Admin →
+Users → Staff onboarding**.
 
 ## Custom-claims synchronization (production)
 
@@ -118,8 +139,8 @@ npm --prefix functions install
 npm --prefix functions run build          # compiles functions/src → functions/lib
 
 # Deploy ONLY the trigger (and rules) — requires the Firebase CLI + login
-firebase deploy --only functions:syncUserClaims
-firebase deploy --only firestore:rules    # if rules changed
+firebase deploy --project scheduler2-c5937 \
+  --only "firestore:rules,functions:syncUserClaims,functions:provisionMissingUsers"
 
 # One-time backfill for users approved before the trigger existed (idempotent).
 # Uses the same reconciliation logic as the trigger.

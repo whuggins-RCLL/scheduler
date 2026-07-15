@@ -70,7 +70,7 @@ async function main() {
       }
 
       const bootstrap = isBootstrapAdmin(email);
-      const roles = bootstrap ? ["SUPER_ADMIN"] : [];
+      const roles = bootstrap ? ["SUPER_ADMIN", "MANAGER"] : [];
       const state = bootstrap ? "active" : "pending_approval";
 
       await ref.set({
@@ -82,7 +82,7 @@ async function main() {
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (bootstrap) {
-        await auth.setCustomUserClaims(user.uid, { roles: ["SUPER_ADMIN"], orgId: ORGANIZATION_ID });
+        await auth.setCustomUserClaims(user.uid, { roles, orgId: ORGANIZATION_ID });
         admins++;
       }
       console.log(`  ✓ ${email} → ${state}${bootstrap ? " (SUPER_ADMIN)" : ""}`);

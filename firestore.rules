@@ -37,7 +37,7 @@ service cloud.firestore {
         'whuggins@law.stanford.edu',
         'cadena@law.stanford.edu',
         'blalfaro@law.stanford.edu',
-        'gwilson@law.stanford.edu',
+        'gwilson@stanford.edu',
         'bwilli@law.stanford.edu'
       ];
     }
@@ -79,7 +79,9 @@ service cloud.firestore {
     match /organizations/{orgId}/availabilityPatterns/{patternId} {
       allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
       allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
-      allow update: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow update: if isStaff()
+        || (resource.data.employeeId == request.auth.uid
+            && request.resource.data.employeeId == request.auth.uid);
       allow delete: if false;
     }
     match /organizations/{orgId}/leaveRecords/{leaveId} {

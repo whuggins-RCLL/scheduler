@@ -32,6 +32,7 @@ function adminProfile(id: string, name: string, email: string): EmployeeProfile 
     primaryManagerId: undefined,
     additionalManagerIds: [],
     active: true,
+    setupComplete: true,
     targetWeeklyHours: 40,
     minWeeklyHours: 0,
     maxWeeklyHours: 45,
