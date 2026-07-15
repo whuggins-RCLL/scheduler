@@ -38,6 +38,13 @@ export async function signInWithGoogle() {
     throw new Error("Firebase is not configured in this environment.");
   }
   const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ hd: "stanford.edu" });
+  // Always show the Google account chooser. Staff commonly have more than one
+  // Google identity (e.g. @stanford.edu AND @law.stanford.edu), and we must let
+  // them pick which one to sign in with. We deliberately do NOT pin a single
+  // `hd` hosted-domain hint — that biased sign-in toward one domain and quietly
+  // defaulted people to the wrong account. Approved-domain enforcement happens
+  // after sign-in (`isApprovedDomain`) and in Firestore rules, so both Stanford
+  // domains are accepted and anything else is rejected regardless of choice.
+  provider.setCustomParameters({ prompt: "select_account" });
   return signInWithPopup(auth, provider);
 }
