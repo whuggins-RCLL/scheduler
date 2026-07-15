@@ -41,8 +41,15 @@ header documents the store-key → collection-name mapping.
 
 - Default deny (`match /{document=**} { allow read, write: if false; }`) — every
   collection is allowed explicitly or refused.
-- Users/profiles: readable by admins, in-scope managers, or self; mutable only
-  by admins (users) / admins+managers (profiles); **never deletable**.
+- Users/profiles: readable by admins, in-scope managers, or self. On first
+  Google sign-in a person may **self-register their own account only**, and only
+  as `pending_approval` with no roles (so admins can see and act on them);
+  approval, role assignment, and suspension are **admin-only** (`allow update: if
+  isAdmin()`). Profiles are mutable by admins+managers. **Never deletable**.
+  Custom claims (`roles`) enforced by rules are set by the Admin SDK; an in-app
+  role change updates the user document (which drives the app's own UI gating) —
+  a Cloud Function mirroring that field onto claims is the remaining step for
+  full rule-level enforcement of the other collections.
 - Availability patterns & exceptions (`leaveRecords`): readable by admin/manager
   or the owning employee only; the owner may create/update their own, and
   admins/managers may record or update them on an employee's behalf (call-outs).

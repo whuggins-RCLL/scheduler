@@ -6,6 +6,7 @@ import { PRODUCT_NAME, PRODUCT_MARK, PRODUCT_TAGLINE } from "@/lib/config";
 import { signInWithGoogle, isFirebaseConfigured } from "@/lib/firebase";
 import { isApprovedDomain } from "@/lib/authz";
 import { useStore } from "@/lib/store/StoreProvider";
+import { ensureUserAccount } from "@/lib/store/firestore-users";
 import { primaryRole } from "@/domain/scope";
 
 export default function LoginPage() {
@@ -29,9 +30,11 @@ export default function LoginPage() {
         setStatus({ kind: "err", text: "This account is outside the approved Stanford domains." });
         return;
       }
-      const match = db.users.find((u) => u.email === email.toLowerCase());
-      if (match && match.state === "active") {
-        signIn(match.id);
+      // Record this person so administrators can see them and assign access.
+      // Bootstrap admins are provisioned active; everyone else starts pending.
+      const account = await ensureUserAccount(r.user);
+      if (account && account.state === "active") {
+        signIn(account.id);
         router.replace("/dashboard");
       } else {
         setStatus({ kind: "warn", text: "Signed in, but your account needs administrator approval." });
