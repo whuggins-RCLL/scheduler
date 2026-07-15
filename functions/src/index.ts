@@ -15,16 +15,18 @@
  * The write is skipped whenever the claims already match (idempotent), and all
  * unrelated claims are preserved. See `claims.ts` for the pure logic + tests.
  *
- * `provisionMissingUsers` is an admin-only callable that creates a Firestore
- * user document for every Firebase Auth user who signed in before the app
- * started writing documents — the in-app equivalent of `npm run backfill:users`,
- * runnable by any admin from the browser with no local credentials.
+ * `provisionMissingUsers` creates a Firestore user document for every Firebase
+ * Auth user who signed in before the app started writing documents — the in-app
+ * equivalent of `npm run backfill:users`. It is driven by a Firestore trigger
+ * (not an HTTPS callable) so it works in locked-down GCP orgs where Cloud Run
+ * services cannot be made publicly invokable: an admin writes a request document
+ * (allowed by the security rules), the trigger runs internally and writes the
+ * result back. No public HTTP surface, so no CORS / org-policy issues.
  */
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { reconcileClaims } from "./claims";
 import {
@@ -80,27 +82,14 @@ export interface ProvisionResult {
 }
 
 /**
- * Admin-only: create a Firestore user document for every Firebase Auth user who
- * lacks one (people who signed in before the app wrote documents). Approved-
- * domain users become `pending_approval`; bootstrap admins become active
- * `SUPER_ADMIN` (the syncUserClaims trigger then grants their claim from the
- * new document). Non-approved-domain accounts are skipped, existing documents
- * are left untouched, and the whole thing is idempotent.
+ * Create a Firestore user document for every Firebase Auth user who lacks one
+ * (people who signed in before the app wrote documents). Approved-domain users
+ * become `pending_approval`; bootstrap admins become active `SUPER_ADMIN` (the
+ * syncUserClaims trigger then grants their claim from the new document).
+ * Non-approved-domain accounts are skipped, existing documents are left
+ * untouched, and the whole thing is idempotent.
  */
-export const provisionMissingUsers = onCall<void, Promise<ProvisionResult>>(async (request) => {
-  const token = request.auth?.token as
-    | { email?: string; email_verified?: boolean; roles?: unknown }
-    | undefined;
-  if (!token) throw new HttpsError("unauthenticated", "You must be signed in.");
-
-  const callerEmail = normalizeEmail(token.email ?? "");
-  const callerIsAdmin =
-    (token.email_verified === true && isBootstrapAdminEmail(callerEmail)) ||
-    (Array.isArray(token.roles) && (token.roles as unknown[]).includes("SUPER_ADMIN"));
-  if (!callerIsAdmin) {
-    throw new HttpsError("permission-denied", "Only administrators can import users.");
-  }
-
+async function provisionMissingUserDocs(orgId: string): Promise<ProvisionResult> {
   const auth = getAuth();
   const db = getFirestore();
   const result: ProvisionResult = { created: 0, admins: 0, existing: 0, skipped: 0 };
@@ -114,7 +103,7 @@ export const provisionMissingUsers = onCall<void, Promise<ProvisionResult>>(asyn
         result.skipped++;
         continue;
       }
-      const ref = db.doc(`organizations/${ORGANIZATION_ID}/users/${user.uid}`);
+      const ref = db.doc(`organizations/${orgId}/users/${user.uid}`);
       if ((await ref.get()).exists) {
         result.existing++;
         continue;
@@ -134,9 +123,46 @@ export const provisionMissingUsers = onCall<void, Promise<ProvisionResult>>(asyn
     pageToken = page.pageToken;
   } while (pageToken);
 
-  logger.info(
-    `provisionMissingUsers by ${callerEmail}: created ${result.created} (${result.admins} admins), ` +
-      `${result.existing} existing, ${result.skipped} skipped`,
-  );
   return result;
-});
+}
+
+/**
+ * Trigger-driven "import sign-ins": an administrator writes a request document
+ * to `organizations/{orgId}/maintenance/{taskId}` (create is admin-only per the
+ * security rules). This trigger runs the backfill and writes the result back to
+ * the same document, which the app watches. Using a Firestore trigger instead of
+ * an HTTPS callable avoids needing a publicly-invokable Cloud Run service — the
+ * kind of public access that university GCP org policies block (and that
+ * produced CORS failures for the callable version).
+ */
+export const provisionMissingUsers = onDocumentWritten(
+  "organizations/{orgId}/maintenance/{taskId}",
+  async (event) => {
+    const { orgId } = event.params as { orgId: string; taskId: string };
+    const after = event.data?.after;
+    if (!after?.exists) return;
+    const data = after.data() ?? {};
+    // Only act on a fresh request; our own result write (status "done"/"error")
+    // re-fires this trigger and must be ignored to avoid a loop.
+    if (data.type !== "provisionUsers" || data.status !== "requested") return;
+
+    try {
+      const result = await provisionMissingUserDocs(orgId);
+      logger.info(`provisionMissingUsers by ${data.requestedBy ?? "?"}`, result);
+      await after.ref.set(
+        { status: "done", result, completedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    } catch (err) {
+      logger.error("provisionMissingUsers failed", err);
+      await after.ref.set(
+        {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+          completedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+  },
+);

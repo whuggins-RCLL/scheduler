@@ -1,38 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { httpsCallable } from "firebase/functions";
 import { useStore } from "@/lib/store/StoreProvider";
-import { getAppFunctions, isFirebaseConfigured } from "@/lib/firebase";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { requestProvisionUsers } from "@/lib/store/firestore-users";
 import { isAdmin, primaryRole } from "@/domain/scope";
 import type { Role } from "@/domain/types";
 
 const ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "EMPLOYEE", "VIEWER", "AUDITOR"];
 
-interface ProvisionResult {
-  created: number;
-  admins: number;
-  existing: number;
-  skipped: number;
-}
-
 export function UsersAdmin() {
-  const { db, currentUser, setUserState, setUserRoles } = useStore();
+  const { db, currentUser, realUser, setUserState, setUserRoles } = useStore();
   const admin = isAdmin(currentUser);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   async function importSignins() {
-    const functions = getAppFunctions();
-    if (!functions) {
-      setImportMsg({ kind: "err", text: "Importing sign-ins is only available in the deployed app." });
-      return;
-    }
     setImporting(true);
     setImportMsg(null);
     try {
-      const call = httpsCallable<void, ProvisionResult>(functions, "provisionMissingUsers");
-      const { data } = await call();
+      const data = await requestProvisionUsers(realUser.id);
       // The live users subscription refreshes the tables automatically.
       setImportMsg({
         kind: "ok",

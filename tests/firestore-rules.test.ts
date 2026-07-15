@@ -39,6 +39,13 @@ describe("firestore rules source", () => {
     expect(rules).toContain("match /{document=**} { allow read, write: if false; }");
   });
 
+  it("lets only admins enqueue maintenance tasks, and never client updates", () => {
+    expect(rules).toContain("match /organizations/{orgId}/maintenance/{taskId}");
+    expect(rules).toMatch(
+      /maintenance\/\{taskId\}\s*\{[\s\S]*?allow create: if isAdmin\(\);[\s\S]*?allow update, delete: if false;/,
+    );
+  });
+
   it("keeps leave/exception reasons confidential to staff or the owner", () => {
     expect(rules).toContain("match /organizations/{orgId}/leaveRecords/{leaveId}");
     expect(rules).toContain("allow read: if isStaff() || resource.data.employeeId == request.auth.uid;");
