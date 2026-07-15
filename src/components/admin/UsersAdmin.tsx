@@ -1,14 +1,49 @@
 "use client";
 
+import { useState } from "react";
+import { httpsCallable } from "firebase/functions";
 import { useStore } from "@/lib/store/StoreProvider";
+import { getAppFunctions, isFirebaseConfigured } from "@/lib/firebase";
 import { isAdmin, primaryRole } from "@/domain/scope";
 import type { Role } from "@/domain/types";
 
 const ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "EMPLOYEE", "VIEWER", "AUDITOR"];
 
+interface ProvisionResult {
+  created: number;
+  admins: number;
+  existing: number;
+  skipped: number;
+}
+
 export function UsersAdmin() {
   const { db, currentUser, setUserState, setUserRoles } = useStore();
   const admin = isAdmin(currentUser);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  async function importSignins() {
+    const functions = getAppFunctions();
+    if (!functions) {
+      setImportMsg({ kind: "err", text: "Importing sign-ins is only available in the deployed app." });
+      return;
+    }
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const call = httpsCallable<void, ProvisionResult>(functions, "provisionMissingUsers");
+      const { data } = await call();
+      // The live users subscription refreshes the tables automatically.
+      setImportMsg({
+        kind: "ok",
+        text: `Imported ${data.created} sign-in${data.created === 1 ? "" : "s"} (${data.existing} already present, ${data.skipped} non-Stanford skipped).`,
+      });
+    } catch (e) {
+      setImportMsg({ kind: "err", text: `Import failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   if (!admin) {
     return <div className="empty-state">Only super administrators can manage users.</div>;
@@ -25,6 +60,21 @@ export function UsersAdmin() {
           Approve access, change roles, and archive departing staff. Historical records are preserved —
           users are archived, never deleted.
         </p>
+        {isFirebaseConfigured && (
+          <div className="row" style={{ alignItems: "center", gap: "0.6rem", marginTop: "0.5rem" }}>
+            <button className="button sm" onClick={importSignins} disabled={importing}>
+              {importing ? "Importing…" : "Import sign-ins"}
+            </button>
+            <span className="muted" style={{ fontSize: "0.8rem" }}>
+              Pull in anyone who has signed in with Google but isn&apos;t listed yet.
+            </span>
+          </div>
+        )}
+        {importMsg && (
+          <p role="status" className={`badge ${importMsg.kind === "ok" ? "ok" : "err"}`} style={{ marginTop: "0.5rem", whiteSpace: "normal" }}>
+            {importMsg.text}
+          </p>
+        )}
       </div>
 
       <section className="card">
