@@ -86,6 +86,34 @@ With a Firebase project + service account configured:
 npm run seed          # idempotently seeds the five SUPER_ADMIN accounts
 ```
 
+## Custom-claims synchronization (production)
+
+Firestore rules enforce permissions from Firebase Auth **custom claims**, while
+the app reads the user **document**. The `syncUserClaims` Cloud Function
+(`functions/`) mirrors each user's `roles`/approval state onto their claims
+whenever the document changes — so approving a user or changing their role in
+the admin portal takes effect at the database layer automatically. It handles
+promotion, demotion, suspension, rejection, and deletion; is idempotent; and
+preserves unrelated claims. See `docs/security-model.md` → *Custom-claims
+synchronization*.
+
+```bash
+# Install + type-check the functions codebase
+npm --prefix functions install
+npm --prefix functions run build          # compiles functions/src → functions/lib
+
+# Deploy ONLY the trigger (and rules) — requires the Firebase CLI + login
+firebase deploy --only functions:syncUserClaims
+firebase deploy --only firestore:rules    # if rules changed
+
+# One-time backfill for users approved before the trigger existed (idempotent).
+# Uses the same reconciliation logic as the trigger.
+GOOGLE_APPLICATION_CREDENTIALS=./service-account.json npm run backfill:claims
+```
+
+> Local emulation: `npm --prefix functions run serve` runs the function against
+> the Auth + Firestore emulators configured in `firebase.json`.
+
 ## Documentation
 
 - `docs/product-requirements.md` — scope and capability status

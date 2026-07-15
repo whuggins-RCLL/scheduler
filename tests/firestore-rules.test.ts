@@ -13,8 +13,14 @@ describe("firestore rules source", () => {
     expect(rules).toContain("allow delete: if false");
   });
 
-  it("requires admin for user mutation", () => {
-    expect(rules).toContain("allow create, update: if isAdmin()");
+  it("keeps user approval and role changes admin-only", () => {
+    // The users block allows admin updates; approval/role edits are never self-serve.
+    expect(rules).toMatch(/users\/\{userId\}\s*\{[\s\S]*?allow update: if isAdmin\(\);/);
+  });
+
+  it("lets a new signup self-register only a pending, role-less account", () => {
+    expect(rules).toContain("request.resource.data.state == 'pending_approval'");
+    expect(rules).toContain("request.resource.data.roles.size() == 0");
   });
 
   it("keeps a default-deny catch-all", () => {

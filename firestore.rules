@@ -37,7 +37,15 @@ service cloud.firestore {
     // ---- Accounts & profiles ----
     match /organizations/{orgId}/users/{userId} {
       allow read: if isStaff() || isSelf(userId);
-      allow create, update: if isAdmin();
+      // Self-registration: on first Google sign-in a person may create ONLY their
+      // own account, and only as pending with no roles — so administrators can
+      // see them and grant access. Everything else (approval, role assignment,
+      // suspension) stays admin-only.
+      allow create: if isAdmin()
+        || (isSelf(userId)
+            && request.resource.data.state == 'pending_approval'
+            && request.resource.data.roles.size() == 0);
+      allow update: if isAdmin();
       allow delete: if false;
     }
     match /organizations/{orgId}/employeeProfiles/{userId} {

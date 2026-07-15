@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import type {
   AvailabilityPattern,
   ComplianceOverride,
@@ -13,11 +14,45 @@ import type {
 } from "@/domain/types";
 import type { GenerationMode, GenerationResult, ScheduleWeights } from "@/domain";
 import { canManage, canPublishSchedule, isAdmin } from "@/domain/scope";
+import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import * as actions from "./actions";
+import {
+  ensureUserAccount,
+  roleNames,
+  subscribeUsers,
+  writeUserRoles,
+  writeUserState,
+} from "./firestore-users";
 import { buildSeed } from "./seed";
 import type { Database } from "./types";
 
 const SESSION_KEY = "rcll.session.userId";
+
+/** Upsert a single account into the users array by id (used for the signed-in self). */
+function mergeUser(db: Database, account: UserAccount): Database {
+  const idx = db.users.findIndex((u) => u.id === account.id);
+  const users = idx >= 0 ? db.users.map((u) => (u.id === account.id ? account : u)) : [...db.users, account];
+  return { ...db, users };
+}
+
+/**
+ * Mirror the signed-in account onto cookies read by `middleware.ts`. This is the
+ * convenience route-protection layer only — real enforcement is server-side.
+ */
+function writeSessionCookies(account: UserAccount | null) {
+  try {
+    if (!account) {
+      document.cookie = "cs_account_state=; path=/; max-age=0; SameSite=Lax";
+      document.cookie = "cs_roles=; path=/; max-age=0; SameSite=Lax";
+      return;
+    }
+    const roles = roleNames(account.roles).join(",");
+    document.cookie = `cs_account_state=${account.state}; path=/; max-age=3600; SameSite=Lax`;
+    document.cookie = `cs_roles=${roles}; path=/; max-age=3600; SameSite=Lax`;
+  } catch {
+    /* ignore (SSR / no document) */
+  }
+}
 
 /**
  * Client-side store + session. In local/preview mode the whole tenant runs
@@ -108,15 +143,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [viewAs, setViewAs] = useState<ViewAs>("self");
 
-  // Restore session from localStorage after mount (avoids SSR/hydration drift).
+  // Session restore. Two mutually exclusive paths:
+  //  - Demo/local mode: restore the seeded session id from localStorage.
+  //  - Firebase mode: the Google sign-in session is the source of truth. Listen
+  //    for it, self-provision a pending account on first sign-in, and (for
+  //    admins/staff) subscribe to the whole users collection so new signups
+  //    appear on the User management screen.
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(SESSION_KEY);
-      if (stored && db.users.some((u) => u.id === stored)) setSessionUserId(stored);
-    } catch {
-      /* ignore */
+    if (!isFirebaseConfigured) {
+      try {
+        const stored = window.localStorage.getItem(SESSION_KEY);
+        if (stored && db.users.some((u) => u.id === stored)) setSessionUserId(stored);
+      } catch {
+        /* ignore */
+      }
+      setHydrated(true);
+      return;
     }
-    setHydrated(true);
+
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setHydrated(true);
+      return;
+    }
+
+    let unsubscribeUsers: () => void = () => {};
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+      unsubscribeUsers();
+      unsubscribeUsers = () => {};
+      if (!fbUser) {
+        writeSessionCookies(null);
+        setSessionUserId(null);
+        setHydrated(true);
+        return;
+      }
+      try {
+        const account = await ensureUserAccount(fbUser);
+        if (account) {
+          // Merge the signed-in account so the session resolves even for a
+          // pending, non-admin user (who cannot read the full collection).
+          setDb((d) => mergeUser(d, account));
+          setSessionUserId(account.id);
+          writeSessionCookies(account);
+        }
+      } catch {
+        /* ensure failed (e.g. offline) — leave unauthenticated */
+      }
+      // Admins/staff can read every user; ordinary users get a permission error
+      // here, which we ignore (they only ever see themselves).
+      unsubscribeUsers = subscribeUsers(
+        (users) => setDb((d) => ({ ...d, users })),
+        () => {
+          /* not staff: self-only view already merged above */
+        },
+      );
+      setHydrated(true);
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeUsers();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -146,6 +233,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signOut: () => {
         try { window.localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
         setViewAs("self");
+        if (isFirebaseConfigured) {
+          const auth = getFirebaseAuth();
+          // The auth listener clears the session + cookies when sign-out lands.
+          if (auth) { void firebaseSignOut(auth); return; }
+        }
+        writeSessionCookies(null);
         setSessionUserId(null);
       },
       now,
@@ -181,8 +274,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setDb(res.db);
         return res;
       },
-      setUserState: (userId, state) => setDb((d) => actions.setUserState(d, userId, state, actorId, now())),
-      setUserRoles: (userId, roles) => setDb((d) => actions.setUserRoles(d, userId, roles, actorId, now())),
+      setUserState: (userId, state) => {
+        setDb((d) => actions.setUserState(d, userId, state, actorId, now()));
+        // Persist to Firestore in production; the users subscription reflects it back.
+        if (isFirebaseConfigured) void writeUserState(userId, state);
+      },
+      setUserRoles: (userId, roles) => {
+        setDb((d) => actions.setUserRoles(d, userId, roles, actorId, now()));
+        if (isFirebaseConfigured) void writeUserRoles(userId, roles);
+      },
       compliance: (scheduleId) => actions.computeCompliance(db, scheduleId),
       fairness: (scheduleId) => actions.computeScheduleFairness(db, scheduleId, now()),
     };
