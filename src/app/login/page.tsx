@@ -40,8 +40,38 @@ export default function LoginPage() {
         setStatus({ kind: "warn", text: "Signed in, but your account needs administrator approval." });
         router.replace("/pending");
       }
-    } catch {
-      setStatus({ kind: "warn", text: "Google sign-in isn't configured in this environment. Use an account below." });
+    } catch (err) {
+      // Surface the ACTUAL failure instead of always blaming configuration —
+      // the most common real cause in production is an unauthorized deploy
+      // domain, which the old catch-all message hid.
+      const code =
+        err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "";
+      let text: string;
+      switch (code) {
+        case "auth/unauthorized-domain":
+          text =
+            "This site's domain isn't authorized for Google sign-in. An administrator must add it in Firebase Console → Authentication → Settings → Authorized domains.";
+          break;
+        case "auth/popup-blocked":
+          text = "Your browser blocked the sign-in popup. Allow popups for this site and try again.";
+          break;
+        case "auth/popup-closed-by-user":
+        case "auth/cancelled-popup-request":
+          text = "Sign-in was cancelled. Please try again.";
+          break;
+        case "permission-denied":
+          text =
+            "Signed in, but your account record couldn't be created. Contact an administrator (Firestore rules may need to be deployed).";
+          break;
+        case "":
+          text = "Google sign-in isn't available in this environment. Use an account below.";
+          break;
+        default:
+          text = `Sign-in failed (${code}). Please try again or contact an administrator.`;
+      }
+      setStatus({ kind: "err", text });
+      // eslint-disable-next-line no-console
+      console.error("Google sign-in failed:", err);
     } finally {
       setBusy(false);
     }
