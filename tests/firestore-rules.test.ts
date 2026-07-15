@@ -51,6 +51,18 @@ describe("firestore rules source", () => {
     expect(rules).toContain("allow read: if isStaff() || resource.data.employeeId == request.auth.uid;");
   });
 
+  it("allows staff to maintain employee profiles without granting employees profile administration", () => {
+    expect(rules).toContain("match /organizations/{orgId}/employeeProfiles/{userId}");
+    expect(rules).toMatch(
+      /employeeProfiles\/\{userId\}\s*\{[\s\S]*?allow create, update: if isAdmin\(\) \|\| isManager\(\);/,
+    );
+  });
+
+  it("does not let an employee reassign an availability record to another user", () => {
+    expect(rules).toContain("resource.data.employeeId == request.auth.uid");
+    expect(rules).toContain("request.resource.data.employeeId == request.auth.uid");
+  });
+
   it("restricts private manager notes to staff", () => {
     expect(rules).toContain("match /organizations/{orgId}/managerNotes/{noteId}");
     expect(rules).toContain("allow read, write: if isStaff();");

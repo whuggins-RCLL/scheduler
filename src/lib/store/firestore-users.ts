@@ -187,6 +187,17 @@ export async function writeUserState(userId: string, state: AccountState): Promi
   await updateDoc(doc(db, usersCollectionPath(), userId), { state, updatedAt: serverTimestamp() });
 }
 
+/** Approve a pending account as an employee in one Firestore write. */
+export async function writeUserApproval(userId: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await updateDoc(doc(db, usersCollectionPath(), userId), {
+    state: "active",
+    roles: ["EMPLOYEE"],
+    updatedAt: serverTimestamp(),
+  });
+}
+
 /**
  * Persist an administrator's role change to Firestore.
  *

@@ -12,7 +12,8 @@ export function TeamView() {
   const { db, currentUser } = useStore();
   const manager = canManage(currentUser);
 
-  const employees = db.employees.filter((e) => e.active);
+  const activeUserIds = new Set(db.users.filter((user) => user.state === "active").map((user) => user.id));
+  const employees = db.employees.filter((employee) => employee.active && activeUserIds.has(employee.id));
   const posName = (id: string) => db.positions.find((p) => p.id === id)?.name ?? id;
 
   const counts = employees.reduce<Record<string, number>>((acc, e) => {
@@ -72,6 +73,7 @@ export function TeamView() {
                       {e.preferredName && e.preferredName !== e.legalName && (
                         <div className="muted" style={{ fontSize: "0.82rem" }}>{e.legalName}</div>
                       )}
+                      {!e.setupComplete && <div><span className="badge warn">Setup needed</span></div>}
                     </td>
                     <td>{humanize(e.classification)}</td>
                     <td>{hoursLabel(e.targetWeeklyHours * 60)}</td>

@@ -39,6 +39,6 @@ export const BOOTSTRAP_ADMINS = [
   { name: "Will Huggins", email: "whuggins@law.stanford.edu" },
   { name: "Kay Cadena", email: "cadena@law.stanford.edu" },
   { name: "Brenda Alfaro-Campos", email: "blalfaro@law.stanford.edu" },
-  { name: "George Wilson", email: "gwilson@law.stanford.edu" },
+  { name: "George Wilson", email: "gwilson@stanford.edu" },
   { name: "Beth Williams", email: "bwilli@law.stanford.edu" },
 ].map((admin) => ({ ...admin, email: admin.email.toLowerCase() }));

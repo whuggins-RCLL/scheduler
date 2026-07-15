@@ -34,9 +34,39 @@ async function main() {
     const user = await getAuth()
       .getUserByEmail(admin.email)
       .catch(() => getAuth().createUser({ email: admin.email, displayName: admin.name, emailVerified: true }));
-    await getAuth().setCustomUserClaims(user.uid, { roles: ["SUPER_ADMIN"], orgId: ORGANIZATION_ID });
+    const roles = ["SUPER_ADMIN", "MANAGER"];
+    await getAuth().setCustomUserClaims(user.uid, { roles, orgId: ORGANIZATION_ID });
     await db.doc(`organizations/${ORGANIZATION_ID}/users/${user.uid}`).set(
-      { email: admin.email, displayName: admin.name, state: "active", roles: ["SUPER_ADMIN"], updatedAt: FieldValue.serverTimestamp() },
+      { email: admin.email, displayName: admin.name, state: "active", roles, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    await db.doc(`organizations/${ORGANIZATION_ID}/employeeProfiles/${user.uid}`).set(
+      {
+        legalName: admin.name,
+        email: admin.email,
+        classification: "manager",
+        departmentId: "dept-access",
+        primaryLocationId: "loc-main",
+        eligibleLocationIds: ["loc-main", "loc-desk"],
+        additionalManagerIds: [],
+        active: true,
+        setupComplete: true,
+        targetWeeklyHours: 40,
+        minWeeklyHours: 0,
+        maxWeeklyHours: 45,
+        maxDailyHours: 8,
+        earliestStart: 7 * 60,
+        latestEnd: 22 * 60,
+        minTurnaroundMinutes: 480,
+        overtimeEligible: false,
+        breakPolicyId: "exempt-v1",
+        qualifiedPositionIds: [],
+        qualifiedTaskIds: [],
+        employmentPercentage: 1,
+        googleCalendarConnected: false,
+        notificationPrefs: { inApp: true, email: true, calendar: false, digest: false },
+        updatedAt: FieldValue.serverTimestamp(),
+      },
       { merge: true },
     );
     console.log(`  ✓ ${admin.email} → uid ${user.uid}`);
