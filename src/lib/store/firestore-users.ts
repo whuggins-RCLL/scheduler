@@ -15,6 +15,7 @@
  */
 import type { User as FirebaseUser } from "firebase/auth";
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -201,5 +202,52 @@ export async function writeUserRoles(userId: string, roles: RoleGrant[]): Promis
   await updateDoc(doc(db, usersCollectionPath(), userId), {
     roles: roleNames(roles),
     updatedAt: serverTimestamp(),
+  });
+}
+
+export interface ProvisionResult {
+  created: number;
+  admins: number;
+  existing: number;
+  skipped: number;
+}
+
+/**
+ * "Import sign-ins": enqueue a maintenance request (admins only, per rules) and
+ * await the result the `provisionMissingUsers` trigger writes back. Uses a
+ * Firestore request/response document rather than an HTTPS callable so it works
+ * in GCP orgs that forbid publicly-invokable functions. Rejects on the trigger's
+ * error or after a timeout so the UI never hangs.
+ */
+export async function requestProvisionUsers(requestedBy: string): Promise<ProvisionResult> {
+  const db = getDb();
+  if (!db) throw new Error("Importing sign-ins is only available in the deployed app.");
+  const ref = await addDoc(collection(db, `organizations/${ORGANIZATION_ID}/maintenance`), {
+    type: "provisionUsers",
+    status: "requested",
+    requestedBy,
+    requestedAt: serverTimestamp(),
+  });
+
+  return new Promise<ProvisionResult>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsubscribe();
+      reject(new Error("Timed out waiting for the import to finish. Check that Cloud Functions are deployed."));
+    }, 90_000);
+    const finish = (fn: () => void) => {
+      clearTimeout(timer);
+      unsubscribe();
+      fn();
+    };
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        const data = snap.data();
+        if (!data) return;
+        if (data.status === "done") finish(() => resolve(data.result as ProvisionResult));
+        else if (data.status === "error") finish(() => reject(new Error(String(data.error ?? "Import failed"))));
+      },
+      (err) => finish(() => reject(err)),
+    );
   });
 }

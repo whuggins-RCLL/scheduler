@@ -190,6 +190,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- Maintenance tasks (admin-triggered server jobs, e.g. "import sign-ins") ----
+    // An admin enqueues a request; a Cloud Function (Admin SDK, bypasses rules)
+    // runs it and writes the result back. Admins read their result; clients never
+    // update or delete — only the trusted trigger does.
+    match /organizations/{orgId}/maintenance/{taskId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // Default deny — anything not explicitly allowed above is refused.
     match /{document=**} { allow read, write: if false; }
   }
