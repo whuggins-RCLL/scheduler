@@ -5,20 +5,21 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
 
 /**
- * Matrix of which employees may be scheduled on which schedule types. Backed by
- * each employee's eligibleLocationIds. Toggling a cell updates that employee's
- * access for the type.
+ * Schedule access grouped by schedule type. Each type is a card listing staff
+ * who may be scheduled on that board.
  */
 export function ScheduleAccessAdmin() {
   const { db, currentUser, setScheduleTypeAccess } = useStore();
 
+  const employees = useMemo(
+    () => db.employees
+      .filter((e) => e.active)
+      .sort((a, b) => (a.preferredName ?? a.legalName).localeCompare(b.preferredName ?? b.legalName)),
+    [db.employees],
+  );
   const types = useMemo(
     () => db.locations.filter((l) => l.active).sort((a, b) => a.name.localeCompare(b.name)),
     [db.locations],
-  );
-  const employees = useMemo(
-    () => db.employees.filter((e) => e.active).sort((a, b) => (a.preferredName ?? a.legalName).localeCompare(b.preferredName ?? b.legalName)),
-    [db.employees],
   );
 
   if (!canManage(currentUser)) {
@@ -39,51 +40,47 @@ export function ScheduleAccessAdmin() {
       <div className="page-head">
         <h1>Schedule access</h1>
         <p className="muted">
-          Check which schedule types each person can be scheduled on. This controls who the engine and
-          managers may place on the Borrowing Services Desk, Stacks, Breaks &amp; Lunches, and any other types.
+          Control which schedule types each person may be placed on. Grouped by board for easier review
+          on any screen size.
         </p>
       </div>
 
-      <section className="card">
-        {employees.length === 0 || types.length === 0 ? (
+      {employees.length === 0 || types.length === 0 ? (
+        <section className="card">
           <p className="muted">
             {employees.length === 0 ? "No active employees yet." : "No active schedule types yet."}
           </p>
-        ) : (
-          <div className="table-wrap">
-            <table className="data access-matrix">
-              <thead>
-                <tr>
-                  <th scope="col">Employee</th>
-                  {types.map((t) => (
-                    <th key={t.id} scope="col" style={{ textAlign: "center" }}>{t.shortName}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp) => (
-                  <tr key={emp.id}>
-                    <th scope="row" style={{ fontWeight: 600 }}>{emp.preferredName ?? emp.legalName}</th>
-                    {types.map((t) => {
-                      const on = emp.eligibleLocationIds.includes(t.id);
-                      return (
-                        <td key={t.id} style={{ textAlign: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={(e) => toggle(emp.id, t.id, e.target.checked)}
-                            aria-label={`${emp.preferredName ?? emp.legalName} — ${t.name}`}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <div className="qual-task-grid">
+          {types.map((type) => (
+            <article key={type.id} className="qual-task-card">
+              <header className="qual-task-head">
+                <h3 style={{ margin: 0 }}>{type.name}</h3>
+                <span className="muted qual-task-est">{type.shortName}</span>
+              </header>
+              {type.description && <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}>{type.description}</p>}
+              <div className="qual-employee-list">
+                {employees.map((emp) => {
+                  const on = emp.eligibleLocationIds.includes(type.id);
+                  const label = emp.preferredName ?? emp.legalName;
+                  return (
+                    <label key={emp.id} className={`qual-employee-chip ${on ? "on" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => toggle(emp.id, type.id, e.target.checked)}
+                        aria-label={`${label} — ${type.name}`}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

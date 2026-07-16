@@ -38,9 +38,20 @@ import {
   deleteWorkingHoursPattern,
   writeAvailabilityPattern,
   writeEmployeeProfile,
+  writeEmployeeSchedulingLinks,
   writeSelfProfilePreferences,
   writeWorkingHoursPattern,
 } from "./firestore-workforce";
+import {
+  bootstrapDepartments,
+  bootstrapLocations,
+  bootstrapPositions,
+  subscribeDepartments,
+  subscribeLocations,
+  subscribePositions,
+  writeLocation,
+  writePosition,
+} from "./firestore-config";
 import {
   bootstrapGlobalExceptions,
   deleteGlobalExceptionDoc,
@@ -49,7 +60,8 @@ import {
 } from "./firestore-global-exceptions";
 import { bootstrapTasks, subscribeTasks, writeTask } from "./firestore-tasks";
 import { defaultTasks } from "./default-tasks";
-import { buildSeed } from "./seed";
+import { buildSeed, seedLocations } from "./seed";
+import { DEPARTMENTS } from "./departments";
 import type { Database } from "./types";
 
 const SESSION_KEY = "rcll.session.userId";
@@ -196,6 +208,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const globalSyncKey = useRef("");
   const globalBootstrapDone = useRef(false);
   const tasksBootstrapDone = useRef(false);
+  const configBootstrapDone = useRef(false);
   const purgeDone = useRef(false);
 
   // Retention sweep: once hydrated, purge schedules/shifts older than the
@@ -247,6 +260,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let unsubscribeWorkingHours: () => void = () => {};
     let unsubscribeGlobalExceptions: () => void = () => {};
     let unsubscribeTasks: () => void = () => {};
+    let unsubscribePositions: () => void = () => {};
+    let unsubscribeLocations: () => void = () => {};
+    let unsubscribeDepartments: () => void = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       unsubscribeUsers();
       unsubscribeProfiles();
@@ -254,12 +270,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeWorkingHours();
       unsubscribeGlobalExceptions();
       unsubscribeTasks();
+      unsubscribePositions();
+      unsubscribeLocations();
+      unsubscribeDepartments();
       unsubscribeUsers = () => {};
       unsubscribeProfiles = () => {};
       unsubscribeAvailability = () => {};
       unsubscribeWorkingHours = () => {};
       unsubscribeGlobalExceptions = () => {};
       unsubscribeTasks = () => {};
+      unsubscribePositions = () => {};
+      unsubscribeLocations = () => {};
+      unsubscribeDepartments = () => {};
       if (!fbUser) {
         writeSessionCookies(null);
         setSessionUserId(null);
@@ -350,6 +372,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           /* keep in-memory tasks when Firestore is unavailable */
         },
       );
+      const maybeBootstrapConfig = (account: UserAccount | null) => {
+        if (!account || !canManage(account) || configBootstrapDone.current) return;
+        configBootstrapDone.current = true;
+        setDb((d) => {
+          if (d.departments.length === 0) void bootstrapDepartments(DEPARTMENTS);
+          if (d.locations.length === 0) void bootstrapLocations(seedLocations());
+          return d;
+        });
+      };
+      unsubscribeDepartments = subscribeDepartments(
+        (departments) => {
+          setDb((d) => ({ ...d, departments: departments.length > 0 ? departments : d.departments }));
+          maybeBootstrapConfig(account);
+        },
+        () => { /* keep seed */ },
+      );
+      unsubscribeLocations = subscribeLocations(
+        (locations) => {
+          setDb((d) => ({ ...d, locations: locations.length > 0 ? locations : d.locations }));
+          maybeBootstrapConfig(account);
+        },
+        () => { /* keep seed */ },
+      );
+      unsubscribePositions = subscribePositions(
+        (positions) => setDb((d) => ({ ...d, positions })),
+        () => { /* keep seed */ },
+      );
       setHydrated(true);
     });
 
@@ -361,6 +410,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeWorkingHours();
       unsubscribeGlobalExceptions();
       unsubscribeTasks();
+      unsubscribePositions();
+      unsubscribeLocations();
+      unsubscribeDepartments();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -464,11 +516,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertShift: (shift) => setDb((d) => actions.upsertShift(d, shift, actorId, now())),
       cancelShift: (id) => setDb((d) => actions.cancelShift(d, id, actorId, now())),
       toggleLock: (id) => setDb((d) => actions.toggleLock(d, id, actorId, now())),
-      upsertLocation: (location) => setDb((d) => actions.upsertLocation(d, location, actorId, now())),
-      setScheduleTypeAccess: (employeeId, locationIds) => setDb((d) => actions.setScheduleTypeAccess(d, employeeId, locationIds, actorId, now())),
-      setTaskQualifications: (employeeId, taskIds) => setDb((d) => actions.setTaskQualifications(d, employeeId, taskIds, actorId, now())),
-      upsertPosition: (position) => setDb((d) => actions.upsertPosition(d, position, actorId, now())),
-      archivePosition: (id) => setDb((d) => actions.archivePosition(d, id, actorId, now())),
+      upsertLocation: (location) => {
+        if (isFirebaseConfigured) void writeLocation(location);
+        setDb((d) => actions.upsertLocation(d, location, actorId, now()));
+      },
+      setScheduleTypeAccess: (employeeId, locationIds) => {
+        if (isFirebaseConfigured) void writeEmployeeSchedulingLinks(employeeId, { eligibleLocationIds: locationIds });
+        setDb((d) => actions.setScheduleTypeAccess(d, employeeId, locationIds, actorId, now()));
+      },
+      setTaskQualifications: (employeeId, taskIds) => {
+        if (isFirebaseConfigured) void writeEmployeeSchedulingLinks(employeeId, { qualifiedTaskIds: taskIds });
+        setDb((d) => actions.setTaskQualifications(d, employeeId, taskIds, actorId, now()));
+      },
+      upsertPosition: (position) => {
+        if (isFirebaseConfigured) void writePosition(position);
+        setDb((d) => actions.upsertPosition(d, position, actorId, now()));
+      },
+      archivePosition: (id) => {
+        const position = db.positions.find((p) => p.id === id);
+        if (isFirebaseConfigured && position) void writePosition({ ...position, active: false });
+        setDb((d) => actions.archivePosition(d, id, actorId, now()));
+      },
       upsertTask: (task) => {
         if (isFirebaseConfigured) void writeTask(task);
         setDb((d) => actions.upsertTask(d, task, actorId, now()));

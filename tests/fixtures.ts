@@ -36,7 +36,7 @@ function baseProfile(over: Partial<EmployeeProfile> & Pick<EmployeeProfile, "id"
   return {
     preferredName: undefined,
     pronouns: undefined,
-    departmentId: "dept-access",
+    departmentId: "dept-ler",
     teamId: "team-desk",
     primaryLocationId: "loc-main",
     eligibleLocationIds: ["loc-main", "loc-desk", "loc-reading"],
@@ -87,11 +87,11 @@ function positions(): Position[] {
     eligibleClassifications: [] as EmployeeProfile["classification"][], active: true, description: undefined,
   };
   return [
-    { ...common, id: "pos-desk", name: "Borrowing Services Desk", shortLabel: "Desk", colorToken: "position-desk", icon: "desk", locationId: "loc-desk", requiredQualification: "desk", minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, requiresPhysicalPresence: true, countsAsPublicService: true, selfClaimable: true, maxContinuousMinutes: 120, order: 0 },
-    { ...common, id: "pos-admin", name: "Admin Time", shortLabel: "Admin", colorToken: "position-admin", icon: "clipboard", minStaffing: 0, preferredStaffing: 0, maxStaffing: 5, blocksOtherAssignments: false, order: 1 },
-    { ...common, id: "pos-project", name: "Project Time", shortLabel: "Project", colorToken: "position-project", icon: "box", locationId: "loc-workroom", minStaffing: 0, preferredStaffing: 1, maxStaffing: 4, order: 2 },
-    { ...common, id: "pos-meetings", name: "Meetings", shortLabel: "Mtg", colorToken: "position-meetings", icon: "users", minStaffing: 0, preferredStaffing: 0, maxStaffing: 10, blocksOtherAssignments: false, order: 3 },
-    { ...common, id: "pos-learning", name: "Learning Time", shortLabel: "Learn", colorToken: "position-learning", icon: "book", locationId: "loc-reading", minStaffing: 0, preferredStaffing: 1, maxStaffing: 3, order: 4 },
+    { ...common, id: "pos-desk", name: "Borrowing Services Desk", shortLabel: "Desk", colorToken: "position-desk", icon: "desk", locationId: "loc-desk", applicableLocationIds: ["loc-desk"], requiredQualification: "desk", minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, requiresPhysicalPresence: true, countsAsPublicService: true, selfClaimable: true, maxContinuousMinutes: 120, order: 0 },
+    { ...common, id: "pos-admin", name: "Admin Time", shortLabel: "Admin", colorToken: "position-admin", icon: "clipboard", applicableLocationIds: [], minStaffing: 0, preferredStaffing: 0, maxStaffing: 5, blocksOtherAssignments: false, order: 1 },
+    { ...common, id: "pos-project", name: "Project Time", shortLabel: "Project", colorToken: "position-project", icon: "box", locationId: "loc-workroom", applicableLocationIds: ["loc-workroom"], minStaffing: 0, preferredStaffing: 1, maxStaffing: 4, order: 2 },
+    { ...common, id: "pos-meetings", name: "Meetings", shortLabel: "Mtg", colorToken: "position-meetings", icon: "users", applicableLocationIds: [], minStaffing: 0, preferredStaffing: 0, maxStaffing: 10, blocksOtherAssignments: false, order: 3 },
+    { ...common, id: "pos-learning", name: "Learning Time", shortLabel: "Learn", colorToken: "position-learning", icon: "book", locationId: "loc-reading", applicableLocationIds: ["loc-reading"], minStaffing: 0, preferredStaffing: 1, maxStaffing: 3, order: 4 },
   ];
 }
 

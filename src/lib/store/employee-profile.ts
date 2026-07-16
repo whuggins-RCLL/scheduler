@@ -1,4 +1,5 @@
 import type { EmployeeProfile, Role, UserAccount } from "@/domain/types";
+import { DEFAULT_MANAGER_DEPARTMENT_ID } from "./departments";
 
 const MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER"];
 const STAFF_ROLES: Role[] = [...MANAGER_ROLES, "EMPLOYEE"];
@@ -26,7 +27,7 @@ export function defaultEmployeeProfile(
     legalName: user.displayName,
     email: user.email.toLowerCase(),
     classification: manager ? "manager" : "other",
-    departmentId: manager ? "dept-access" : undefined,
+    departmentId: manager ? DEFAULT_MANAGER_DEPARTMENT_ID : undefined,
     primaryLocationId: manager ? "loc-main" : undefined,
     eligibleLocationIds: manager ? ["loc-main", "loc-desk"] : [],
     primaryManagerId: undefined,

@@ -23,6 +23,7 @@ function blankPosition(order: number): Position {
     colorToken: "position-desk",
     icon: "desk",
     locationId: undefined,
+    applicableLocationIds: [],
     departmentId: undefined,
     requiredQualification: undefined,
     minStaffing: 1,
@@ -171,11 +172,32 @@ function PositionDialog({
             </div>
           </div>
           <div className="field">
-            <label htmlFor="p-loc">Location</label>
-            <select id="p-loc" value={p.locationId ?? ""} onChange={(e) => set("locationId", e.target.value || undefined)}>
-              <option value="">Any / none</option>
-              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            <label htmlFor="p-loc">Schedule types</label>
+            <p className="muted" style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.85rem" }}>
+              Select every schedule type this position may be staffed on.
+            </p>
+            <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+              {locations.map((l) => (
+                <label key={l.id} className="row" style={{ gap: "0.4rem" }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: "auto", minHeight: 0 }}
+                    checked={p.applicableLocationIds.includes(l.id)}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...new Set([...p.applicableLocationIds, l.id])]
+                        : p.applicableLocationIds.filter((id) => id !== l.id);
+                      setP((cur) => ({
+                        ...cur,
+                        applicableLocationIds: next,
+                        locationId: next[0],
+                      }));
+                    }}
+                  />
+                  {l.name}
+                </label>
+              ))}
+            </div>
           </div>
           <div className="row">
             <div className="field" style={{ flex: 1 }}>

@@ -30,7 +30,7 @@ export function defaultEmployeeProfileData(userId: string, userDoc: UserDocument
     legalName: typeof userDoc.displayName === "string" ? userDoc.displayName : String(userDoc.email ?? userId),
     email: String(userDoc.email ?? "").trim().toLowerCase(),
     classification: manager ? "manager" : "other",
-    ...(manager ? { departmentId: "dept-access", primaryLocationId: "loc-main" } : {}),
+    ...(manager ? { departmentId: "dept-admin", primaryLocationId: "loc-main" } : {}),
     eligibleLocationIds: manager ? ["loc-main", "loc-desk"] : [],
     additionalManagerIds: [],
     active: true,
