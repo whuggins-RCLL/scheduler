@@ -558,6 +558,27 @@ export interface DailyNote {
   updatedAt: ISODateTime;
 }
 
+/**
+ * Submission window for student desk-availability grids. Managers enable the
+ * window, set open/close dates, and may manually freeze editing. After the
+ * close date the grid auto-locks for students (managers may still edit).
+ */
+export interface StudentAvailabilityWindow {
+  id: string;
+  scheduleId: string;
+  label: string;
+  /** First calendar day students may edit (inclusive). */
+  submissionOpens: ISODate;
+  /** Last calendar day students may edit (inclusive). */
+  submissionCloses: ISODate;
+  /** When false, students cannot edit regardless of dates. */
+  enabled: boolean;
+  /** Manual lock — students cannot edit even within the open window. */
+  frozen: boolean;
+  updatedBy: string;
+  updatedAt: ISODateTime;
+}
+
 export interface Invitation {
   id: string;
   email: string;

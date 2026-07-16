@@ -178,6 +178,17 @@ export function buildFixture(): Database {
   );
 
   db.schedules.push({ id: "sched-week", name: `Week of ${FIXTURE_WEEK_START}`, startDate: FIXTURE_WEEK_START, endDate: addDays(FIXTURE_WEEK_START, 6), status: "draft", version: 1, createdBy: "admin-whuggins", createdAt: FIXTURE_NOW, updatedAt: FIXTURE_NOW });
+  db.studentAvailabilityWindows.push({
+    id: "saw-fixture",
+    scheduleId: "sched-week",
+    label: "Summer term",
+    submissionOpens: addDays(FIXTURE_WEEK_START, -7),
+    submissionCloses: addDays(FIXTURE_WEEK_START, 90),
+    enabled: true,
+    frozen: false,
+    updatedBy: "admin-whuggins",
+    updatedAt: FIXTURE_NOW,
+  });
   db.coverage = buildCoverage();
   db.shifts.push(...buildExampleShifts());
   db.leave.push({ id: "leave-avery-thu", employeeId: "emp-avery", leaveTypeId: "lt-vacation", startDate: addDays(FIXTURE_WEEK_START, 3), endDate: addDays(FIXTURE_WEEK_START, 3), partialDay: false, status: "approved", enteredBy: "emp-avery", decidedBy: "admin-whuggins", createdAt: FIXTURE_NOW, updatedAt: FIXTURE_NOW });

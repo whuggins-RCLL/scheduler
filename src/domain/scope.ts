@@ -1,4 +1,14 @@
-import type { EmployeeProfile, EmploymentClassification, Role, RoleGrant, RoleScope, UserAccount } from "./types";
+import type {
+  EmployeeProfile,
+  EmploymentClassification,
+  ISODate,
+  Role,
+  RoleGrant,
+  RoleScope,
+  StudentAvailabilityWindow,
+  UserAccount,
+} from "./types";
+import { isStudentWorker, studentAvailabilityEditable } from "./student-availability";
 
 /** Highest-privilege role held, for coarse UI gating. */
 export function primaryRole(user: Pick<UserAccount, "roles">): Role {
@@ -86,6 +96,30 @@ const STAFF_CLASSIFICATIONS: EmploymentClassification[] = [
  * account that is a `student_worker` is still hidden. Unknown classification
  * defaults to deny for employee-tier accounts.
  */
+export { isStudentWorker } from "./student-availability";
+
+/** Whether `actor` may edit `target`'s desk-availability grid. */
+export function canEditDeskAvailability(
+  actor: UserAccount,
+  target: EmployeeProfile,
+  window: StudentAvailabilityWindow | undefined,
+  today: ISODate,
+): boolean {
+  if (canManage(actor)) return true;
+  if (actor.id !== target.id) return false;
+  if (!isStudentWorker(target.classification)) return true;
+  return studentAvailabilityEditable(window, today);
+}
+
+/** Whether `actor` may submit an availability exception for `target`. */
+export function canSubmitAvailabilityException(
+  actor: UserAccount,
+  target: EmployeeProfile,
+): boolean {
+  if (isStudentWorker(target.classification)) return canManage(actor);
+  return actor.id === target.id || canManage(actor);
+}
+
 export function canViewStudentAvailability(
   viewer: Pick<UserAccount, "roles">,
   classification?: EmploymentClassification,

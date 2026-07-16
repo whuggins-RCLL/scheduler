@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
-import { canManage } from "@/domain/scope";
+import { canManage, canSubmitAvailabilityException, isStudentWorker } from "@/domain/scope";
 import { humanDate } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
 import type { LeaveRecord } from "@/domain/types";
@@ -10,10 +10,8 @@ import type { LeaveRecord } from "@/domain/types";
 const UNAVAILABLE_TYPE_ID = "lt-unavailable";
 
 /**
- * Employee-facing availability exceptions, shown alongside the recurring
- * availability editor so staff can flag dates or hours that differ from their
- * usual availability. This is not a time-off request flow; it only records a
- * generic unavailable exception for scheduling visibility.
+ * Availability exceptions — managers record these on behalf of student workers;
+ * staff may record their own. Students can view but not submit.
  */
 export function TimeOffPanel() {
   const { db, currentUser, submitLeave } = useStore();
@@ -29,12 +27,20 @@ export function TimeOffPanel() {
   const [errors, setErrors] = useState<string[]>([]);
   const [confirmation, setConfirmation] = useState("");
 
+  const forSelf = targetEmployeeId === currentUser.id;
+  const isStudent = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
+  const canSubmit = targetEmployee
+    ? canSubmitAvailabilityException(currentUser, targetEmployee)
+    : false;
+  const studentViewOnly = isStudent && forSelf;
+
   const mine = db.leave
     .filter((l) => l.employeeId === targetEmployeeId && l.status !== "cancelled")
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canSubmit || !targetEmployee) return;
     const errs: string[] = [];
     let parsedStart: number | undefined;
     let parsedEnd: number | undefined;
@@ -71,17 +77,22 @@ export function TimeOffPanel() {
       createdAt: "",
       updatedAt: "",
     };
-    submitLeave(record);
-    setConfirmation(targetEmployeeId === currentUser.id ? "Unavailable exception saved." : "Employee unavailable exception saved.");
-    setErrors([]);
+    try {
+      submitLeave(record);
+      setConfirmation(targetEmployeeId === currentUser.id ? "Unavailable exception saved." : "Employee unavailable exception saved.");
+      setErrors([]);
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : String(error)]);
+    }
   }
 
   return (
     <section className="card" aria-labelledby="exceptions-heading">
-      <h2 id="exceptions-heading">{targetEmployeeId === currentUser.id ? "Exceptions" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} exceptions`}</h2>
+      <h2 id="exceptions-heading">{forSelf ? "Exceptions" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} exceptions`}</h2>
       <p className="muted" style={{ fontSize: "0.85rem" }}>
-        Mark dates or hours when you are unavailable outside your regular availability grid. This is not a
-        time-off request; it only alerts scheduling AI and managers that these times are exceptions.
+        {studentViewOnly
+          ? "Dates or hours when you are unavailable outside your regular availability. Only managers can record exceptions on your behalf — you can view them here."
+          : "Mark dates or hours when someone is unavailable outside their regular availability grid. This is not a time-off request; it alerts scheduling and managers to exceptions."}
       </p>
 
       {errors.length > 0 && (
@@ -100,51 +111,55 @@ export function TimeOffPanel() {
         </div>
       )}
 
-      <form className="form" onSubmit={submit} style={{ maxWidth: "none" }}>
-        <div className="row">
-          <div className="field" style={{ flex: "1 1 130px" }}>
-            <label htmlFor="ex-start">Start</label>
-            <input id="ex-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          <div className="field" style={{ flex: "1 1 130px" }}>
-            <label htmlFor="ex-end">End</label>
-            <input id="ex-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-        </div>
-
-        <fieldset className="field">
-          <legend>When are you unavailable?</legend>
-          <label className="row" style={{ justifyContent: "flex-start" }}>
-            <input type="radio" name="exception-duration" checked={allDay} onChange={() => setAllDay(true)} />
-            All day
-          </label>
-          <label className="row" style={{ justifyContent: "flex-start" }}>
-            <input type="radio" name="exception-duration" checked={!allDay} onChange={() => setAllDay(false)} />
-            Certain hours
-          </label>
-        </fieldset>
-
-        {!allDay && (
+      {canSubmit ? (
+        <form className="form" onSubmit={submit} style={{ maxWidth: "none" }}>
           <div className="row">
             <div className="field" style={{ flex: "1 1 130px" }}>
-              <label htmlFor="ex-start-time">Start time</label>
-              <input id="ex-start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <label htmlFor="ex-start">Start</label>
+              <input id="ex-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="field" style={{ flex: "1 1 130px" }}>
-              <label htmlFor="ex-end-time">End time</label>
-              <input id="ex-end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <label htmlFor="ex-end">End</label>
+              <input id="ex-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
-        )}
 
-        <div className="row">
-          <button type="submit" className="button primary">Save exception</button>
-          {confirmation && <span role="status" className="badge ok">{confirmation}</span>}
-        </div>
-      </form>
+          <fieldset className="field">
+            <legend>When are they unavailable?</legend>
+            <label className="row" style={{ justifyContent: "flex-start" }}>
+              <input type="radio" name="exception-duration" checked={allDay} onChange={() => setAllDay(true)} />
+              All day
+            </label>
+            <label className="row" style={{ justifyContent: "flex-start" }}>
+              <input type="radio" name="exception-duration" checked={!allDay} onChange={() => setAllDay(false)} />
+              Certain hours
+            </label>
+          </fieldset>
+
+          {!allDay && (
+            <div className="row">
+              <div className="field" style={{ flex: "1 1 130px" }}>
+                <label htmlFor="ex-start-time">Start time</label>
+                <input id="ex-start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              </div>
+              <div className="field" style={{ flex: "1 1 130px" }}>
+                <label htmlFor="ex-end-time">End time</label>
+                <input id="ex-end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          <div className="row">
+            <button type="submit" className="button primary">Save exception</button>
+            {confirmation && <span role="status" className="badge ok">{confirmation}</span>}
+          </div>
+        </form>
+      ) : studentViewOnly ? null : (
+        <p className="muted">You cannot submit exceptions for this employee.</p>
+      )}
 
       <hr className="divider" />
-      <h3>{targetEmployeeId === currentUser.id ? "My exceptions" : "Employee exceptions"}</h3>
+      <h3>{forSelf ? "My exceptions" : "Employee exceptions"}</h3>
       {mine.length === 0 ? (
         <p className="muted">No exceptions on file.</p>
       ) : (

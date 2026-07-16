@@ -125,8 +125,9 @@ export function buildSeed(): Database {
   );
 
   // An empty current-week schedule so the workspace has a canvas to build on.
+  const scheduleId = "sched-week";
   db.schedules.push({
-    id: "sched-week",
+    id: scheduleId,
     name: `Week of ${weekStart}`,
     startDate: weekStart,
     endDate: addDays(weekStart, 6),
@@ -134,6 +135,20 @@ export function buildSeed(): Database {
     version: 1,
     createdBy: adminIds[0],
     createdAt: now,
+    updatedAt: now,
+  });
+
+  // Default student availability window — disabled until a manager opens it.
+  const quarterEnd = addDays(weekStart, 84);
+  db.studentAvailabilityWindows.push({
+    id: "saw-default",
+    scheduleId,
+    label: "Current quarter",
+    submissionOpens: weekStart,
+    submissionCloses: quarterEnd,
+    enabled: false,
+    frozen: false,
+    updatedBy: adminIds[0],
     updatedAt: now,
   });
 

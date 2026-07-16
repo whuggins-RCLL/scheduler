@@ -10,6 +10,7 @@ import type {
   LeaveRecord,
   Position,
   Shift,
+  StudentAvailabilityWindow,
   Task,
   UserAccount,
   WorkingHoursPattern,
@@ -99,6 +100,7 @@ export interface StoreContextValue {
   now: () => string;
   saveAvailability: (pattern: AvailabilityPattern) => Promise<void>;
   saveWorkingHours: (pattern: WorkingHoursPattern) => Promise<void>;
+  saveStudentAvailabilityWindow: (window: StudentAvailabilityWindow) => void;
   saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
   submitLeave: (record: LeaveRecord) => void;
   cancelLeave: (id: string) => void;
@@ -297,12 +299,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveAvailability: async (pattern) => {
         const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
         if (isFirebaseConfigured) await writeAvailabilityPattern(persisted);
-        setDb((d) => actions.saveAvailability(d, persisted, actorId, persisted.updatedAt));
+        const actor = db.users.find((u) => u.id === actorId);
+        setDb((d) => actions.saveAvailability(d, persisted, actorId, persisted.updatedAt, actor));
       },
       saveWorkingHours: async (pattern) => {
         const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
         if (isFirebaseConfigured) await writeWorkingHoursPattern(persisted);
         setDb((d) => actions.saveWorkingHours(d, persisted, actorId, persisted.updatedAt));
+      },
+      saveStudentAvailabilityWindow: (window) => {
+        const persisted = { ...window, updatedBy: actorId, updatedAt: now() };
+        setDb((d) => actions.saveStudentAvailabilityWindow(d, persisted, actorId, persisted.updatedAt));
       },
       saveEmployeeProfile: async (profile) => {
         if (isFirebaseConfigured) await writeEmployeeProfile(profile);
