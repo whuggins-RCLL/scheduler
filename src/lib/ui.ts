@@ -19,6 +19,28 @@ export function humanDate(iso: string): string {
   return `${w} ${Number(m)}/${Number(d)}`;
 }
 
+/** Calendar date with year — used for exceptions and other year-sensitive ranges. */
+export function humanDateWithYear(iso: string): string {
+  const w = WEEKDAY_LABELS[weekdayOf(iso)];
+  const [y, m, d] = iso.split("-");
+  return `${w} ${Number(m)}/${Number(d)}/${y}`;
+}
+
+/** Format a start/end date range, including the year (once or on both ends). */
+export function humanDateRange(start: string, end: string): string {
+  if (end === start) return humanDateWithYear(start);
+  const startY = start.slice(0, 4);
+  const endY = end.slice(0, 4);
+  const wStart = WEEKDAY_LABELS[weekdayOf(start)];
+  const wEnd = WEEKDAY_LABELS[weekdayOf(end)];
+  const [, sm, sd] = start.split("-");
+  const [, em, ed] = end.split("-");
+  if (startY === endY) {
+    return `${wStart} ${Number(sm)}/${Number(sd)}–${wEnd} ${Number(em)}/${Number(ed)}, ${startY}`;
+  }
+  return `${wStart} ${Number(sm)}/${Number(sd)}/${startY}–${wEnd} ${Number(em)}/${Number(ed)}/${endY}`;
+}
+
 export function hoursLabel(minutes: number): string {
   return `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} h`;
 }

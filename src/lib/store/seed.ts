@@ -81,7 +81,7 @@ function leaveTypes(): LeaveType[] {
   ];
 }
 
-/** Stanford university holidays from the Cardinal at Work schedule (2026–2027). */
+/** Stanford university holidays from the Cardinal at Work schedule (2026). */
 function universityGlobalExceptions(now: string, actorId: string): GlobalException[] {
   const base = (id: string, name: string, startDate: string, endDate: string): GlobalException => ({
     id,
@@ -102,14 +102,6 @@ function universityGlobalExceptions(now: string, actorId: string): GlobalExcepti
     base("ge-thanks-2026", "Thanksgiving; Friday after Thanksgiving", "2026-11-26", "2026-11-27"),
     base("ge-winter-2026", "Winter Holidays", "2026-12-24", "2026-12-25"),
     base("ge-winter-closure-2026", "University Winter Closure", "2026-12-21", "2027-01-01"),
-    base("ge-ny-2027", "New Year's Day", "2027-01-01", "2027-01-01"),
-    base("ge-mlk-2027", "Martin Luther King, Jr. Day", "2027-01-18", "2027-01-18"),
-    base("ge-pres-2027", "Presidents' Day", "2027-02-15", "2027-02-15"),
-    base("ge-mem-2027", "Memorial Day", "2027-05-31", "2027-05-31"),
-    base("ge-july4-2027", "Independence Day", "2027-07-05", "2027-07-05"),
-    base("ge-labor-2027", "Labor Day", "2027-09-06", "2027-09-06"),
-    base("ge-thanks-2027", "Thanksgiving; Friday after Thanksgiving", "2027-11-25", "2027-11-26"),
-    base("ge-winter-2027", "Winter Holidays", "2027-12-23", "2027-12-24"),
   ];
 }
 

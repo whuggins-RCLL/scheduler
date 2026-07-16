@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
-import { humanDate } from "@/lib/ui";
+import { humanDateRange } from "@/lib/ui";
 import { UNIVERSITY_HOLIDAY_SCHEDULE_URL } from "@/lib/config";
 import type { GlobalException } from "@/domain/types";
 
@@ -160,8 +160,7 @@ export function GlobalExceptionsAdmin() {
                 <div>
                   <strong>{exception.name}</strong>
                   <div className="muted" style={{ fontSize: "0.88rem" }}>
-                    {humanDate(exception.startDate)}
-                    {exception.endDate !== exception.startDate ? `–${humanDate(exception.endDate)}` : ""}
+                    {humanDateRange(exception.startDate, exception.endDate)}
                     {" · All day"}
                   </div>
                   {exception.note && (
