@@ -108,6 +108,7 @@ export function mapAvailabilityPattern(id: string, data: DocumentData): Availabi
     label: typeof data.label === "string" ? data.label : undefined,
     blocks: Array.isArray(data.blocks) ? data.blocks : [],
     note: typeof data.note === "string" ? data.note : undefined,
+    mealBreakMinutes: data.mealBreakMinutes === 30 || data.mealBreakMinutes === 60 ? data.mealBreakMinutes : undefined,
     updatedBy: String(data.updatedBy ?? "system"),
     updatedAt: toIso(data.updatedAt),
   };
@@ -202,5 +203,6 @@ export async function writeAvailabilityPattern(pattern: AvailabilityPattern): Pr
   if (pattern.effectiveEnd !== undefined) payload.effectiveEnd = pattern.effectiveEnd;
   if (pattern.label !== undefined) payload.label = pattern.label;
   if (pattern.note !== undefined) payload.note = pattern.note;
+  if (pattern.mealBreakMinutes !== undefined) payload.mealBreakMinutes = pattern.mealBreakMinutes;
   await setDoc(doc(db, collectionPath("availabilityPatterns"), pattern.id), payload, { merge: true });
 }

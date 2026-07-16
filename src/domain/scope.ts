@@ -1,4 +1,4 @@
-import type { EmployeeProfile, Role, RoleGrant, RoleScope, UserAccount } from "./types";
+import type { EmployeeProfile, EmploymentClassification, Role, RoleGrant, RoleScope, UserAccount } from "./types";
 
 /** Highest-privilege role held, for coarse UI gating. */
 export function primaryRole(user: Pick<UserAccount, "roles">): Role {
@@ -65,4 +65,23 @@ export function canPublishSchedule(viewer: UserAccount): boolean {
 
 export function canOverrideCompliance(viewer: UserAccount): boolean {
   return isAdmin(viewer) || hasRole(viewer, "MANAGER");
+}
+
+/**
+ * Whether the viewer may see the combined student-availability grid.
+ *
+ * Schedulers, managers, and admins always may. Staff-level employees may too.
+ * Student workers and view-only accounts (VIEWER) may NOT — they never see the
+ * pooled student schedule. Classification is authoritative: an EMPLOYEE-role
+ * account that is a `student_worker` is still hidden.
+ */
+export function canViewStudentAvailability(
+  viewer: Pick<UserAccount, "roles">,
+  classification?: EmploymentClassification,
+): boolean {
+  if (canManage(viewer)) return true; // scheduler / manager / super admin
+  if (classification === "student_worker") return false;
+  if (hasRole(viewer, "VIEWER")) return false;
+  // Remaining: staff employees (and auditors) at or above the employee tier.
+  return hasRole(viewer, "EMPLOYEE") || hasRole(viewer, "AUDITOR");
 }
