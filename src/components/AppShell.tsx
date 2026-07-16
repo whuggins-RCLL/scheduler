@@ -25,18 +25,6 @@ const managerLinks: [string, string][] = [
   ["/reports", "Reports"],
 ];
 
-const adminLinks: [string, string][] = [
-  ["/admin", "Overview"],
-  ["/admin/global-exceptions", "Global exceptions"],
-  ["/admin/student-availability", "Student availability"],
-  ["/admin/preview", "View previews"],
-  ["/admin/users", "Users"],
-  ["/admin/positions", "Positions"],
-  ["/admin/tasks", "Tasks"],
-  ["/admin/compliance", "Compliance"],
-  ["/admin/integrations", "Integrations"],
-  ["/admin/audit", "Audit log"],
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -112,7 +100,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="sidebar-scroll">
           <NavGroup label="Workspace" links={employeeLinks} />
           {manager && <NavGroup label="Manager" links={managerLinks} />}
-          {(admin || manager) && <NavGroup label="Administration" links={adminLinks} />}
+          {(admin || manager) && (
+            <>
+              <div className="nav-section">Administration</div>
+              <Link
+                href="/admin"
+                className="navlink"
+                aria-current={pathname === "/admin" || pathname.startsWith("/admin/") ? "page" : undefined}
+              >
+                Admin dashboard
+              </Link>
+            </>
+          )}
         </div>
         <div className="sidebar-foot">
           <div className="muted sidebar-user">
