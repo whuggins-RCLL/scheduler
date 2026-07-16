@@ -29,6 +29,7 @@ import {
   type ScheduleWeights,
 } from "@/domain";
 import { canApproveStudentAvailability, canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
+import { coverageDeadlinePassed } from "@/domain/desk-coverage";
 import { syncGlobalExceptionsToLeave, HOLIDAY_LEAVE_TYPE_ID, leaveRecordsForEmployee } from "@/domain/global-exceptions";
 import {
   activeStudentAvailabilityWindow as pickWindow,
@@ -652,6 +653,109 @@ export function requestSwap(
     audit(next, input.actorId, "swap.manager_review", "swap", req.id, { after: req, reason: evaluation.reasons.join("; "), now: input.now });
   }
   return { db: next, status, reasons: evaluation.reasons };
+}
+
+// ---------------------------------------------------------------------------
+// Desk coverage requests ("I need help covering this shift")
+// ---------------------------------------------------------------------------
+
+/** Raise an open request for help covering a shift the actor owns. Idempotent per shift. */
+export function requestCoverage(db: Database, shiftId: string, actorId: string, now: string): Database {
+  const shift = db.shifts.find((s) => s.id === shiftId);
+  if (!shift) return db;
+  if (db.swaps.some((s) => s.shiftId === shiftId && s.kind === "give_up" && s.status === "pending")) {
+    return db; // already seeking coverage
+  }
+  const next = clone(db);
+  const req: SwapRequest = {
+    id: `cover-${next.swaps.length + 1}-${shiftId}`,
+    kind: "give_up",
+    shiftId,
+    fromEmployeeId: shift.employeeId,
+    toEmployeeId: null,
+    status: "pending",
+    reason: "Coverage requested",
+    createdAt: now,
+    history: [{ at: now, actor: actorId, action: "coverage_requested" }],
+  };
+  next.swaps.unshift(req);
+  const target = next.shifts.find((s) => s.id === shiftId);
+  if (target) {
+    target.status = "coverage_needed";
+    target.updatedAt = now;
+  }
+  audit(next, actorId, "coverage.requested", "shift", shiftId, { after: { swap: req.id }, now });
+  return next;
+}
+
+/** Record that a teammate cannot help with a coverage request (removes it from their feed). */
+export function declineCoverage(db: Database, swapId: string, actorId: string, now: string): Database {
+  const exists = db.swaps.find((s) => s.id === swapId);
+  if (!exists) return db;
+  const next = clone(db);
+  const swap = next.swaps.find((s) => s.id === swapId)!;
+  if (!swap.history.some((h) => h.action === "decline_help" && h.actor === actorId)) {
+    swap.history.push({ at: now, actor: actorId, action: "decline_help" });
+  }
+  return next;
+}
+
+/** A teammate picks up an open coverage request; the shift transfers to them. */
+export function acceptCoverage(db: Database, swapId: string, actorId: string, now: string): Database {
+  const req = db.swaps.find((s) => s.id === swapId && s.kind === "give_up" && s.status === "pending");
+  if (!req) return db;
+  const next = clone(db);
+  const swap = next.swaps.find((s) => s.id === swapId)!;
+  const shift = next.shifts.find((s) => s.id === swap.shiftId);
+  if (!shift) return db;
+  const before = { ...shift };
+  shift.employeeId = actorId;
+  shift.source = "shift_swap";
+  shift.status = "published";
+  shift.updatedAt = now;
+  swap.status = "completed";
+  swap.toEmployeeId = actorId;
+  swap.decidedBy = actorId;
+  swap.history.push({ at: now, actor: actorId, action: "coverage_filled" });
+  audit(next, actorId, "coverage.filled", "shift", shift.id, { before, after: { ...shift }, now });
+  return next;
+}
+
+/**
+ * Expire coverage requests whose shift has already started with no taker, logging
+ * each as unfilled in the audit trail. Called with the current library-time clock.
+ */
+export function expireStaleCoverage(
+  db: Database,
+  now: { date: string; minute: number; iso: string },
+  actorId: string,
+): Database {
+  const clock = { date: now.date, minute: now.minute };
+  const stale = db.swaps.filter((s) => {
+    if (s.kind !== "give_up" || s.status !== "pending") return false;
+    const shift = db.shifts.find((x) => x.id === s.shiftId);
+    return shift ? coverageDeadlinePassed(shift, clock) : true;
+  });
+  if (stale.length === 0) return db;
+  const staleIds = new Set(stale.map((s) => s.id));
+  const next = clone(db);
+  for (const swap of next.swaps) {
+    if (!staleIds.has(swap.id)) continue;
+    swap.status = "expired";
+    swap.history.push({ at: now.iso, actor: "system", action: "coverage_unfilled" });
+    const shift = next.shifts.find((x) => x.id === swap.shiftId);
+    audit(next, actorId, "coverage.unfilled", "shift", swap.shiftId, {
+      after: {
+        swap: swap.id,
+        employeeId: shift?.employeeId ?? swap.fromEmployeeId,
+        date: shift?.date,
+        start: shift?.start,
+        end: shift?.end,
+      },
+      now: now.iso,
+    });
+  }
+  return next;
 }
 
 // ---------------------------------------------------------------------------

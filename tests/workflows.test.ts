@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { buildFixture as buildSeed, SEED_WEEK_START } from "./fixtures";
 import {
+  acceptCoverage,
   cancelShift,
   computeCompliance,
+  declineCoverage,
   deleteWorkingHours,
+  expireStaleCoverage,
   overrideCompliance,
   publishSchedule,
+  requestCoverage,
   requestSwap,
   runGeneration,
   saveAvailability,
@@ -47,6 +51,34 @@ describe("end-to-end workflows on the data store", () => {
     const remaining = next.workingHours.filter((p) => p.employeeId === "emp-sam");
     expect(remaining.map((p) => p.id)).toEqual(["workhours-emp-sam-spring"]);
     expect(next.audit[0].action).toBe("workingHours.delete");
+  });
+
+  it("runs the desk-coverage request lifecycle: request, cover, and expire-unfilled", () => {
+    const db = buildSeed();
+    // Maya asks for help covering her Monday desk shift.
+    let next = requestCoverage(db, "shift-maya-mon", "emp-maya", NOW);
+    const req = next.swaps.find((s) => s.shiftId === "shift-maya-mon" && s.kind === "give_up");
+    expect(req?.status).toBe("pending");
+    expect(next.shifts.find((s) => s.id === "shift-maya-mon")?.status).toBe("coverage_needed");
+    expect(next.audit[0].action).toBe("coverage.requested");
+    // Requesting again is idempotent (no duplicate open request).
+    expect(requestCoverage(next, "shift-maya-mon", "emp-maya", NOW).swaps.filter((s) => s.shiftId === "shift-maya-mon").length).toBe(1);
+
+    // A teammate declines — recorded in history.
+    next = declineCoverage(next, req!.id, "emp-sam", NOW);
+    expect(next.swaps.find((s) => s.id === req!.id)?.history.some((h) => h.action === "decline_help" && h.actor === "emp-sam")).toBe(true);
+
+    // Another teammate covers it — the shift transfers.
+    const covered = acceptCoverage(next, req!.id, "emp-avery", NOW);
+    expect(covered.shifts.find((s) => s.id === "shift-maya-mon")?.employeeId).toBe("emp-avery");
+    expect(covered.swaps.find((s) => s.id === req!.id)?.status).toBe("completed");
+    expect(covered.audit[0].action).toBe("coverage.filled");
+
+    // If instead nobody covers and the shift's start passes, it logs as unfilled.
+    const future = addDays(SEED_WEEK_START, 7);
+    const expired = expireStaleCoverage(next, { date: future, minute: 0, iso: NOW }, "admin-whuggins");
+    expect(expired.swaps.find((s) => s.id === req!.id)?.status).toBe("expired");
+    expect(expired.audit[0].action).toBe("coverage.unfilled");
   });
 
   it("records submitted leave immediately without approval", () => {
