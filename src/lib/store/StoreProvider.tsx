@@ -33,6 +33,7 @@ import {
   subscribeAvailabilityPatterns,
   subscribeEmployeeProfiles,
   subscribeWorkingHoursPatterns,
+  deleteWorkingHoursPattern,
   writeAvailabilityPattern,
   writeEmployeeProfile,
   writeWorkingHoursPattern,
@@ -110,6 +111,7 @@ export interface StoreContextValue {
   saveAvailability: (pattern: AvailabilityPattern, options?: { onBehalf?: boolean }) => Promise<void>;
   saveStudentAvailabilityApproval: (patternId: string, approvedBlocks: import("@/domain/types").AvailabilityBlock[]) => Promise<void>;
   saveWorkingHours: (pattern: WorkingHoursPattern) => Promise<void>;
+  deleteWorkingHours: (patternId: string) => Promise<void>;
   saveStudentAvailabilityWindow: (window: StudentAvailabilityWindow) => void;
   saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
   submitLeave: (record: LeaveRecord, options?: { onBehalf?: boolean }) => void;
@@ -376,6 +378,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
         if (isFirebaseConfigured) await writeWorkingHoursPattern(persisted);
         setDb((d) => actions.saveWorkingHours(d, persisted, actorId, persisted.updatedAt));
+      },
+      deleteWorkingHours: async (patternId) => {
+        if (isFirebaseConfigured) await deleteWorkingHoursPattern(patternId);
+        setDb((d) => actions.deleteWorkingHours(d, patternId, actorId, now()));
       },
       saveStudentAvailabilityWindow: (window) => {
         const persisted = { ...window, updatedBy: actorId, updatedAt: now() };

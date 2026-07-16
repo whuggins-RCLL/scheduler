@@ -124,3 +124,24 @@ export function validateEffectiveDates(
   }
   return errors;
 }
+
+/** Reject two saved schedules whose effective date ranges overlap. */
+export function overlappingPatterns(
+  patterns: Pick<WorkingHoursPattern, "id" | "effectiveStart" | "effectiveEnd" | "label">[],
+  candidate: Pick<WorkingHoursPattern, "id" | "effectiveStart" | "effectiveEnd">,
+): WorkingHoursPattern["label"] | null {
+  const cStart = candidate.effectiveStart ?? "0000-01-01";
+  const cEnd = candidate.effectiveEnd ?? "9999-12-31";
+  for (const p of patterns) {
+    if (p.id === candidate.id) continue;
+    const pStart = p.effectiveStart ?? "0000-01-01";
+    const pEnd = p.effectiveEnd ?? "9999-12-31";
+    if (cStart <= pEnd && pStart <= cEnd) return p.label ?? "another schedule";
+  }
+  return null;
+}
+
+/** Count of working (on-shift) days in a pattern. */
+export function workingDayCount(days: WorkingDaySchedule[] | undefined): number {
+  return normalizeWorkingDays(days).filter((d) => !d.regularDayOff).length;
+}

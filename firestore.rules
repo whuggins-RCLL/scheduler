@@ -85,13 +85,16 @@ service cloud.firestore {
             && request.resource.data.employeeId == request.auth.uid);
       allow delete: if false;
     }
+    // Working-hours patterns are saved per term (Fall/Spring/…). Unlike
+    // availability, an owner or manager may remove a saved schedule template;
+    // the deletion is captured in the audit trail.
     match /organizations/{orgId}/workingHoursPatterns/{patternId} {
       allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
       allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
       allow update: if isStaff()
         || (resource.data.employeeId == request.auth.uid
             && request.resource.data.employeeId == request.auth.uid);
-      allow delete: if false;
+      allow delete: if isStaff() || resource.data.employeeId == request.auth.uid;
     }
     match /organizations/{orgId}/leaveRecords/{leaveId} {
       allow read: if isStaff() || resource.data.employeeId == request.auth.uid;

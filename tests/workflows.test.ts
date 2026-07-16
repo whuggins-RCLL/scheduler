@@ -3,17 +3,20 @@ import { buildFixture as buildSeed, SEED_WEEK_START } from "./fixtures";
 import {
   cancelShift,
   computeCompliance,
+  deleteWorkingHours,
   overrideCompliance,
   publishSchedule,
   requestSwap,
   runGeneration,
   saveAvailability,
+  saveWorkingHours,
   submitLeave,
   toggleLock,
   upsertShift,
 } from "../src/lib/store/actions";
 import { addDays } from "../src/domain/time";
-import type { LeaveRecord, Shift } from "../src/domain/types";
+import { defaultWorkingWeek } from "../src/domain/working-hours";
+import type { LeaveRecord, Shift, WorkingHoursPattern } from "../src/domain/types";
 
 const NOW = "2026-07-13T12:00:00Z";
 
@@ -26,6 +29,24 @@ describe("end-to-end workflows on the data store", () => {
     expect(next.availability.find((p) => p.id === pattern.id)?.note).toBe("Updated for exams");
     expect(next.audit[0].action).toBe("availability.save");
     expect(next.audit[0].actorId).toBe("emp-maya");
+  });
+
+  it("saves multiple working-hours schedules and removes one", () => {
+    const db = buildSeed();
+    const base: WorkingHoursPattern = {
+      id: "workhours-emp-sam-fall", employeeId: "emp-sam",
+      effectiveStart: "2026-09-01", effectiveEnd: "2026-12-31", label: "Fall",
+      days: defaultWorkingWeek(), updatedBy: "emp-sam", updatedAt: "",
+    };
+    const spring: WorkingHoursPattern = { ...base, id: "workhours-emp-sam-spring", effectiveStart: "2027-01-01", effectiveEnd: "2027-03-31", label: "Spring" };
+    let next = saveWorkingHours(db, base, "emp-sam", NOW);
+    next = saveWorkingHours(next, spring, "emp-sam", NOW);
+    expect(next.workingHours.filter((p) => p.employeeId === "emp-sam").length).toBe(2);
+
+    next = deleteWorkingHours(next, "workhours-emp-sam-fall", "emp-sam", NOW);
+    const remaining = next.workingHours.filter((p) => p.employeeId === "emp-sam");
+    expect(remaining.map((p) => p.id)).toEqual(["workhours-emp-sam-spring"]);
+    expect(next.audit[0].action).toBe("workingHours.delete");
   });
 
   it("records submitted leave immediately without approval", () => {
