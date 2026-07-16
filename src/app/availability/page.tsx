@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/AppShell";
 import { AvailabilityEditor } from "@/components/AvailabilityEditor";
+import { AvailabilityPreferences } from "@/components/AvailabilityPreferences";
 import { WorkingHoursEditor } from "@/components/WorkingHoursEditor";
 import { TimeOffPanel } from "@/components/TimeOffPanel";
 
@@ -16,6 +17,7 @@ export default function AvailabilityPage() {
             Working hours and desk availability are tracked separately.
           </p>
         </div>
+        <AvailabilityPreferences />
         <WorkingHoursEditor />
         <AvailabilityEditor />
         <TimeOffPanel />

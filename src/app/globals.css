@@ -771,3 +771,122 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .preview-item span, .mini-card span { color: var(--muted); font-size: 0.82rem; }
 .mini-card { display: grid; gap: 0.1rem; border: 1px solid var(--border); border-radius: 10px; padding: 0.65rem; background: var(--surface); }
 .mini-card strong { font-size: 1.25rem; }
+
+/* ---- Personal schedule (employee view) ---- */
+.personal-schedule-hero {
+  border-radius: var(--radius);
+  padding: 1.9rem 2rem;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cardinal) 22%, transparent), color-mix(in srgb, var(--palo-alto) 18%, transparent)),
+    var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.personal-schedule-hero h1 { font-size: 1.85rem; margin-bottom: 0.35rem; }
+.personal-schedule-hero .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--cardinal);
+  margin-bottom: 0.5rem;
+}
+.personal-schedule-stats {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+.personal-stat { display: grid; gap: 0.15rem; }
+.personal-stat-value { font-size: 1.65rem; font-weight: 700; line-height: 1.1; }
+.personal-stat-label { font-size: 0.82rem; color: var(--muted); }
+.personal-schedule-columns {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+.personal-next-shift {
+  border-left: 4px solid var(--cardinal);
+}
+.personal-next-title { margin: 0; font-size: 1.35rem; }
+.personal-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+.personal-week-day {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.personal-week-day:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.personal-week-day.is-today { border-color: color-mix(in srgb, var(--cardinal) 40%, var(--border)); }
+.personal-week-day.is-selected {
+  border-color: var(--cardinal);
+  background: color-mix(in srgb, var(--cardinal) 8%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cardinal) 25%, transparent);
+}
+.personal-week-day-label { font-size: 0.72rem; font-weight: 650; color: var(--muted); text-transform: uppercase; }
+.personal-week-day-date { font-size: 1.1rem; font-weight: 700; }
+.personal-week-day-shifts { display: flex; justify-content: center; gap: 0.2rem; min-height: 0.5rem; }
+.personal-week-shift-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--pos, var(--cardinal));
+}
+.personal-week-day-empty { font-size: 0.85rem; }
+.personal-calendar-card { border-top: 3px solid color-mix(in srgb, var(--palo-alto) 60%, var(--border)); }
+.personal-calendar-status { margin-top: 0.5rem; }
+.calendar-help { margin-top: 0.75rem; }
+.calendar-help-trigger { padding-left: 0; color: var(--cardinal); }
+.calendar-help-panel {
+  margin-top: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+.calendar-help-steps { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.45rem; }
+.personal-actions { display: grid; gap: 0.5rem; }
+.personal-action-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  text-decoration: none;
+  color: inherit;
+  font-weight: 550;
+  transition: border-color 0.15s, background 0.15s;
+}
+.personal-action-tile:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--cardinal) 6%, var(--surface));
+}
+@media (max-width: 900px) {
+  .personal-schedule-columns { grid-template-columns: 1fr; }
+  .personal-week-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .personal-schedule-hero { padding: 1.25rem; }
+  .personal-schedule-hero h1 { font-size: 1.45rem; }
+  .personal-week-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
