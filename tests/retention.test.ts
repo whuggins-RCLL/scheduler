@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isPurgeableDate, retentionCutoff, SCHEDULE_RETENTION_DAYS } from "../src/domain/retention";
 import { buildSeed } from "../src/lib/store/seed";
-import { purgeOldSchedules, upsertLocation, setScheduleTypeAccess } from "../src/lib/store/actions";
+import { purgeOldSchedules, upsertLocation, setScheduleTypeAccess, setTaskQualifications } from "../src/lib/store/actions";
 import { addDays } from "../src/domain/time";
 import type { Location, Shift } from "../src/domain/types";
 
@@ -64,5 +64,14 @@ describe("schedule types + access", () => {
     // Seeded admins have primaryLocationId "loc-main"; revoking it reassigns to the remaining one.
     expect(emp.primaryLocationId).toBe("loc-stacks");
     expect(next.audit[0].action).toBe("scheduleType.access");
+  });
+
+  it("sets per-employee task qualifications", () => {
+    const db = buildSeed();
+    const empId = db.employees[0].id;
+    const next = setTaskQualifications(db, empId, ["task-opening", "task-closing"], "admin-whuggins", NOW);
+    const emp = next.employees.find((e) => e.id === empId)!;
+    expect(emp.qualifiedTaskIds).toEqual(["task-opening", "task-closing"]);
+    expect(next.audit[0].action).toBe("task.qualification");
   });
 });

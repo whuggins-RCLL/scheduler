@@ -113,6 +113,14 @@ const SECTIONS: AdminSection[] = [
         access: "manage",
       },
       {
+        href: "/admin/task-qualifications",
+        icon: "✔️",
+        label: "Task qualifications",
+        metric: (db) => `${db.tasks.filter((t) => t.active).length}`,
+        caption: "Match employees to the tasks they are qualified to perform.",
+        access: "manage",
+      },
+      {
         href: "/admin/qualifications",
         icon: "🎯",
         label: "Qualifications",

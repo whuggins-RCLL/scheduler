@@ -98,17 +98,18 @@ function positions(): Position[] {
 function tasks(): Task[] {
   const common = {
     requiredQualification: undefined, applicableLocationIds: ["loc-main", "loc-desk", "loc-reading"],
+    applicablePositionIds: [] as string[],
     priority: "normal" as const, minAssignees: 1, maxAssignees: 2, allowedDuringPosition: true,
     requiresAcknowledgement: false, checklist: [] as string[], openingDependency: false, closingDependency: false,
     active: true, description: undefined,
   };
   return [
-    { ...common, id: "task-shelving", name: "Shelving", category: "Collections", colorToken: "task-neutral", icon: "book", estimatedMinutes: 60, order: 0 },
-    { ...common, id: "task-shelfread", name: "Shelf-reading", category: "Collections", colorToken: "task-neutral", icon: "search", estimatedMinutes: 45, order: 1 },
-    { ...common, id: "task-dusting", name: "Dusting", category: "Facilities", colorToken: "task-neutral", icon: "sparkle", estimatedMinutes: 30, order: 2 },
-    { ...common, id: "task-walkthrough", name: "Building walkthroughs", category: "Facilities", colorToken: "task-neutral", icon: "walk", estimatedMinutes: 20, order: 3 },
-    { ...common, id: "task-opening", name: "Opening duties", category: "Operations", colorToken: "task-warn", icon: "sunrise", estimatedMinutes: 30, openingDependency: true, requiresAcknowledgement: true, checklist: ["Unlock service points"], order: 4 },
-    { ...common, id: "task-closing", name: "Closing duties", category: "Operations", colorToken: "task-warn", icon: "sunset", estimatedMinutes: 30, closingDependency: true, requiresAcknowledgement: true, checklist: ["Secure service points"], order: 5 },
+    { ...common, id: "task-shelving", name: "Shelving", category: "Collections", colorToken: "task-neutral", icon: "book", estimatedMinutes: 60, applicablePositionIds: ["pos-project", "pos-desk"], order: 0 },
+    { ...common, id: "task-shelfread", name: "Shelf-reading", category: "Collections", colorToken: "task-neutral", icon: "search", estimatedMinutes: 45, applicablePositionIds: ["pos-project"], order: 1 },
+    { ...common, id: "task-dusting", name: "Dusting", category: "Facilities", colorToken: "task-neutral", icon: "sparkle", estimatedMinutes: 30, applicablePositionIds: ["pos-project", "pos-desk"], order: 2 },
+    { ...common, id: "task-walkthrough", name: "Building walkthroughs", category: "Facilities", colorToken: "task-neutral", icon: "walk", estimatedMinutes: 20, applicablePositionIds: ["pos-desk", "pos-project", "pos-admin", "pos-meetings", "pos-learning"], order: 3 },
+    { ...common, id: "task-opening", name: "Opening duties", category: "Operations", colorToken: "task-warn", icon: "sunrise", estimatedMinutes: 30, applicablePositionIds: ["pos-desk"], openingDependency: true, requiresAcknowledgement: true, checklist: ["Unlock service points"], order: 4 },
+    { ...common, id: "task-closing", name: "Closing duties", category: "Operations", colorToken: "task-warn", icon: "sunset", estimatedMinutes: 30, applicablePositionIds: ["pos-desk"], closingDependency: true, requiresAcknowledgement: true, checklist: ["Secure service points"], order: 5 },
   ];
 }
 

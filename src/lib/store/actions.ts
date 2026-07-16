@@ -806,6 +806,24 @@ export function setScheduleTypeAccess(
   return next;
 }
 
+/** Set which tasks an employee is qualified to perform (the task qualification matrix). */
+export function setTaskQualifications(
+  db: Database,
+  employeeId: string,
+  taskIds: string[],
+  actorId: string,
+  now: string,
+): Database {
+  const idx = db.employees.findIndex((e) => e.id === employeeId);
+  if (idx < 0) return db;
+  const next = clone(db);
+  const emp = next.employees[idx];
+  const before = emp.qualifiedTaskIds;
+  emp.qualifiedTaskIds = [...new Set(taskIds)];
+  audit(next, actorId, "task.qualification", "employee", employeeId, { before, after: emp.qualifiedTaskIds, now });
+  return next;
+}
+
 // ---------------------------------------------------------------------------
 // Retention — purge schedules/shifts older than the retention window
 // ---------------------------------------------------------------------------

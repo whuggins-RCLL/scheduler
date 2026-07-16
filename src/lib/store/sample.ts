@@ -53,6 +53,7 @@ function samplePositions(): Position[] {
 function sampleTasks(): Task[] {
   const base = {
     applicableLocationIds: ["loc-main", "loc-desk"],
+    applicablePositionIds: [] as string[],
     minAssignees: 1,
     maxAssignees: 2,
     allowedDuringPosition: true,
@@ -63,9 +64,9 @@ function sampleTasks(): Task[] {
     active: true,
   };
   return [
-    { ...base, id: "task-open", name: "Opening walkthrough", category: "Operations", colorToken: "position-learning", icon: "🔑", estimatedMinutes: 20, priority: "high", openingDependency: true, order: 1 },
-    { ...base, id: "task-close", name: "Closing sweep", category: "Operations", colorToken: "position-meetings", icon: "🌙", estimatedMinutes: 20, priority: "high", closingDependency: true, order: 2 },
-    { ...base, id: "task-holds", name: "Process holds", category: "Circulation", colorToken: "position-admin", icon: "📨", estimatedMinutes: 30, priority: "normal", order: 3 },
+    { ...base, id: "task-open", name: "Opening walkthrough", category: "Operations", colorToken: "position-learning", icon: "🔑", estimatedMinutes: 20, priority: "high", openingDependency: true, applicablePositionIds: ["pos-ref", "pos-circ"], order: 1 },
+    { ...base, id: "task-close", name: "Closing sweep", category: "Operations", colorToken: "position-meetings", icon: "🌙", estimatedMinutes: 20, priority: "high", closingDependency: true, applicablePositionIds: ["pos-ref", "pos-circ"], order: 2 },
+    { ...base, id: "task-holds", name: "Process holds", category: "Circulation", colorToken: "position-admin", icon: "📨", estimatedMinutes: 30, priority: "normal", applicablePositionIds: ["pos-circ"], order: 3 },
   ];
 }
 
