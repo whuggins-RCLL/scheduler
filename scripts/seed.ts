@@ -2,6 +2,7 @@ import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { BOOTSTRAP_ADMINS, ORGANIZATION_ID } from "../src/lib/config";
+import { defaultTasks } from "../src/lib/store/default-tasks";
 
 const app = initializeApp(
   process.env.GOOGLE_APPLICATION_CREDENTIALS
@@ -71,6 +72,40 @@ async function main() {
     );
     console.log(`  ✓ ${admin.email} → uid ${user.uid}`);
   }
+
+  const tasksCol = db.collection(`organizations/${ORGANIZATION_ID}/tasks`);
+  const existingTasks = await tasksCol.limit(1).get();
+  if (existingTasks.empty) {
+    const tasks = defaultTasks();
+    for (const task of tasks) {
+      await tasksCol.doc(task.id).set(
+        {
+          name: task.name,
+          category: task.category,
+          colorToken: task.colorToken,
+          icon: task.icon,
+          applicableLocationIds: task.applicableLocationIds,
+          estimatedMinutes: task.estimatedMinutes,
+          priority: task.priority,
+          minAssignees: task.minAssignees,
+          maxAssignees: task.maxAssignees,
+          allowedDuringPosition: task.allowedDuringPosition,
+          requiresAcknowledgement: task.requiresAcknowledgement,
+          checklist: task.checklist,
+          openingDependency: task.openingDependency,
+          closingDependency: task.closingDependency,
+          order: task.order,
+          active: task.active,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+    console.log(`  ✓ Seeded ${tasks.length} default tasks`);
+  } else {
+    console.log("  · Tasks collection already populated — skipping task seed");
+  }
+
   console.log(`Seeded ${BOOTSTRAP_ADMINS.length} bootstrap administrators to ${projectId}.`);
 }
 
