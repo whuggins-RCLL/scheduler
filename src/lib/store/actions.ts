@@ -29,7 +29,7 @@ import {
   type ScheduleWeights,
 } from "@/domain";
 import { canApproveStudentAvailability, canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
-import { syncGlobalExceptionsToLeave } from "@/domain/global-exceptions";
+import { syncGlobalExceptionsToLeave, HOLIDAY_LEAVE_TYPE_ID, leaveRecordsForEmployee } from "@/domain/global-exceptions";
 import {
   activeStudentAvailabilityWindow as pickWindow,
   isStudentWorker,
@@ -113,7 +113,7 @@ export function computeCompliance(
         policy,
         positions: db.positions,
         patterns: db.availability.filter((p) => p.employeeId === empId),
-        leave: db.leave.filter((l) => l.employeeId === empId),
+        leave: leaveRecordsForEmployee(db, empId),
         leaveTypes: db.leaveTypes,
       }),
     );
@@ -293,6 +293,9 @@ export function submitLeave(
   permissionUser: UserAccount,
   options?: { onBehalf?: boolean },
 ): Database {
+  if (record.globalExceptionId || record.leaveTypeId === HOLIDAY_LEAVE_TYPE_ID) {
+    throw new Error("University-wide exceptions can only be changed from Admin → Global exceptions.");
+  }
   const target = db.employees.find((e) => e.id === record.employeeId);
   if (target && !canSubmitAvailabilityException(permissionUser, target, options)) {
     throw new Error("Only managers and admins may submit availability exceptions for student workers.");
@@ -460,7 +463,7 @@ export function runGeneration(
   const leave: Record<string, LeaveRecord[]> = {};
   for (const e of next.employees) {
     patterns[e.id] = next.availability.filter((p) => p.employeeId === e.id);
-    leave[e.id] = next.leave.filter((l) => l.employeeId === e.id);
+    leave[e.id] = leaveRecordsForEmployee(next, e.id);
   }
   const policyByClassification: Record<string, ReturnType<typeof policyFor>> = {};
   for (const e of next.employees) policyByClassification[e.classification] = policyFor(next, e.classification);
@@ -597,7 +600,7 @@ export function requestSwap(
     recipient,
     position,
     recipientPatterns: db.availability.filter((p) => p.employeeId === recipient.id),
-    recipientLeave: db.leave.filter((l) => l.employeeId === recipient.id),
+    recipientLeave: leaveRecordsForEmployee(db, recipient.id),
     leaveTypes: db.leaveTypes,
     recipientShiftsThatDay: db.shifts.filter((s) => s.employeeId === recipient.id && s.date === shift.date),
     policy: policyFor(db, recipient.classification),
