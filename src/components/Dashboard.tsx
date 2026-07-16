@@ -47,7 +47,7 @@ function SideRail({ children }: { children?: React.ReactNode }) {
 
 function QuickLinks() {
   const tiles: { href: string; icon: string; title: string; hint: string; external?: boolean }[] = [
-    { href: TIMEKEEPING_URL, icon: "🕐", title: "Time-keeping", hint: "Stanford Oracle sign-in", external: true },
+    { href: TIMEKEEPING_URL, icon: "🕐", title: "Time-keeping", hint: "Stanford Sequoia sign-in", external: true },
     { href: "/schedule", icon: "🗓️", title: "Schedule", hint: "View the full schedule" },
     { href: "/availability", icon: "✅", title: "Availability", hint: "Update exceptions" },
     { href: "/swaps", icon: "🔄", title: "Swaps", hint: "Offer or pick up shifts" },
