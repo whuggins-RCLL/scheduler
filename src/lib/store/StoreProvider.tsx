@@ -47,6 +47,8 @@ import {
   subscribeGlobalExceptions,
   writeGlobalException,
 } from "./firestore-global-exceptions";
+import { bootstrapTasks, subscribeTasks, writeTask } from "./firestore-tasks";
+import { defaultTasks } from "./default-tasks";
 import { buildSeed } from "./seed";
 import type { Database } from "./types";
 
@@ -193,6 +195,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [viewAs, setViewAs] = useState<ViewAs>("self");
   const globalSyncKey = useRef("");
   const globalBootstrapDone = useRef(false);
+  const tasksBootstrapDone = useRef(false);
   const purgeDone = useRef(false);
 
   // Retention sweep: once hydrated, purge schedules/shifts older than the
@@ -243,17 +246,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let unsubscribeAvailability: () => void = () => {};
     let unsubscribeWorkingHours: () => void = () => {};
     let unsubscribeGlobalExceptions: () => void = () => {};
+    let unsubscribeTasks: () => void = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       unsubscribeUsers();
       unsubscribeProfiles();
       unsubscribeAvailability();
       unsubscribeWorkingHours();
       unsubscribeGlobalExceptions();
+      unsubscribeTasks();
       unsubscribeUsers = () => {};
       unsubscribeProfiles = () => {};
       unsubscribeAvailability = () => {};
       unsubscribeWorkingHours = () => {};
       unsubscribeGlobalExceptions = () => {};
+      unsubscribeTasks = () => {};
       if (!fbUser) {
         writeSessionCookies(null);
         setSessionUserId(null);
@@ -325,6 +331,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           /* keep in-memory seed when Firestore is unavailable */
         },
       );
+      unsubscribeTasks = subscribeTasks(
+        (tasks) => {
+          setDb((d) => ({ ...d, tasks: tasks.length > 0 ? tasks : d.tasks }));
+          if (
+            !tasksBootstrapDone.current
+            && tasks.length === 0
+            && account
+            && canManage(account)
+          ) {
+            tasksBootstrapDone.current = true;
+            const seed = defaultTasks();
+            void bootstrapTasks(seed);
+            setDb((d) => (d.tasks.length > 0 ? d : { ...d, tasks: seed }));
+          }
+        },
+        () => {
+          /* keep in-memory tasks when Firestore is unavailable */
+        },
+      );
       setHydrated(true);
     });
 
@@ -335,6 +360,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeAvailability();
       unsubscribeWorkingHours();
       unsubscribeGlobalExceptions();
+      unsubscribeTasks();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -443,8 +469,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setTaskQualifications: (employeeId, taskIds) => setDb((d) => actions.setTaskQualifications(d, employeeId, taskIds, actorId, now())),
       upsertPosition: (position) => setDb((d) => actions.upsertPosition(d, position, actorId, now())),
       archivePosition: (id) => setDb((d) => actions.archivePosition(d, id, actorId, now())),
-      upsertTask: (task) => setDb((d) => actions.upsertTask(d, task, actorId, now())),
-      archiveTask: (id) => setDb((d) => actions.archiveTask(d, id, actorId, now())),
+      upsertTask: (task) => {
+        if (isFirebaseConfigured) void writeTask(task);
+        setDb((d) => actions.upsertTask(d, task, actorId, now()));
+      },
+      archiveTask: (id) => {
+        const task = db.tasks.find((t) => t.id === id);
+        if (isFirebaseConfigured && task) void writeTask({ ...task, active: false });
+        setDb((d) => actions.archiveTask(d, id, actorId, now()));
+      },
       runGeneration: (scheduleId, opts) => {
         if (!canManage(currentUser)) throw new Error("AI scheduler tools are restricted to managers, schedulers, and admins.");
         const res = actions.runGeneration(db, scheduleId, { ...opts, actorId, now: now() });
