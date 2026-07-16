@@ -38,7 +38,7 @@ export function ScheduleHubPanel() {
           </h2>
           <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>
             {tab === "mine" && "Your shifts for the selected day."}
-            {tab === "desk" && "Borrowing Services Desk coverage for the selected day."}
+            {tab === "desk" && "Borrowing desk coverage and parallel tasks by hour — shelving, walkthroughs, breaks, and more."}
             {tab === "students" && "Combined student-worker availability across the week."}
           </p>
         </div>

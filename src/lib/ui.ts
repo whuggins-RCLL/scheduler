@@ -46,3 +46,8 @@ export const statusBadge: Record<ShiftStatus, { cls: string; label: string }> = 
 export function positionColorVar(colorToken: string): string {
   return `var(--${colorToken}, var(--cardinal))`;
 }
+
+/** Map a task or grid-column color token to its CSS custom property value. */
+export function taskColorVar(colorToken: string): string {
+  return `var(--${colorToken}, var(--cardinal))`;
+}

@@ -7,9 +7,11 @@ import { addDays, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { Shift } from "@/domain/types";
 import { canManage, canOverrideCompliance } from "@/domain/scope";
 import { hoursLabel, humanDate, positionColorVar, severityBadge, statusBadge, timeRange } from "@/lib/ui";
+import { fullDayLabel, todayISO } from "@/lib/schedule-view";
 import { ShiftDialog } from "./ShiftDialog";
+import { CombinedTaskScheduleGrid } from "./CombinedTaskScheduleGrid";
 
-type View = "board" | "list";
+type View = "board" | "list" | "grid";
 
 export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" | "month" }) {
   const store = useStore();
@@ -17,6 +19,7 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
   const schedule = db.schedules[0];
   const manager = canManage(currentUser);
   const [view, setView] = useState<View>("board");
+  const [gridDate, setGridDate] = useState<string>(todayISO());
   const [dialog, setDialog] = useState<{ shift?: Shift; date: string } | null>(null);
   const [seed, setSeed] = useState(42);
   const [message, setMessage] = useState<string>("");
@@ -75,6 +78,7 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
         </div>
         <div className="pill-toggle" role="group" aria-label="Schedule view">
           <button aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button>
+          <button aria-pressed={view === "grid"} onClick={() => setView("grid")}>Task grid</button>
           <button aria-pressed={view === "list"} onClick={() => setView("list")}>List</button>
         </div>
       </div>
@@ -153,6 +157,26 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
           onAdd={(date) => setDialog({ date })}
           taskName={(id) => db.tasks.find((t) => t.id === id)?.name ?? id}
         />
+      ) : view === "grid" ? (
+        <div className="card" style={{ padding: "0.85rem 1rem" }}>
+          <div className="spread schedule-day-nav" style={{ flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.65rem" }}>
+            <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>
+              Combined hours × tasks view · {fullDayLabel(gridDate)}
+            </p>
+            <div className="row" style={{ gap: "0.35rem" }}>
+              <button type="button" className="button sm" onClick={() => setGridDate((d) => addDays(d, -1))} aria-label="Previous day">‹</button>
+              <button type="button" className="button sm" onClick={() => setGridDate(todayISO())}>Today</button>
+              <button type="button" className="button sm" onClick={() => setGridDate((d) => addDays(d, 1))} aria-label="Next day">›</button>
+            </div>
+          </div>
+          <CombinedTaskScheduleGrid
+            date={gridDate}
+            shifts={shifts}
+            deskLocationId="loc-desk"
+            deskLabel="Borrowing Desk"
+            onSelectShift={manager ? (s) => setDialog({ shift: s, date: s.date }) : undefined}
+          />
+        </div>
       ) : (
         <ListView days={days} shifts={shifts} empName={empName} pos={pos} taskName={(id) => db.tasks.find((t) => t.id === id)?.name ?? id} />
       )}
