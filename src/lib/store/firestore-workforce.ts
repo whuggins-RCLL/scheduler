@@ -12,6 +12,7 @@ import {
   type Query,
 } from "firebase/firestore";
 import type { AvailabilityPattern, EmployeeProfile, EmploymentClassification, WorkingHoursPattern } from "@/domain/types";
+import { blocksToDaySchedules, normalizeWorkingDays } from "@/domain/working-hours";
 import { ORGANIZATION_ID } from "@/lib/config";
 import { getDb } from "@/lib/firebase";
 
@@ -115,12 +116,17 @@ export function mapAvailabilityPattern(id: string, data: DocumentData): Availabi
 }
 
 export function mapWorkingHoursPattern(id: string, data: DocumentData): WorkingHoursPattern {
+  const legacyBlocks = Array.isArray(data.blocks) ? data.blocks : [];
+  const days = Array.isArray(data.days)
+    ? normalizeWorkingDays(data.days)
+    : blocksToDaySchedules(legacyBlocks);
   return {
     id,
     employeeId: String(data.employeeId ?? ""),
+    effectiveStart: typeof data.effectiveStart === "string" ? data.effectiveStart : undefined,
+    effectiveEnd: typeof data.effectiveEnd === "string" ? data.effectiveEnd : undefined,
     label: typeof data.label === "string" ? data.label : undefined,
-    blocks: Array.isArray(data.blocks) ? data.blocks : [],
-    daysOff: Array.isArray(data.daysOff) ? data.daysOff : [],
+    days,
     note: typeof data.note === "string" ? data.note : undefined,
     updatedBy: String(data.updatedBy ?? "system"),
     updatedAt: toIso(data.updatedAt),
@@ -241,11 +247,12 @@ export async function writeWorkingHoursPattern(pattern: WorkingHoursPattern): Pr
   if (!db) return;
   const payload: DocumentData = {
     employeeId: pattern.employeeId,
-    blocks: pattern.blocks,
-    daysOff: pattern.daysOff,
+    days: normalizeWorkingDays(pattern.days),
     updatedBy: pattern.updatedBy,
     updatedAt: serverTimestamp(),
   };
+  if (pattern.effectiveStart !== undefined) payload.effectiveStart = pattern.effectiveStart;
+  if (pattern.effectiveEnd !== undefined) payload.effectiveEnd = pattern.effectiveEnd;
   if (pattern.label !== undefined) payload.label = pattern.label;
   if (pattern.note !== undefined) payload.note = pattern.note;
   await setDoc(doc(db, collectionPath("workingHoursPatterns"), pattern.id), payload, { merge: true });

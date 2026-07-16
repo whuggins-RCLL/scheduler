@@ -6,5 +6,7 @@ export * from "./fairness";
 export * from "./swaps";
 export * from "./scheduling";
 export * from "./scope";
+export * from "./working-hours";
+export * from "./employee-profile";
 export * from "./break-reminders";
 export * from "./note-interpreter";
