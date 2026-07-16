@@ -12,6 +12,7 @@ import { OperatingHoursCard } from "./OperatingHoursCard";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { ScheduleHubPanel } from "./dashboard/ScheduleHubPanel";
 import { RestBreaksReminders } from "./dashboard/RestBreaksReminders";
+import { DeskCoveragePanel } from "./dashboard/DeskCoveragePanel";
 import type { Shift } from "@/domain/types";
 
 function greeting(): string {
@@ -108,6 +109,8 @@ function EmployeeDashboard() {
       <div className="dash-columns">
         <div className="stack">
           <ScheduleHubPanel />
+
+          <DeskCoveragePanel />
 
           <section className="card glass pad-lg" aria-labelledby="upcoming-shifts">
             <h2 id="upcoming-shifts">Upcoming shifts</h2>
@@ -222,6 +225,8 @@ function ManagerDashboard() {
       <div className="dash-columns">
         <div className="stack">
           <ScheduleHubPanel />
+
+          <DeskCoveragePanel />
 
           <section className="card glass" aria-labelledby="working-now">
             <h2 id="working-now">On the schedule today</h2>

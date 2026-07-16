@@ -135,6 +135,10 @@ export interface StoreContextValue {
   publishSchedule: (scheduleId: string) => actions.PublishResult;
   overrideCompliance: (o: Omit<ComplianceOverride, "id" | "createdAt">) => void;
   requestSwap: (input: { shiftId: string; toEmployeeId: string; reason?: string }) => actions.SwapOutcome;
+  requestCoverage: (shiftId: string) => void;
+  declineCoverage: (swapId: string) => void;
+  acceptCoverage: (swapId: string) => void;
+  expireStaleCoverage: (clock: { date: string; minute: number }) => void;
   approveUser: (userId: string) => void;
   setUserState: (userId: string, state: UserAccount["state"]) => void;
   setUserRoles: (userId: string, roles: UserAccount["roles"]) => void;
@@ -441,6 +445,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setDb(res.db);
         return res;
       },
+      requestCoverage: (shiftId) => setDb((d) => actions.requestCoverage(d, shiftId, actorId, now())),
+      declineCoverage: (swapId) => setDb((d) => actions.declineCoverage(d, swapId, actorId, now())),
+      acceptCoverage: (swapId) => setDb((d) => actions.acceptCoverage(d, swapId, actorId, now())),
+      expireStaleCoverage: (clock) =>
+        setDb((d) => actions.expireStaleCoverage(d, { ...clock, iso: now() }, actorId)),
       approveUser: (userId) => {
         setDb((d) => {
           const withRole = actions.setUserRoles(d, userId, [{ role: "EMPLOYEE" }], actorId, now());

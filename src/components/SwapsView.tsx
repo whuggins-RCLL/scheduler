@@ -1,15 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { humanDate, timeRange } from "@/lib/ui";
 import { eligibleRecipients } from "@/domain/swaps";
 import { isStudentWorker } from "@/domain/scope";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
+import { DEFAULT_TIMEZONE } from "@/lib/config";
+import { nowMinutesInTimeZone } from "@/domain/time";
+import { todayISO } from "@/lib/schedule-view";
+import { visibleCoverageRequests } from "@/domain/desk-coverage";
 import type { AvailabilityPattern, LeaveRecord, Shift } from "@/domain/types";
 
 export function SwapsView() {
-  const { db, currentUser, requestSwap } = useStore();
+  const { db, currentUser, requestSwap, acceptCoverage, declineCoverage, expireStaleCoverage } = useStore();
+  const today = todayISO();
+
+  useEffect(() => {
+    expireStaleCoverage({ date: today, minute: nowMinutesInTimeZone(DEFAULT_TIMEZONE) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today]);
+
+  const coverageRequests = useMemo(
+    () => visibleCoverageRequests(db.swaps, db.shifts, currentUser.id, { date: today, minute: nowMinutesInTimeZone(DEFAULT_TIMEZONE) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [db.swaps, db.shifts, currentUser.id, today],
+  );
   const [selectedShift, setSelectedShift] = useState<string>("");
   const [outcome, setOutcome] = useState<{ status: string; reasons: string[] } | null>(null);
 
@@ -61,6 +77,28 @@ export function SwapsView() {
           {isStudentWorker(initiatorClassification) && " Student workers may only swap with other students."}
         </p>
       </div>
+
+      {coverageRequests.length > 0 && (
+        <section className="card">
+          <h2>Teammates need coverage</h2>
+          <p className="muted" style={{ fontSize: "0.88rem" }}>
+            Pick up a desk shift a coworker can&apos;t cover, or mark that you can&apos;t help.
+          </p>
+          <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
+            {coverageRequests.map(({ swap, shift }) => (
+              <li key={swap.id} className="spread" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+                <span>
+                  <strong>{empName(swap.fromEmployeeId)}</strong> · {humanDate(shift.date)} {timeRange(shift.start, shift.end)} · {pos(shift.positionId)?.name}
+                </span>
+                <span className="row" style={{ gap: "0.35rem" }}>
+                  <button className="button sm primary" onClick={() => acceptCoverage(swap.id)}>Cover this shift</button>
+                  <button className="button sm" onClick={() => declineCoverage(swap.id)}>Can&apos;t help</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid-2">
         <section className="card">

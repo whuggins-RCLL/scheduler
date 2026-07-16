@@ -112,6 +112,19 @@ export function todayInTimeZone(timeZone: string, at: Date = new Date()): ISODat
   }).format(at);
 }
 
+/** Current minute-of-day (0..1439) in an IANA timezone. UI-only; pass `at` in tests. */
+export function nowMinutesInTimeZone(timeZone: string, at: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(at);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0") % 24;
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export function isWeekend(date: ISODate): boolean {

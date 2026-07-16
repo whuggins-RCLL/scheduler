@@ -1,0 +1,33 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cardinal rounded-square background -->
+  <rect x="6" y="6" width="500" height="500" rx="104" fill="#8C1515"/>
+
+  <!-- Binder rings poking above the calendar header -->
+  <rect x="152" y="62" width="46" height="98" rx="23" fill="#fff"/>
+  <rect x="314" y="62" width="46" height="98" rx="23" fill="#fff"/>
+
+  <!-- Calendar header band -->
+  <rect x="92" y="116" width="328" height="80" rx="28" fill="#fff"/>
+  <!-- Calendar body (clear cardinal gap separates it from the header) -->
+  <rect x="92" y="212" width="328" height="224" rx="28" fill="#fff"/>
+
+  <!-- Day cells (3 columns x 3 rows); one highlighted day in cardinal -->
+  <rect x="126" y="248" width="64" height="56" rx="13" fill="#d3d3d3"/>
+  <rect x="224" y="248" width="64" height="56" rx="13" fill="#d3d3d3"/>
+  <rect x="322" y="248" width="64" height="56" rx="13" fill="#d3d3d3"/>
+
+  <rect x="126" y="322" width="64" height="56" rx="13" fill="#d3d3d3"/>
+  <rect x="224" y="322" width="64" height="56" rx="13" fill="#8C1515"/>
+  <rect x="322" y="322" width="64" height="56" rx="13" fill="#d3d3d3"/>
+
+  <rect x="126" y="396" width="64" height="56" rx="13" fill="#d3d3d3"/>
+  <rect x="224" y="396" width="64" height="56" rx="13" fill="#d3d3d3"/>
+
+  <!-- Clock overlapping the lower-right, cut from the calendar with a cardinal gap ring -->
+  <circle cx="398" cy="378" r="120" fill="#8C1515"/>
+  <circle cx="398" cy="378" r="98" fill="#fff"/>
+  <circle cx="398" cy="378" r="98" fill="none" stroke="#8C1515" stroke-width="22"/>
+  <!-- Clock hands (~4 o'clock) -->
+  <line x1="398" y1="378" x2="398" y2="312" stroke="#222" stroke-width="18" stroke-linecap="round"/>
+  <line x1="398" y1="378" x2="454" y2="410" stroke="#222" stroke-width="18" stroke-linecap="round"/>
+</svg>
