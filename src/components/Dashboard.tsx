@@ -106,9 +106,10 @@ function EmployeeDashboard() {
         </div>
       </section>
 
+      <RestBreaksReminders />
+
       <div className="dash-columns">
         <div className="stack">
-          <RestBreaksReminders />
           <ScheduleHubPanel />
 
           <section className="card glass pad-lg" aria-labelledby="upcoming-shifts">

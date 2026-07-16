@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store/StoreProvider";
 import { computeBreakReminders } from "@/domain/break-reminders";
+import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
 import { formatTime12 } from "@/domain/time";
 import type { BreakReminderItem } from "@/domain/break-reminders";
@@ -39,17 +40,19 @@ function urgencyLabel(urgency: BreakReminderItem["urgency"]): string {
 
 /** Student/staff-friendly break nudges with a shift progress meter. */
 export function RestBreaksReminders() {
-  const { db, currentUser } = useStore();
+  const { db, currentUser, viewAs } = useStore();
   const today = todayISO();
-  const employee = db.employees.find((e) => e.id === currentUser.id);
-  const policy = useMemo(() => {
-    if (!employee) return defaultCaliforniaPolicy();
-    return (
+  const employee = useMemo(
+    () => resolveEmployeeProfile(db.employees, currentUser, viewAs),
+    [db.employees, currentUser, viewAs],
+  );
+  const policy = useMemo(
+    () =>
       db.breakPolicies.find((p) => p.classification === employee.classification)
       ?? db.breakPolicies.find((p) => p.id === employee.breakPolicyId)
-      ?? defaultCaliforniaPolicy(employee.classification)
-    );
-  }, [db.breakPolicies, employee]);
+      ?? defaultCaliforniaPolicy(employee.classification),
+    [db.breakPolicies, employee],
+  );
 
   const avail = db.availability.find((p) => p.employeeId === currentUser.id);
   const workHours = db.workingHours.find((p) => p.employeeId === currentUser.id);
@@ -59,19 +62,18 @@ export function RestBreaksReminders() {
     [db.shifts, currentUser.id],
   );
 
-  const state = useMemo(() => {
-    if (!employee) return null;
-    return computeBreakReminders({
-      employee,
-      policy,
-      shifts: myShifts,
-      date: today,
-      nowMinutes: nowMinutes(),
-      mealBreakMinutes: avail?.mealBreakMinutes,
-    });
-  }, [employee, policy, myShifts, today, avail?.mealBreakMinutes]);
-
-  if (!employee || !state) return null;
+  const state = useMemo(
+    () =>
+      computeBreakReminders({
+        employee,
+        policy,
+        shifts: myShifts,
+        date: today,
+        nowMinutes: nowMinutes(),
+        mealBreakMinutes: avail?.mealBreakMinutes,
+      }),
+    [employee, policy, myShifts, today, avail?.mealBreakMinutes],
+  );
 
   if (isDayOff) {
     const note = workHours?.daysOff.find((d) => d.date === today)?.note;
