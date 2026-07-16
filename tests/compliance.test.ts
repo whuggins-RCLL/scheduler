@@ -15,7 +15,7 @@ const deskPosition: Position = {
   requiredQualification: "desk", minStaffing: 1, preferredStaffing: 1, maxStaffing: 2,
   minAssignmentMinutes: 60, maxContinuousMinutes: 120, requiresPhysicalPresence: true,
   blocksOtherAssignments: true, countsAsPublicService: true, selfClaimable: true, swapsAllowed: true,
-  eligibleClassifications: [], order: 0, active: true,
+  eligibleClassifications: [], applicableLocationIds: [], order: 0, active: true,
 };
 
 function shift(over: Partial<Shift> & Pick<Shift, "id" | "start" | "end">): Shift {
