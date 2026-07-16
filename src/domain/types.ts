@@ -317,8 +317,25 @@ export interface LeaveRecord {
   end?: MinuteOfDay;
   status: LeaveStatus;
   note?: string;
+  /** When set, this record is managed by an admin global exception. */
+  globalExceptionId?: string;
   enteredBy: string; // actor id (self or manager)
   decidedBy?: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+/**
+ * Organization-wide exception (e.g. university holidays) that admins maintain
+ * once and sync to every employee's availability exceptions as all-day blocks.
+ */
+export interface GlobalException {
+  id: string;
+  name: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  note?: string;
+  createdBy: string;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }

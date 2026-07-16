@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin } from "@/domain/scope";
 import { firstName, humanDate, timeRange } from "@/lib/ui";
-import { TIMEKEEPING_URL } from "@/lib/config";
+import { TIMEKEEPING_URL, UNIVERSITY_HOLIDAY_SCHEDULE_URL } from "@/lib/config";
 import { todayISO } from "@/lib/schedule-view";
 import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
@@ -45,12 +45,13 @@ function SideRail({ children }: { children?: React.ReactNode }) {
 function QuickLinks() {
   const tiles: { href: string; icon: string; title: string; hint: string; external?: boolean }[] = [
     { href: TIMEKEEPING_URL, icon: "🕐", title: "Time-keeping", hint: "Stanford Sequoia sign-in", external: true },
+    { href: UNIVERSITY_HOLIDAY_SCHEDULE_URL, icon: "🎓", title: "University holidays", hint: "Stanford paid holiday schedule", external: true },
     { href: "/schedule", icon: "🗓️", title: "Schedule", hint: "View the full schedule" },
     { href: "/availability", icon: "✅", title: "Availability", hint: "Update exceptions" },
     { href: "/swaps", icon: "🔄", title: "Swaps", hint: "Offer or pick up shifts" },
   ];
   return (
-    <CollapsibleCard title="Quick links" summary="Time-keeping, schedule, availability, and swaps" defaultOpen={false}>
+    <CollapsibleCard title="Quick links" summary="Time-keeping, holidays, schedule, availability, and swaps" defaultOpen={false}>
       <div className="link-tiles">
         {tiles.map((t) =>
           t.external ? (

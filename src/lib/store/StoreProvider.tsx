@@ -7,6 +7,7 @@ import type {
   ComplianceOverride,
   DailyNote,
   EmployeeProfile,
+  GlobalException,
   LeaveRecord,
   Position,
   Shift,
@@ -105,6 +106,8 @@ export interface StoreContextValue {
   saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
   submitLeave: (record: LeaveRecord, options?: { onBehalf?: boolean }) => void;
   cancelLeave: (id: string) => void;
+  upsertGlobalException: (exception: GlobalException) => void;
+  deleteGlobalException: (id: string) => void;
   upsertDailyNote: (note: DailyNote) => void;
   setDailyNotePublished: (id: string, published: boolean) => void;
   deleteDailyNote: (id: string) => void;
@@ -333,6 +336,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       submitLeave: (record, options) => setDb((d) => actions.submitLeave(d, record, actorId, now(), currentUser, options)),
       cancelLeave: (id) => setDb((d) => actions.cancelLeave(d, id, actorId, now())),
+      upsertGlobalException: (exception) => setDb((d) => actions.upsertGlobalException(d, exception, actorId, now())),
+      deleteGlobalException: (id) => setDb((d) => actions.deleteGlobalException(d, id, actorId, now())),
       upsertDailyNote: (note) => setDb((d) => actions.upsertDailyNote(d, note, actorId, now())),
       setDailyNotePublished: (id, published) => setDb((d) => actions.setDailyNotePublished(d, id, published, actorId, now())),
       deleteDailyNote: (id) => setDb((d) => actions.deleteDailyNote(d, id, actorId, now())),

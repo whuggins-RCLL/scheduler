@@ -6,6 +6,7 @@ import type {
   DailyNote,
   EmployeeProfile,
   FairnessSnapshot,
+  GlobalException,
   LeaveRecord,
   Position,
   Shift,
@@ -28,6 +29,7 @@ import {
   type ScheduleWeights,
 } from "@/domain";
 import { canApproveStudentAvailability, canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
+import { syncGlobalExceptionsToLeave } from "@/domain/global-exceptions";
 import {
   activeStudentAvailabilityWindow as pickWindow,
   isStudentWorker,
@@ -306,11 +308,56 @@ export function cancelLeave(db: Database, leaveId: string, actorId: string, now:
   const next = clone(db);
   const rec = next.leave.find((l) => l.id === leaveId);
   if (!rec) return db;
+  if (rec.globalExceptionId) {
+    throw new Error("University-wide exceptions can only be changed from Admin → Global exceptions.");
+  }
   const before = { ...rec };
   rec.status = "cancelled";
   rec.updatedAt = now;
   audit(next, actorId, "leave.cancel", "leave", leaveId, { before, after: { ...rec }, now });
   return next;
+}
+
+// ---------------------------------------------------------------------------
+// Global exceptions (organization-wide holidays / closures)
+// ---------------------------------------------------------------------------
+
+export function upsertGlobalException(
+  db: Database,
+  exception: GlobalException,
+  actorId: string,
+  now: string,
+): Database {
+  const next = clone(db);
+  const idx = next.globalExceptions.findIndex((g) => g.id === exception.id);
+  const before = idx >= 0 ? next.globalExceptions[idx] : undefined;
+  const updated = {
+    ...exception,
+    createdAt: before?.createdAt ?? now,
+    createdBy: before?.createdBy ?? actorId,
+    updatedAt: now,
+  };
+  if (idx >= 0) next.globalExceptions[idx] = updated;
+  else next.globalExceptions.push(updated);
+  audit(next, actorId, idx >= 0 ? "globalException.update" : "globalException.create", "globalException", exception.id, {
+    before,
+    after: updated,
+    now,
+  });
+  return syncGlobalExceptionsToLeave(next, actorId, now);
+}
+
+export function deleteGlobalException(db: Database, exceptionId: string, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.globalExceptions.findIndex((g) => g.id === exceptionId);
+  if (idx < 0) return db;
+  const [removed] = next.globalExceptions.splice(idx, 1);
+  audit(next, actorId, "globalException.delete", "globalException", exceptionId, { before: removed, now });
+  return syncGlobalExceptionsToLeave(next, actorId, now);
+}
+
+export function syncAllGlobalExceptions(db: Database, actorId: string, now: string): Database {
+  return syncGlobalExceptionsToLeave(clone(db), actorId, now);
 }
 
 // ---------------------------------------------------------------------------
@@ -356,7 +403,7 @@ export function loadSampleData(db: Database, actorId: string, now: string): Data
   const next = applySampleData(db, weekStart, now);
   if (next === db) return db; // already loaded
   audit(next, actorId, "sample.load", "database", "sample", { now });
-  return next;
+  return syncGlobalExceptionsToLeave(next, actorId, now);
 }
 
 // ---------------------------------------------------------------------------

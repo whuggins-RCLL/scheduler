@@ -27,6 +27,7 @@ const managerLinks: [string, string][] = [
 
 const adminLinks: [string, string][] = [
   ["/admin", "Overview"],
+  ["/admin/global-exceptions", "Global exceptions"],
   ["/admin/student-availability", "Student availability"],
   ["/admin/preview", "View previews"],
   ["/admin/users", "Users"],

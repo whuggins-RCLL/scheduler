@@ -36,6 +36,13 @@ export const GOOGLE_CALENDAR_EMBED_SRC =
   "https://calendar.google.com/calendar/embed?src=law.stanford.edu_uebptk4kikenndgjq8lfdpbvjo%40group.calendar.google.com&ctz=America%2FLos_Angeles";
 
 /**
+ * Stanford university holiday schedule (Cardinal at Work).
+ * Surfaced on the dashboard and in admin global exceptions.
+ */
+export const UNIVERSITY_HOLIDAY_SCHEDULE_URL =
+  "https://cardinalatwork.stanford.edu/benefits-rewards/time-leaves/university-holiday-schedule";
+
+/**
  * Stanford Sequoia time-keeping sign-in. Surfaced on the
  * dashboard so staff can jump straight to clocking in/out.
  */

@@ -1,5 +1,6 @@
 import { BOOTSTRAP_ADMINS, ORGANIZATION_ID } from "@/lib/config";
-import type { EmployeeProfile, LeaveType, Location, OperatingHours, UserAccount } from "@/domain/types";
+import type { EmployeeProfile, GlobalException, LeaveType, Location, OperatingHours, UserAccount } from "@/domain/types";
+import { syncGlobalExceptionsToLeave } from "@/domain/global-exceptions";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
 import { addDays, parseTime } from "@/domain/time";
 import { type Database, emptyDatabase } from "./types";
@@ -76,6 +77,39 @@ function leaveTypes(): LeaveType[] {
   // leave-balance accounting of any kind.
   return [
     { ...c, id: "lt-unavailable", name: "Unavailable", paid: false, approvalRequired: false, countsAgainstBalance: false, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: true },
+    { ...c, id: "lt-holiday", name: "University holiday", paid: true, approvalRequired: false, countsAgainstBalance: false, visibility: "team_generic", blocksScheduling: true, requiresNote: false, employeeSelectable: false },
+  ];
+}
+
+/** Stanford university holidays from the Cardinal at Work schedule (2026–2027). */
+function universityGlobalExceptions(now: string, actorId: string): GlobalException[] {
+  const base = (id: string, name: string, startDate: string, endDate: string): GlobalException => ({
+    id,
+    name,
+    startDate,
+    endDate,
+    createdBy: actorId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return [
+    base("ge-ny-2026", "New Year's Day", "2026-01-01", "2026-01-01"),
+    base("ge-mlk-2026", "Martin Luther King, Jr. Day", "2026-01-19", "2026-01-19"),
+    base("ge-pres-2026", "Presidents' Day", "2026-02-16", "2026-02-16"),
+    base("ge-mem-2026", "Memorial Day", "2026-05-25", "2026-05-25"),
+    base("ge-july4-2026", "Independence Day", "2026-07-03", "2026-07-03"),
+    base("ge-labor-2026", "Labor Day", "2026-09-07", "2026-09-07"),
+    base("ge-thanks-2026", "Thanksgiving; Friday after Thanksgiving", "2026-11-26", "2026-11-27"),
+    base("ge-winter-2026", "Winter Holidays", "2026-12-24", "2026-12-25"),
+    base("ge-winter-closure-2026", "University Winter Closure", "2026-12-21", "2027-01-01"),
+    base("ge-ny-2027", "New Year's Day", "2027-01-01", "2027-01-01"),
+    base("ge-mlk-2027", "Martin Luther King, Jr. Day", "2027-01-18", "2027-01-18"),
+    base("ge-pres-2027", "Presidents' Day", "2027-02-15", "2027-02-15"),
+    base("ge-mem-2027", "Memorial Day", "2027-05-31", "2027-05-31"),
+    base("ge-july4-2027", "Independence Day", "2027-07-05", "2027-07-05"),
+    base("ge-labor-2027", "Labor Day", "2027-09-06", "2027-09-06"),
+    base("ge-thanks-2027", "Thanksgiving; Friday after Thanksgiving", "2027-11-25", "2027-11-26"),
+    base("ge-winter-2027", "Winter Holidays", "2027-12-23", "2027-12-24"),
   ];
 }
 
@@ -152,7 +186,8 @@ export function buildSeed(): Database {
     updatedAt: now,
   });
 
-  return db;
+  db.globalExceptions = universityGlobalExceptions(now, adminIds[0]);
+  return syncGlobalExceptionsToLeave(db, adminIds[0], now);
 }
 
 export { ORGANIZATION_ID };
