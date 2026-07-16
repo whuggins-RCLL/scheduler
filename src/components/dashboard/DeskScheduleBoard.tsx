@@ -10,7 +10,10 @@ import {
 } from "@/lib/schedule-view";
 import type { Shift } from "@/domain/types";
 import { ShiftDialog } from "@/components/schedule/ShiftDialog";
+import { CombinedTaskScheduleGrid } from "@/components/schedule/CombinedTaskScheduleGrid";
 import { DayTimeline } from "./DayTimeline";
+
+type DeskView = "timeline" | "grid";
 
 export function DeskScheduleBoard({ embedded = false }: { embedded?: boolean }) {
   const { db, currentUser } = useStore();
@@ -18,6 +21,7 @@ export function DeskScheduleBoard({ embedded = false }: { embedded?: boolean }) 
   const deskLocation = db.locations.find((l) => l.id === "loc-desk") ?? db.locations.find((l) => /desk/i.test(l.name));
   const [date, setDate] = useState<string>(todayISO());
   const [locationId, setLocationId] = useState<string>(deskLocation?.id ?? "");
+  const [deskView, setDeskView] = useState<DeskView>("grid");
   const [editing, setEditing] = useState<Shift | null>(null);
 
   const empName = (id: string | null) => (id ? db.employees.find((e) => e.id === id)?.preferredName ?? "Unknown" : "Open shift");
@@ -54,6 +58,10 @@ export function DeskScheduleBoard({ embedded = false }: { embedded?: boolean }) 
           {locationLabel && <> · {locationLabel}</>}
         </p>
         <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
+          <div className="pill-toggle" role="group" aria-label="Desk view mode">
+            <button type="button" aria-pressed={deskView === "grid"} onClick={() => setDeskView("grid")}>Task grid</button>
+            <button type="button" aria-pressed={deskView === "timeline"} onClick={() => setDeskView("timeline")}>Timeline</button>
+          </div>
           {filterLocations.length >= 1 && (
             <label className="field" style={{ marginBottom: 0 }}>
               <span className="sr-only">Location</span>
@@ -77,13 +85,24 @@ export function DeskScheduleBoard({ embedded = false }: { embedded?: boolean }) 
       </div>
 
       <div className="mt">
-        <DayTimeline
-          shifts={dayShifts}
-          empName={empName}
-          pos={pos}
-          onSelect={onSelect}
-          emptyLabel={isToday ? "No desk shifts scheduled today." : `No shifts on ${fullDayLabel(date)}.`}
-        />
+        {deskView === "grid" ? (
+          <CombinedTaskScheduleGrid
+            embedded
+            date={date}
+            shifts={shifts}
+            deskLocationId={deskLocation?.id ?? "loc-desk"}
+            deskLabel={deskLocation?.shortName ? `${deskLocation.shortName} desk` : "Borrowing Desk"}
+            onSelectShift={onSelect}
+          />
+        ) : (
+          <DayTimeline
+            shifts={dayShifts}
+            empName={empName}
+            pos={pos}
+            onSelect={onSelect}
+            emptyLabel={isToday ? "No desk shifts scheduled today." : `No shifts on ${fullDayLabel(date)}.`}
+          />
+        )}
       </div>
 
       {editing && (
