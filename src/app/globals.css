@@ -771,6 +771,31 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .working-hours-table input[type="time"]:disabled {
   opacity: 0.45;
 }
+.working-hours-table select {
+  min-height: 36px;
+  padding: 0.35rem 0.5rem;
+  max-width: 9rem;
+}
+
+/* Saved working-hours schedule templates ("palette") */
+.wh-templates {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.wh-templates-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; margin-bottom: 0.6rem;
+}
+.wh-template-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface);
+}
+.wh-template-row.is-editing { border-color: var(--brand-solid); box-shadow: 0 0 0 1px var(--brand-solid); }
+.wh-template-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 640; }
 
 @keyframes break-wiggle {
   0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }

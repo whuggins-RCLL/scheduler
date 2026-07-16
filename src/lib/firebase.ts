@@ -1,6 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -27,9 +27,24 @@ export function getFirebaseAuth(): Auth | null {
   return app ? getAuth(app) : null;
 }
 
+let firestore: Firestore | null = null;
+
 export function getDb(): Firestore | null {
   const app = getFirebaseApp();
-  return app ? getFirestore(app) : null;
+  if (!app) return null;
+  if (firestore) return firestore;
+  // `ignoreUndefinedProperties` makes writes drop `undefined` fields instead of
+  // throwing "Unsupported field value: undefined". Optional profile/pattern
+  // fields (e.g. notificationPrefs.quietHoursStart) are legitimately undefined,
+  // and Firestore rejects those unless we opt in here. initializeFirestore must
+  // run before the first getFirestore, so we cache the instance and fall back if
+  // Firestore was already initialized elsewhere.
+  try {
+    firestore = initializeFirestore(app, { ignoreUndefinedProperties: true });
+  } catch {
+    firestore = getFirestore(app);
+  }
+  return firestore;
 }
 
 export async function signInWithGoogle() {

@@ -256,6 +256,20 @@ export function saveWorkingHours(
   return next;
 }
 
+export function deleteWorkingHours(
+  db: Database,
+  patternId: string,
+  actorId: string,
+  now: string,
+): Database {
+  const idx = db.workingHours.findIndex((p) => p.id === patternId);
+  if (idx < 0) return db;
+  const next = clone(db);
+  const [removed] = next.workingHours.splice(idx, 1);
+  audit(next, actorId, "workingHours.delete", "workingHours", patternId, { before: removed, now });
+  return next;
+}
+
 /** The active student submission window (first enabled window, or most recently updated). */
 export function activeStudentAvailabilityWindow(db: Database): StudentAvailabilityWindow | undefined {
   return pickWindow(db.studentAvailabilityWindows);

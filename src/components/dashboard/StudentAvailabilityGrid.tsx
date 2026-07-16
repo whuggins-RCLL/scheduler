@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import { canViewStudentAvailability } from "@/domain/scope";
+import { activeStudentAvailabilityWindow } from "@/domain/student-availability";
 import { WEEKDAY_LABELS, formatTime } from "@/domain/time";
 import { GRID_SLOTS } from "@/lib/schedule-view";
 import type { AvailabilityKind, AvailabilityPattern } from "@/domain/types";
@@ -39,7 +40,22 @@ export function StudentAvailabilityGrid({ embedded = false }: { embedded?: boole
     () => db.employees.filter((e) => e.active && e.classification === "student_worker"),
     [db.employees],
   );
-  const patternFor = (id: string) => db.availability.find((p) => p.employeeId === id);
+  const activeWindow = useMemo(
+    () => activeStudentAvailabilityWindow(db.studentAvailabilityWindows),
+    [db.studentAvailabilityWindows],
+  );
+  // Show the current quarter's pattern (scoped to the active submission window),
+  // falling back to any pattern on file for students set up before windows.
+  const patternFor = (id: string) => {
+    const list = db.availability.filter((p) => p.employeeId === id);
+    if (activeWindow) {
+      const scoped = list.find(
+        (p) => p.id === `avail-${id}-${activeWindow.id}` || p.effectiveStart === activeWindow.submissionOpens,
+      );
+      if (scoped) return scoped;
+    }
+    return list[0];
+  };
 
   // Gate: student workers and view-only accounts never see this grid.
   if (!canViewStudentAvailability(currentUser, myProfile.classification)) return null;

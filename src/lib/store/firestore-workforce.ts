@@ -1,6 +1,7 @@
 /** Firestore bridge for live employee profiles and availability patterns. */
 import {
   collection,
+  deleteDoc,
   deleteField,
   doc,
   onSnapshot,
@@ -173,6 +174,23 @@ export function subscribeAvailabilityPatterns(
   );
 }
 
+/**
+ * Drop `undefined` optional keys (quietHoursStart/End) so Firestore never sees
+ * an undefined value inside the nested notificationPrefs map. This is belt-and-
+ * suspenders alongside `ignoreUndefinedProperties`.
+ */
+function cleanNotificationPrefs(prefs: EmployeeProfile["notificationPrefs"]): DocumentData {
+  const clean: DocumentData = {
+    inApp: prefs.inApp,
+    email: prefs.email,
+    calendar: prefs.calendar,
+    digest: prefs.digest,
+  };
+  if (typeof prefs.quietHoursStart === "number") clean.quietHoursStart = prefs.quietHoursStart;
+  if (typeof prefs.quietHoursEnd === "number") clean.quietHoursEnd = prefs.quietHoursEnd;
+  return clean;
+}
+
 function profilePayload(profile: EmployeeProfile): DocumentData {
   const payload: DocumentData = {
     legalName: profile.legalName,
@@ -195,7 +213,7 @@ function profilePayload(profile: EmployeeProfile): DocumentData {
     qualifiedTaskIds: profile.qualifiedTaskIds,
     employmentPercentage: profile.employmentPercentage,
     googleCalendarConnected: profile.googleCalendarConnected,
-    notificationPrefs: profile.notificationPrefs,
+    notificationPrefs: cleanNotificationPrefs(profile.notificationPrefs),
     updatedAt: serverTimestamp(),
   };
   const optional: Array<keyof EmployeeProfile> = [
@@ -262,4 +280,10 @@ export async function writeWorkingHoursPattern(pattern: WorkingHoursPattern): Pr
   if (pattern.label !== undefined) payload.label = pattern.label;
   if (pattern.note !== undefined) payload.note = pattern.note;
   await setDoc(doc(db, collectionPath("workingHoursPatterns"), pattern.id), payload, { merge: true });
+}
+
+export async function deleteWorkingHoursPattern(id: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await deleteDoc(doc(db, collectionPath("workingHoursPatterns"), id));
 }

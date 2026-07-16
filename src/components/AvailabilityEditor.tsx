@@ -72,10 +72,24 @@ export function AvailabilityEditor() {
     [db.employees, targetEmployeeId, currentUser, viewAs],
   );
 
-  const existing = useMemo(
-    () => db.availability.find((p) => p.employeeId === targetEmployeeId),
-    [db.availability, targetEmployeeId],
-  );
+  // A student's availability is scoped to the active submission window so each
+  // quarter is its own saved pattern (opening a new window never overwrites a
+  // prior quarter). Staff desk availability stays a single per-employee pattern.
+  const patternId = useMemo(() => {
+    const student = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
+    if (student && submissionWindow) return `avail-${targetEmployeeId}-${submissionWindow.id}`;
+    return `avail-${targetEmployeeId}`;
+  }, [targetEmployee, submissionWindow, targetEmployeeId]);
+
+  const existing = useMemo(() => {
+    const byId = db.availability.find((p) => p.id === patternId);
+    if (byId) return byId;
+    const student = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
+    // Fresh quarter for a student: start from a blank grid rather than the
+    // previous quarter's pattern.
+    if (student && submissionWindow) return undefined;
+    return db.availability.find((p) => p.employeeId === targetEmployeeId);
+  }, [db.availability, patternId, targetEmployee, submissionWindow, targetEmployeeId]);
 
   const [cells, setCells] = useState<AvailabilityCellMap>(() => blocksToCells(existing?.blocks ?? []));
   const [approved, setApproved] = useState<Set<string>>(() => approvedBlocksToSet(existing?.approvedBlocks ?? []));
@@ -180,7 +194,7 @@ export function AvailabilityEditor() {
       return;
     }
     const pattern: AvailabilityPattern = {
-      id: existing?.id ?? `avail-${targetEmployeeId}`,
+      id: existing?.id ?? patternId,
       employeeId: targetEmployeeId,
       label: existing?.label ?? submissionWindow?.label ?? "Current term",
       effectiveStart: submissionWindow?.submissionOpens,
