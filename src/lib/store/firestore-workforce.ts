@@ -249,7 +249,7 @@ export async function writeEmployeeProfile(profile: EmployeeProfile): Promise<vo
 /** Persist schedule-access or task-qualification toggles without a full profile write. */
 export async function writeEmployeeSchedulingLinks(
   employeeId: string,
-  fields: Pick<EmployeeProfile, "eligibleLocationIds" | "qualifiedTaskIds" | "qualifiedPositionIds">,
+  fields: Partial<Pick<EmployeeProfile, "eligibleLocationIds" | "qualifiedTaskIds" | "qualifiedPositionIds">>,
 ): Promise<void> {
   const db = getDb();
   if (!db) return;

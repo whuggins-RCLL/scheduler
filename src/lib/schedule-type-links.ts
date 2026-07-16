@@ -19,7 +19,7 @@ export function tasksByScheduleType(
 ): { location: Location | null; label: string; tasks: Task[] }[] {
   const activeTasks = tasks.filter((t) => t.active).sort((a, b) => a.order - b.order);
   const activeLocations = locations.filter((l) => l.active).sort((a, b) => a.name.localeCompare(b.name));
-  const sections = activeLocations.map((location) => ({
+  const sections: { location: Location | null; label: string; tasks: Task[] }[] = activeLocations.map((location) => ({
     location,
     label: location.name,
     tasks: activeTasks.filter(
