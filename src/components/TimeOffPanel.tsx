@@ -1,15 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, canSubmitAvailabilityException, isStudentWorker } from "@/domain/scope";
 import { resolveEmployeeProfile } from "@/domain/employee-profile";
+import {
+  globalLeaveRecordsForEmployee,
+  personalLeaveRecordsForEmployee,
+} from "@/domain/global-exceptions";
 import { humanDate } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
 import type { LeaveRecord } from "@/domain/types";
-import { HOLIDAY_LEAVE_TYPE_ID } from "@/domain/global-exceptions";
 
 const UNAVAILABLE_TYPE_ID = "lt-unavailable";
+
+function ExceptionRow({
+  record,
+  readOnly,
+}: {
+  record: LeaveRecord;
+  readOnly: boolean;
+}) {
+  const label = readOnly ? (record.note ?? "University holiday") : "Unavailable";
+  return (
+    <li className="spread">
+      <span>
+        {label} · {humanDate(record.startDate)}
+        {record.endDate !== record.startDate ? `–${humanDate(record.endDate)}` : ""}
+        {record.partialDay && record.start != null && record.end != null
+          ? ` · ${formatTime12(record.start)}–${formatTime12(record.end)}`
+          : " · All day"}
+      </span>
+      <span className={`badge ${readOnly ? "info" : "ok"}`}>
+        {readOnly ? "University-wide" : "saved"}
+      </span>
+    </li>
+  );
+}
 
 export function TimeOffPanel() {
   const { db, currentUser, viewAs, submitLeave } = useStore();
@@ -27,6 +54,10 @@ export function TimeOffPanel() {
   const [errors, setErrors] = useState<string[]>([]);
   const [confirmation, setConfirmation] = useState("");
 
+  useEffect(() => {
+    setTargetEmployeeId(currentUser.id);
+  }, [currentUser.id]);
+
   const forSelf = targetEmployeeId === currentUser.id;
   const isStudent = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
   const onBehalf = manager && !forSelf;
@@ -35,16 +66,8 @@ export function TimeOffPanel() {
     : false;
   const studentViewOnly = isStudent && forSelf;
 
-  const mine = db.leave
-    .filter((l) => l.employeeId === targetEmployeeId && l.status !== "cancelled")
-    .sort((a, b) => b.startDate.localeCompare(a.startDate));
-
-  function leaveLabel(record: LeaveRecord): string {
-    if (record.globalExceptionId || record.leaveTypeId === HOLIDAY_LEAVE_TYPE_ID) {
-      return record.note ?? "University holiday";
-    }
-    return "Unavailable";
-  }
+  const universityWide = globalLeaveRecordsForEmployee(db, targetEmployeeId);
+  const personal = personalLeaveRecordsForEmployee(db, targetEmployeeId);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -164,22 +187,28 @@ export function TimeOffPanel() {
       )}
 
       <hr className="divider" />
-      <h3>{forSelf ? "My exceptions" : "Employee exceptions"}</h3>
-      {mine.length === 0 ? (
-        <p className="muted">No exceptions on file.</p>
+      <h3>University-wide exceptions</h3>
+      <p className="muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+        Posted automatically for every employee from Admin → Global exceptions. These cannot be edited here.
+      </p>
+      {universityWide.length === 0 ? (
+        <p className="muted">No university-wide exceptions on file.</p>
       ) : (
         <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-          {mine.map((l) => (
-            <li key={l.id} className="spread">
-              <span>
-                {leaveLabel(l)} · {humanDate(l.startDate)}
-                {l.endDate !== l.startDate ? `–${humanDate(l.endDate)}` : ""}
-                {l.partialDay && l.start != null && l.end != null ? ` · ${formatTime12(l.start)}–${formatTime12(l.end)}` : " · All day"}
-              </span>
-              <span className={`badge ${l.globalExceptionId ? "info" : "ok"}`}>
-                {l.globalExceptionId ? "University-wide" : "saved"}
-              </span>
-            </li>
+          {universityWide.map((record) => (
+            <ExceptionRow key={record.id} record={record} readOnly />
+          ))}
+        </ul>
+      )}
+
+      <hr className="divider" />
+      <h3>{forSelf ? "My exceptions" : "Personal exceptions"}</h3>
+      {personal.length === 0 ? (
+        <p className="muted">No personal exceptions on file.</p>
+      ) : (
+        <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
+          {personal.map((record) => (
+            <ExceptionRow key={record.id} record={record} readOnly={false} />
           ))}
         </ul>
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import type {
   AvailabilityPattern,
@@ -18,6 +18,7 @@ import type {
 } from "@/domain/types";
 import type { GenerationMode, GenerationResult, ScheduleWeights } from "@/domain";
 import { canManage, canPublishSchedule, isAdmin } from "@/domain/scope";
+import { globalSyncFingerprint } from "@/domain/global-exceptions";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import * as actions from "./actions";
 import {
@@ -53,7 +54,8 @@ function mergeEmployeeProfile(db: Database, profile: EmployeeProfile): Database 
   const employees = exists
     ? db.employees.map((employee) => employee.id === profile.id ? profile : employee)
     : [...db.employees, profile];
-  return { ...db, employees };
+  const next = { ...db, employees };
+  return actions.syncAllGlobalExceptions(next, "system", new Date().toISOString());
 }
 
 /**
@@ -170,6 +172,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [viewAs, setViewAs] = useState<ViewAs>("self");
+  const globalSyncKey = useRef("");
+
+  // Keep university-wide exceptions materialized for every active employee whenever
+  // the roster or global exception list changes (including Firestore profile loads).
+  useEffect(() => {
+    if (!hydrated) return;
+    const fingerprint = globalSyncFingerprint(db);
+    if (globalSyncKey.current === fingerprint) return;
+    globalSyncKey.current = fingerprint;
+    setDb((current) => actions.syncAllGlobalExceptions(current, "system", new Date().toISOString()));
+  }, [hydrated, db.employees, db.globalExceptions]);
 
   // Session restore. Two mutually exclusive paths:
   //  - Demo/local mode: restore the seeded session id from localStorage.
@@ -238,7 +251,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       const selfOnly = account && canManage(account) ? undefined : fbUser.uid;
       unsubscribeProfiles = subscribeEmployeeProfiles(
-        (employees) => setDb((d) => ({ ...d, employees })),
+        (employees) =>
+          setDb((d) => actions.syncAllGlobalExceptions({ ...d, employees }, "system", new Date().toISOString())),
         () => setDb((d) => ({ ...d, employees: [] })),
         selfOnly,
       );

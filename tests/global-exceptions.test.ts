@@ -3,9 +3,14 @@ import { buildSeed } from "@/lib/store/seed";
 import { emptyDatabase } from "@/lib/store/types";
 import {
   deleteGlobalException,
+  syncAllGlobalExceptions,
   upsertGlobalException,
 } from "@/lib/store/actions";
-import { globalLeaveId } from "@/domain/global-exceptions";
+import {
+  globalLeaveId,
+  globalLeaveRecordsForEmployee,
+  leaveRecordsForEmployee,
+} from "@/domain/global-exceptions";
 
 const NOW = "2026-07-16T12:00:00.000Z";
 const ACTOR = "admin-whuggins";
@@ -130,5 +135,62 @@ describe("global exceptions", () => {
       NOW,
     );
     expect(db.leave.some((l) => l.employeeId === "emp-inactive")).toBe(false);
+  });
+
+  it("derives university-wide exceptions for display even before leave sync", () => {
+    let db = buildSeed();
+    const employee = db.employees.find((e) => e.active)!;
+    db = { ...db, leave: db.leave.filter((l) => !l.globalExceptionId) };
+    const derived = globalLeaveRecordsForEmployee(db, employee.id);
+    expect(derived.length).toBe(db.globalExceptions.length);
+    expect(derived.every((record) => record.partialDay === false)).toBe(true);
+  });
+
+  it("merges university-wide and personal exceptions for scheduling", () => {
+    const db = buildSeed();
+    const employee = db.employees[0];
+    const merged = leaveRecordsForEmployee(db, employee.id);
+    expect(merged.some((l) => l.globalExceptionId)).toBe(true);
+    expect(merged.length).toBeGreaterThanOrEqual(db.globalExceptions.length);
+  });
+
+  it("re-syncs when a new employee is added after seed", () => {
+    let db = buildSeed();
+    db = syncAllGlobalExceptions(
+      {
+        ...db,
+        employees: [
+          ...db.employees,
+          {
+            id: "emp-new",
+            legalName: "New Hire",
+            email: "new@example.test",
+            classification: "non_exempt_staff",
+            eligibleLocationIds: [],
+            additionalManagerIds: [],
+            active: true,
+            targetWeeklyHours: 40,
+            minWeeklyHours: 0,
+            maxWeeklyHours: 40,
+            maxDailyHours: 8,
+            earliestStart: 480,
+            latestEnd: 1020,
+            minTurnaroundMinutes: 480,
+            overtimeEligible: false,
+            breakPolicyId: "ca-nonexempt-v1",
+            qualifiedPositionIds: [],
+            qualifiedTaskIds: [],
+            employmentPercentage: 1,
+            googleCalendarConnected: false,
+            notificationPrefs: { inApp: true, email: false, calendar: false, digest: false },
+          },
+        ],
+      },
+      ACTOR,
+      NOW,
+    );
+    expect(db.leave.filter((l) => l.employeeId === "emp-new" && l.globalExceptionId).length).toBe(
+      db.globalExceptions.length,
+    );
   });
 });
