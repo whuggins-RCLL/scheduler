@@ -8,7 +8,7 @@ import {
   isGlobalSyncedLeave,
   leaveRecordsForEmployee,
 } from "@/domain/global-exceptions";
-import { humanDate } from "@/lib/ui";
+import { humanDateRange } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
 import type { LeaveRecord } from "@/domain/types";
 import { HOLIDAY_LEAVE_TYPE_ID } from "@/domain/global-exceptions";
@@ -21,8 +21,7 @@ function ExceptionRow({ record }: { record: LeaveRecord }) {
   return (
     <li className="spread">
       <span>
-        {label} · {humanDate(record.startDate)}
-        {record.endDate !== record.startDate ? `–${humanDate(record.endDate)}` : ""}
+        {label} · {humanDateRange(record.startDate, record.endDate)}
         {record.partialDay && record.start != null && record.end != null
           ? ` · ${formatTime12(record.start)}–${formatTime12(record.end)}`
           : " · All day"}

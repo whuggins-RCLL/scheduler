@@ -7,10 +7,13 @@ import {
   upsertGlobalException,
 } from "@/lib/store/actions";
 import {
+  activeGlobalExceptions,
+  dedupeGlobalsByName,
   globalLeaveId,
   globalLeaveRecordsForEmployee,
   leaveRecordsForEmployee,
 } from "@/domain/global-exceptions";
+import { humanDateRange } from "@/lib/ui";
 
 const NOW = "2026-07-16T12:00:00.000Z";
 const ACTOR = "admin-whuggins";
@@ -18,7 +21,7 @@ const ACTOR = "admin-whuggins";
 describe("global exceptions", () => {
   it("seeds Stanford university holidays and syncs to all active employees", () => {
     const db = buildSeed();
-    expect(db.globalExceptions.length).toBeGreaterThan(10);
+    expect(db.globalExceptions.length).toBe(9);
     const activeCount = db.employees.filter((e) => e.active).length;
     const holidayLeave = db.leave.filter((l) => l.globalExceptionId);
     expect(holidayLeave.length).toBe(db.globalExceptions.length * activeCount);
@@ -179,6 +182,47 @@ describe("global exceptions", () => {
     expect(db.leave.filter((l) => l.employeeId === "user-student-namig" && l.globalExceptionId).length).toBe(
       db.globalExceptions.length,
     );
+  });
+
+  it("dedupes the same holiday name across years for display", () => {
+    const globals = [
+      { id: "ge-labor-2026", name: "Labor Day", startDate: "2026-09-07", endDate: "2026-09-07" },
+      { id: "ge-labor-2027", name: "Labor Day", startDate: "2027-09-06", endDate: "2027-09-06" },
+    ] as const;
+    const deduped = dedupeGlobalsByName([...globals], "2026-07-16");
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0]?.id).toBe("ge-labor-2026");
+    const nextYear = dedupeGlobalsByName([...globals], "2027-01-02");
+    expect(nextYear[0]?.id).toBe("ge-labor-2027");
+  });
+
+  it("shows each active global holiday once per user", () => {
+    const db = buildSeed();
+    const accountId = db.users[0].id;
+    const withDupes = {
+      ...db,
+      globalExceptions: [
+        ...db.globalExceptions,
+        {
+          id: "ge-labor-2027",
+          name: "Labor Day",
+          startDate: "2027-09-06",
+          endDate: "2027-09-06",
+          createdBy: ACTOR,
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
+      ],
+    };
+    const records = globalLeaveRecordsForEmployee(withDupes, accountId);
+    expect(records.filter((r) => r.note === "Labor Day")).toHaveLength(1);
+    expect(records).toHaveLength(activeGlobalExceptions(withDupes, "2026-07-16").length);
+  });
+
+  it("formats exception dates with the year", () => {
+    expect(humanDateRange("2026-07-03", "2026-07-03")).toBe("Fri 7/3/2026");
+    expect(humanDateRange("2026-12-24", "2026-12-25")).toBe("Thu 12/24–Fri 12/25, 2026");
+    expect(humanDateRange("2026-12-21", "2027-01-01")).toBe("Mon 12/21/2026–Fri 1/1/2027");
   });
 
   it("shows a unified exceptions list with university-wide and personal entries", () => {
