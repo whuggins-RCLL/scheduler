@@ -8,6 +8,7 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import type { Department, EmploymentClassification, Location, Position } from "@/domain/types";
+import { normalizeFrequency } from "@/domain/frequency";
 import { DEFAULT_TIMEZONE, ORGANIZATION_ID } from "@/lib/config";
 import { getDb } from "@/lib/firebase";
 
@@ -69,6 +70,7 @@ export function mapPosition(id: string, data: DocumentData): Position {
     eligibleClassifications: Array.isArray(data.eligibleClassifications)
       ? data.eligibleClassifications.filter((item): item is EmploymentClassification => classification(item) === item)
       : [],
+    frequency: normalizeFrequency(data.frequency),
     order: numberValue(data.order, 0),
     active: data.active !== false,
   };
@@ -126,6 +128,7 @@ function positionPayload(position: Position): DocumentData {
   if (position.description) payload.description = position.description;
   if (position.departmentId) payload.departmentId = position.departmentId;
   if (position.requiredQualification) payload.requiredQualification = position.requiredQualification;
+  if (position.frequency) payload.frequency = position.frequency;
   // Keep legacy primary location for older clients.
   payload.locationId = applicableLocationIds[0] ?? null;
   return payload;

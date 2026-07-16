@@ -242,6 +242,12 @@ main { padding: 1.75rem; max-width: 1240px; margin: 0 auto; }
 }
 .qual-employee-chip input { width: 14px; height: 14px; min-height: 0; margin: 0; }
 
+/* Frequency editor weekday chips */
+.freq-day.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
 /* ---- Desk coverage help feed ---- */
 .coverage-help { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
 .coverage-help-item {

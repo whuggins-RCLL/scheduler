@@ -164,6 +164,20 @@ export type ConstraintClass =
 /** How a manager-authored structured rule binds the scheduling engine. */
 export type RuleConstraintClass = "hard" | "soft" | "info";
 
+/** How a position must be staffed / a task performed — cadence for automation. */
+export type FrequencyMode = "per_operational_hour" | "times_per_day" | "times_per_week";
+
+export interface SchedulingFrequency {
+  mode: FrequencyMode;
+  /**
+   * Occurrences per unit: per day for `times_per_day`, per week for
+   * `times_per_week`. Ignored for `per_operational_hour` (one per open hour).
+   */
+  count: number;
+  /** Weekdays it applies to (0=Sun..6=Sat). Empty = every open day. */
+  weekdays: number[];
+}
+
 export interface Position {
   id: string;
   name: string;
@@ -195,6 +209,8 @@ export interface Position {
   selfClaimable: boolean;
   swapsAllowed: boolean;
   eligibleClassifications: EmploymentClassification[];
+  /** How often this position must be staffed (cadence for automated scheduling). */
+  frequency?: SchedulingFrequency;
   order: number;
   active: boolean;
 }
@@ -221,6 +237,8 @@ export interface Task {
   checklist: string[];
   openingDependency: boolean;
   closingDependency: boolean;
+  /** How often this task must be performed (cadence for automated scheduling). */
+  frequency?: SchedulingFrequency;
   order: number;
   active: boolean;
 }
