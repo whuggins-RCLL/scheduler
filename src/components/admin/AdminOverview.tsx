@@ -3,7 +3,172 @@
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/config";
 import { useStore } from "@/lib/store/StoreProvider";
-import { canManage } from "@/domain/scope";
+import { canManage, hasRole, isAdmin } from "@/domain/scope";
+import type { Database } from "@/lib/store/types";
+
+/** Who may open a given admin section. */
+type Access = "manage" | "admin" | "audit";
+
+interface AdminCard {
+  href: string;
+  icon: string;
+  label: string;
+  /** Live count shown as a badge; hidden when omitted. */
+  metric?: (db: Database) => string;
+  /** What an administrator can actually do in this section. */
+  caption: string;
+  access: Access;
+}
+
+interface AdminSection {
+  id: string;
+  title: string;
+  description: string;
+  cards: AdminCard[];
+}
+
+const SECTIONS: AdminSection[] = [
+  {
+    id: "people",
+    title: "People & access",
+    description: "Who can sign in, what they can do, and how the workforce is organized.",
+    cards: [
+      {
+        href: "/admin/users",
+        icon: "👥",
+        label: "Users",
+        metric: (db) => `${db.users.length}`,
+        caption: "Approve new sign-ins, assign roles, and complete staff onboarding.",
+        access: "admin",
+      },
+      {
+        href: "/admin/roles",
+        icon: "🔑",
+        label: "Roles",
+        metric: () => "6",
+        caption: "Review the access model — what each role can see and do.",
+        access: "admin",
+      },
+      {
+        href: "/admin/organization",
+        icon: "🏛️",
+        label: "Organization",
+        metric: (db) => `${db.departments.length + db.teams.length}`,
+        caption: "Manage the departments and teams used for scheduling scope.",
+        access: "manage",
+      },
+      {
+        href: "/admin/preview",
+        icon: "👁️",
+        label: "View previews",
+        metric: () => "2",
+        caption: "See the site exactly as a student or staff member experiences it.",
+        access: "manage",
+      },
+    ],
+  },
+  {
+    id: "availability",
+    title: "Availability & scheduling",
+    description: "Control when people submit availability and what the scheduling engine can assign.",
+    cards: [
+      {
+        href: "/admin/student-availability",
+        icon: "🗓️",
+        label: "Student availability",
+        metric: (db) => `${db.studentAvailabilityWindows.length}`,
+        caption: "Open and lock student sign-up windows, then approve the hours to schedule.",
+        access: "manage",
+      },
+      {
+        href: "/admin/global-exceptions",
+        icon: "🎓",
+        label: "Global exceptions",
+        metric: (db) => `${db.globalExceptions.length}`,
+        caption: "Post university holidays and closures to everyone's exceptions automatically.",
+        access: "manage",
+      },
+      {
+        href: "/admin/positions",
+        icon: "🪑",
+        label: "Positions",
+        metric: (db) => `${db.positions.filter((p) => p.active).length}`,
+        caption: "Create and edit the desk posts and coverage roles the scheduler fills.",
+        access: "manage",
+      },
+      {
+        href: "/admin/tasks",
+        icon: "✅",
+        label: "Tasks",
+        metric: (db) => `${db.tasks.filter((t) => t.active).length}`,
+        caption: "Define recurring tasks, checklists, and open/close dependencies.",
+        access: "manage",
+      },
+      {
+        href: "/admin/qualifications",
+        icon: "🎯",
+        label: "Qualifications",
+        metric: (db) => `${db.positions.length}`,
+        caption: "Set the skills a position requires before someone can be assigned to it.",
+        access: "manage",
+      },
+    ],
+  },
+  {
+    id: "locations",
+    title: "Locations & hours",
+    description: "Where work happens, when the doors are open, and the systems that feed it.",
+    cards: [
+      {
+        href: "/admin/locations",
+        icon: "📍",
+        label: "Locations",
+        metric: (db) => `${db.locations.filter((l) => l.active).length}`,
+        caption: "Configure library locations, staffing minimums, and open/close buffers.",
+        access: "manage",
+      },
+      {
+        href: "/admin/hours",
+        icon: "🕘",
+        label: "Operating hours",
+        metric: (db) => `${db.operatingHours.length}`,
+        caption: "Set weekly open hours and one-off exceptions for each location.",
+        access: "manage",
+      },
+      {
+        href: "/admin/integrations",
+        icon: "🔌",
+        label: "Integrations",
+        metric: () => "3",
+        caption: "Connect Google, LibCal hours, and Firebase, and check connection status.",
+        access: "manage",
+      },
+    ],
+  },
+  {
+    id: "oversight",
+    title: "Compliance & oversight",
+    description: "The guardrails the engine enforces and the record of everything that changes.",
+    cards: [
+      {
+        href: "/admin/compliance",
+        icon: "⚖️",
+        label: "Compliance",
+        metric: (db) => `${db.breakPolicies.length}`,
+        caption: "Tune the California meal and rest-break policies the engine enforces.",
+        access: "manage",
+      },
+      {
+        href: "/admin/audit",
+        icon: "📜",
+        label: "Audit log",
+        metric: (db) => `${db.audit.length}`,
+        caption: "Trace every change — who did what, when, and exactly what changed.",
+        access: "audit",
+      },
+    ],
+  },
+];
 
 export function AdminOverview() {
   const { db, currentUser, loadSampleData } = useStore();
@@ -12,66 +177,30 @@ export function AdminOverview() {
     return <div className="empty-state">You do not have access to this section.</div>;
   }
 
-  const sampleLoaded = db.employees.some((e) => e.id === "emp-sample-riley");
+  const admin = isAdmin(currentUser);
+  const canSee = (access: Access): boolean => {
+    if (access === "manage") return true; // page is already gated by canManage
+    if (access === "admin") return admin;
+    return admin || hasRole(currentUser, "AUDITOR"); // audit
+  };
 
-  const cards: { href: string; label: string; metric: string; hint: string }[] = [
-    { href: "/admin/users", label: "Users", metric: String(db.users.length), hint: "Accounts and roles" },
-    { href: "/admin/preview", label: "View previews", metric: "2", hint: "Student and staff experiences" },
-    { href: "/admin/student-availability", label: "Student availability", metric: String(db.studentAvailabilityWindows.length), hint: "Submission windows & freeze" },
-    { href: "/admin/global-exceptions", label: "Global exceptions", metric: String(db.globalExceptions.length), hint: "University holidays & closures" },
-    { href: "/admin/roles", label: "Roles", metric: "6", hint: "Access model reference" },
-    {
-      href: "/admin/organization",
-      label: "Organization",
-      metric: String(db.departments.length + db.teams.length),
-      hint: "Departments and teams",
-    },
-    {
-      href: "/admin/locations",
-      label: "Locations",
-      metric: String(db.locations.filter((l) => l.active).length),
-      hint: "Active locations",
-    },
-    { href: "/admin/hours", label: "Operating hours", metric: String(db.operatingHours.length), hint: "Weekly schedules" },
-    {
-      href: "/admin/positions",
-      label: "Positions",
-      metric: String(db.positions.filter((p) => p.active).length),
-      hint: "Active positions",
-    },
-    {
-      href: "/admin/tasks",
-      label: "Tasks",
-      metric: String(db.tasks.filter((t) => t.active).length),
-      hint: "Active tasks",
-    },
-    {
-      href: "/admin/qualifications",
-      label: "Qualifications",
-      metric: String(db.positions.length),
-      hint: "Position requirements",
-    },
-    {
-      href: "/admin/compliance",
-      label: "Compliance",
-      metric: String(db.breakPolicies.length),
-      hint: "Break policies",
-    },
-    { href: "/admin/integrations", label: "Integrations", metric: "3", hint: "Google, LibCal, Firebase" },
-    { href: "/admin/audit", label: "Audit log", metric: String(db.audit.length), hint: "Recorded events" },
-  ];
+  const sampleLoaded = db.employees.some((e) => e.id === "emp-sample-riley");
+  const visibleSections = SECTIONS.map((section) => ({
+    ...section,
+    cards: section.cards.filter((c) => canSee(c.access)),
+  })).filter((section) => section.cards.length > 0);
 
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>Admin portal</h1>
+        <h1>Admin dashboard</h1>
         <p className="muted">
-          Configuration and oversight for {PRODUCT_NAME}. Most sections are read-only reference; edits are
-          performed through dedicated manager workflows.
+          Everything you need to configure and oversee {PRODUCT_NAME}, in one place. Pick a section below —
+          each card explains what you can do there.
         </p>
       </div>
 
-      <section className="card glass spread" aria-labelledby="sample-data">
+      <section className="card glass admin-sample" aria-labelledby="sample-data">
         <div>
           <h2 id="sample-data" style={{ margin: 0 }}>Sample schedule &amp; staff</h2>
           <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.9rem" }}>
@@ -90,15 +219,30 @@ export function AdminOverview() {
         </button>
       </section>
 
-      <div className="grid">
-        {cards.map((c) => (
-          <Link key={c.href} className="card card-link" href={c.href}>
-            <div className="metric">{c.metric}</div>
-            <div className="metric-label">{c.label}</div>
-            <p className="muted mt">{c.hint}</p>
-          </Link>
-        ))}
-      </div>
+      {visibleSections.map((section) => (
+        <section key={section.id} className="admin-section" aria-labelledby={`admin-section-${section.id}`}>
+          <div className="admin-section-head">
+            <h2 id={`admin-section-${section.id}`}>{section.title}</h2>
+            <p className="muted">{section.description}</p>
+          </div>
+          <div className="grid">
+            {section.cards.map((card) => (
+              <Link key={card.href} className="card card-link admin-card" href={card.href}>
+                <div className="admin-card-top">
+                  <span className="admin-card-icon" aria-hidden>{card.icon}</span>
+                  {card.metric && <span className="badge info admin-card-metric">{card.metric(db)}</span>}
+                </div>
+                <div className="admin-card-title">
+                  {card.label}
+                  {card.access !== "manage" && <span className="badge admin-card-tag">Admin only</span>}
+                </div>
+                <p className="muted admin-card-caption">{card.caption}</p>
+                <span className="admin-card-cta" aria-hidden>Open →</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

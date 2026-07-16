@@ -206,6 +206,41 @@ main { padding: 1.75rem; max-width: 1240px; margin: 0 auto; }
 .metric { font-size: 1.9rem; font-weight: 720; letter-spacing: -0.02em; }
 .metric-label { color: var(--muted); font-size: 0.85rem; }
 
+/* ---- Admin dashboard ---- */
+.admin-sample { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }
+.admin-section { margin-top: 1.75rem; }
+.admin-section-head { margin-bottom: 0.85rem; }
+.admin-section-head h2 { margin: 0; font-size: 1.15rem; letter-spacing: -0.01em; }
+.admin-section-head p { margin: 0.2rem 0 0; font-size: 0.88rem; max-width: 62ch; }
+.admin-card {
+  display: flex; flex-direction: column; gap: 0.5rem; min-height: 100%;
+  border-radius: 14px;
+}
+.admin-card:hover { border-color: var(--border-strong); }
+.admin-card-top { display: flex; align-items: center; justify-content: space-between; }
+.admin-card-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 11px; font-size: 1.2rem;
+  background: color-mix(in srgb, var(--palo-alto) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--palo-alto) 28%, var(--border));
+}
+.admin-card-metric { font-variant-numeric: tabular-nums; }
+.admin-card-title {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  font-weight: 680; font-size: 1.02rem; letter-spacing: -0.01em;
+}
+.admin-card-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.admin-card-caption { margin: 0; font-size: 0.86rem; line-height: 1.4; flex: 1; }
+.admin-card-cta {
+  font-size: 0.82rem; font-weight: 640; color: var(--brand-solid);
+  opacity: 0.85; transition: transform 0.15s;
+}
+.admin-card:hover .admin-card-cta { transform: translateX(2px); opacity: 1; }
+@media (max-width: 640px) {
+  .admin-sample { flex-direction: column; align-items: stretch; }
+  .admin-sample .button { width: 100%; }
+}
+
 /* ---- Buttons ---- */
 .button, button.button {
   display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center;
