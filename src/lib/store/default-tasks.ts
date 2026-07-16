@@ -54,6 +54,7 @@ function task(
     colorToken: opts.colorToken ?? "task-neutral",
     icon: opts.icon ?? "check",
     applicableLocationIds: [],
+    applicablePositionIds: [],
     estimatedMinutes: opts.estimatedMinutes,
     priority: opts.priority ?? "normal",
     minAssignees: opts.minAssignees ?? 1,
