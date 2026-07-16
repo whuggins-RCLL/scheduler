@@ -10,6 +10,7 @@ import {
   parseTime,
   seededRandom,
   subtractIntervals,
+  todayInTimeZone,
   weekdayOf,
 } from "../src/domain/time";
 
@@ -45,6 +46,14 @@ describe("time helpers", () => {
     expect(weekdayOf("2026-07-19")).toBe(0); // Sunday
     expect(addDays("2026-07-13", 6)).toBe("2026-07-19");
     expect(dateRange("2026-07-13", "2026-07-15")).toEqual(["2026-07-13", "2026-07-14", "2026-07-15"]);
+  });
+
+  it("resolves today in Pacific time independently of UTC midnight", () => {
+    const utcEvening = new Date("2026-07-17T04:30:00.000Z"); // still Jul 16 evening in Pacific (PDT)
+    const pacific = todayInTimeZone("America/Los_Angeles", utcEvening);
+    const utc = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(utcEvening);
+    expect(pacific).toBe("2026-07-16");
+    expect(utc).toBe("2026-07-17");
   });
 
   it("seeded RNG is deterministic", () => {

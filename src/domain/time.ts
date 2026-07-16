@@ -102,6 +102,16 @@ export function dateRange(start: ISODate, end: ISODate): ISODate[] {
   return out;
 }
 
+/** ISO calendar date for a moment in an IANA timezone (e.g. America/Los_Angeles). */
+export function todayInTimeZone(timeZone: string, at: Date = new Date()): ISODate {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export function isWeekend(date: ISODate): boolean {

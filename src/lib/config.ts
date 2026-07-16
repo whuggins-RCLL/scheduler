@@ -9,6 +9,9 @@ export const PRODUCT_TAGLINE = "Robert Crown Law Library workforce scheduling." 
 export const APPROVED_EMAIL_DOMAINS = ["stanford.edu", "law.stanford.edu"] as const;
 export const ORGANIZATION_ID = "rcll" as const;
 
+/** Primary IANA timezone for library operations (Pacific). */
+export const DEFAULT_TIMEZONE = "America/Los_Angeles" as const;
+
 /** Whether AI-assisted features (note interpretation, explanations) are enabled. */
 export const AI_FEATURES_ENABLED = true;
 
@@ -19,6 +22,9 @@ export const AI_FEATURES_ENABLED = true;
  * → desk staffed until 5:00pm).
  */
 export const DESK_COVERAGE_BUFFER_MINUTES = 120;
+
+/** Label for the desk-coverage window after staffed library close. */
+export const SLS_OPEN_ACCESS_HOURS_LABEL = "Staffed, SLS Open Access Hours" as const;
 
 /**
  * Public Google Calendar embed for the library operations calendar (safe to

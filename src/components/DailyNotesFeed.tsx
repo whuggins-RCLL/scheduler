@@ -5,10 +5,7 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin } from "@/domain/scope";
 import { humanDate } from "@/lib/ui";
 import type { DailyNote } from "@/domain/types";
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayISO } from "@/lib/schedule-view";
 
 function initials(name: string): string {
   return name

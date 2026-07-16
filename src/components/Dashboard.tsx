@@ -6,16 +6,13 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin } from "@/domain/scope";
 import { firstName, humanDate, timeRange } from "@/lib/ui";
 import { TIMEKEEPING_URL } from "@/lib/config";
+import { todayISO } from "@/lib/schedule-view";
 import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { ScheduleHubPanel } from "./dashboard/ScheduleHubPanel";
 import { RestBreaksReminders } from "./dashboard/RestBreaksReminders";
 import type { Shift } from "@/domain/types";
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function greeting(): string {
   const h = new Date().getHours();
