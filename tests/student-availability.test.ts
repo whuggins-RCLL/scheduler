@@ -52,6 +52,16 @@ describe("student availability window", () => {
     const older: StudentAvailabilityWindow = { ...window, id: "old", updatedAt: "2026-01-01T00:00:00.000Z" };
     const newer: StudentAvailabilityWindow = { ...window, id: "new", updatedAt: "2026-06-01T00:00:00.000Z" };
     expect(activeStudentAvailabilityWindow([older, newer])?.id).toBe("new");
+    // Order-independent: same result whichever way the list is passed in.
+    expect(activeStudentAvailabilityWindow([newer, older])?.id).toBe("new");
+  });
+
+  it("falls back to the most recently updated window when none are enabled", () => {
+    const older: StudentAvailabilityWindow = { ...window, id: "old", enabled: false, updatedAt: "2026-01-01T00:00:00.000Z" };
+    const newer: StudentAvailabilityWindow = { ...window, id: "new", enabled: false, updatedAt: "2026-06-01T00:00:00.000Z" };
+    expect(activeStudentAvailabilityWindow([older, newer])?.id).toBe("new");
+    expect(activeStudentAvailabilityWindow([newer, older])?.id).toBe("new");
+    expect(activeStudentAvailabilityWindow([])).toBeUndefined();
   });
 });
 

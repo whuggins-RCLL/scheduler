@@ -9,8 +9,10 @@ export function activeStudentAvailabilityWindow(
   windows: StudentAvailabilityWindow[],
 ): StudentAvailabilityWindow | undefined {
   const enabled = windows.filter((w) => w.enabled);
-  if (enabled.length === 0) return windows[0];
-  return enabled.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  // Prefer enabled windows; fall back to the full list. Always pick the most
+  // recently updated so the result is deterministic regardless of input order.
+  const pool = enabled.length > 0 ? enabled : windows;
+  return [...pool].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }
 
 export type StudentAvailabilityEditStatus =

@@ -351,7 +351,7 @@ export function AvailabilityEditor() {
                 {d}
                 {!readOnly && (
                   <div>
-                    <button type="button" className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, isStudent ? "available" : "available")} aria-label={`Mark all ${d} available`}>all</button>
+                    <button type="button" className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "available")} aria-label={`Mark all ${d} available`}>all</button>
                     <button type="button" className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "unavailable")} aria-label={`Clear all ${d}`}>×</button>
                   </div>
                 )}
