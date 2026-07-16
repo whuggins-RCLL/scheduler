@@ -84,7 +84,7 @@ describe("meal-break preference in generation", () => {
     locationId: "loc-desk", minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, minAssignmentMinutes: 60,
     maxContinuousMinutes: 600, requiresPhysicalPresence: true, blocksOtherAssignments: false,
     countsAsPublicService: false, selfClaimable: true, swapsAllowed: true, eligibleClassifications: [],
-    order: 0, active: true,
+    applicableLocationIds: [], order: 0, active: true,
   };
   const employee: EmployeeProfile = {
     id: "emp-1", legalName: "Casey", email: "casey@example.test", classification: "non_exempt_staff",
