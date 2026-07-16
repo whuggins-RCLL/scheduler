@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
+import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import { canViewStudentAvailability } from "@/domain/scope";
 import { DeskScheduleBoard } from "./DeskScheduleBoard";
 import { MySchedule } from "./MySchedule";
@@ -17,9 +18,12 @@ const TAB_LABELS: Record<ScheduleTab, string> = {
 
 /** Single dashboard panel toggling between personal, desk, and student availability views. */
 export function ScheduleHubPanel() {
-  const { db, currentUser } = useStore();
-  const myProfile = db.employees.find((e) => e.id === currentUser.id);
-  const showStudents = canViewStudentAvailability(currentUser, myProfile?.classification);
+  const { db, currentUser, viewAs } = useStore();
+  const myProfile = useMemo(
+    () => resolveEmployeeProfile(db.employees, currentUser, viewAs),
+    [db.employees, currentUser, viewAs],
+  );
+  const showStudents = canViewStudentAvailability(currentUser, myProfile.classification);
 
   const tabs = useMemo(() => {
     const list: ScheduleTab[] = ["mine", "desk"];
@@ -28,18 +32,19 @@ export function ScheduleHubPanel() {
   }, [showStudents]);
 
   const [tab, setTab] = useState<ScheduleTab>("mine");
+  const activeTab = tab === "students" && !showStudents ? "mine" : tab;
 
   return (
     <section className="card glass pad-lg schedule-hub" aria-labelledby="schedule-hub-heading">
       <div className="spread schedule-hub-head" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
         <div>
           <h2 id="schedule-hub-heading" style={{ marginTop: 0, marginBottom: "0.15rem" }}>
-            {TAB_LABELS[tab]}
+            {TAB_LABELS[activeTab]}
           </h2>
           <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>
-            {tab === "mine" && "Your shifts for the selected day."}
-            {tab === "desk" && "Borrowing desk coverage and parallel tasks by hour — shelving, walkthroughs, breaks, and more."}
-            {tab === "students" && "Combined student-worker availability across the week."}
+            {activeTab === "mine" && "Your shifts for the selected day."}
+            {activeTab === "desk" && "Borrowing desk coverage and parallel tasks by hour — shelving, walkthroughs, breaks, and more."}
+            {activeTab === "students" && "Combined student-worker availability across the week."}
           </p>
         </div>
         <div className="pill-toggle" role="tablist" aria-label="Schedule views">
@@ -48,8 +53,8 @@ export function ScheduleHubPanel() {
               key={id}
               type="button"
               role="tab"
-              aria-selected={tab === id}
-              aria-pressed={tab === id}
+              aria-selected={activeTab === id}
+              aria-pressed={activeTab === id}
               onClick={() => setTab(id)}
             >
               {TAB_LABELS[id]}
@@ -58,10 +63,10 @@ export function ScheduleHubPanel() {
         </div>
       </div>
 
-      <div className="schedule-hub-panel" role="tabpanel" aria-label={TAB_LABELS[tab]}>
-        {tab === "mine" && <MySchedule embedded />}
-        {tab === "desk" && <DeskScheduleBoard embedded />}
-        {tab === "students" && <StudentAvailabilityGrid embedded />}
+      <div className="schedule-hub-panel" role="tabpanel" aria-label={TAB_LABELS[activeTab]}>
+        {activeTab === "mine" && <MySchedule embedded />}
+        {activeTab === "desk" && <DeskScheduleBoard embedded />}
+        {activeTab === "students" && <StudentAvailabilityGrid embedded />}
       </div>
     </section>
   );
