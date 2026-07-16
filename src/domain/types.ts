@@ -250,6 +250,34 @@ export interface AvailabilityPattern {
   updatedAt: ISODateTime;
 }
 
+/** A block of general weekly working hours (on the clock), separate from desk availability. */
+export interface WorkingHoursBlock {
+  weekday: number; // 0=Sun..6=Sat
+  start: MinuteOfDay;
+  end: MinuteOfDay;
+}
+
+/** A specific calendar day marked as a day off from work. */
+export interface DayOff {
+  date: ISODate;
+  note?: string;
+}
+
+/**
+ * When someone expects to be working vs off, tracked separately from desk
+ * availability. Used for break reminders and hour planning — not for desk coverage.
+ */
+export interface WorkingHoursPattern {
+  id: string;
+  employeeId: string;
+  label?: string;
+  blocks: WorkingHoursBlock[];
+  daysOff: DayOff[];
+  note?: string;
+  updatedBy: string;
+  updatedAt: ISODateTime;
+}
+
 export interface LeaveType {
   id: string;
   name: string;

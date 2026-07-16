@@ -161,10 +161,10 @@ export function AvailabilityEditor() {
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>{forSelf ? "My availability" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} availability`}</h1>
+        <h1>{forSelf ? "Desk availability" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} desk availability`}</h1>
         <p className="muted">
-          Click a cell to cycle Unavailable → Available → Preferred. Cells are in half-hour steps and every
-          action is keyboard-operable — no dragging required. Managers schedule around these windows.
+          When {forSelf ? "you can" : "they can"} cover the borrowing desk. Click a cell to cycle
+          Unavailable → Available → Preferred. This is separate from general working hours above.
         </p>
       </div>
 

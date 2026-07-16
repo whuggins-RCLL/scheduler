@@ -6,7 +6,8 @@ rules_version = '2';
 // Data is tenant-scoped under /organizations/{orgId}/<collection>/{id}. The
 // store's in-memory collections map to Firestore collections as follows:
 //   users        -> users                employees  -> employeeProfiles
-//   availability -> availabilityPatterns leave       -> leaveRecords
+//   availability -> availabilityPatterns workingHours -> workingHoursPatterns
+//   leave       -> leaveRecords
 //   notes        -> managerNotes         dailyNotes  -> dailyNotes
 //   coverage     -> coverageRequirements swaps       -> swapRequests
 //   overrides    -> complianceOverrides  audit       -> auditEvents
@@ -77,6 +78,14 @@ service cloud.firestore {
     // Owners manage their own; managers/admins may edit on an employee's behalf
     // (e.g. recording a call-out). Not deletable — supersede instead.
     match /organizations/{orgId}/availabilityPatterns/{patternId} {
+      allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
+      allow update: if isStaff()
+        || (resource.data.employeeId == request.auth.uid
+            && request.resource.data.employeeId == request.auth.uid);
+      allow delete: if false;
+    }
+    match /organizations/{orgId}/workingHoursPatterns/{patternId} {
       allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
       allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
       allow update: if isStaff()

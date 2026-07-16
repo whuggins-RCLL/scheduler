@@ -9,6 +9,7 @@ import type {
   Shift,
   SwapRequest,
   Task,
+  WorkingHoursPattern,
 } from "@/domain/types";
 import { applySampleData, mondayOf } from "./sample";
 import {
@@ -159,6 +160,22 @@ export function saveAvailability(
   if (idx >= 0) next.availability[idx] = updated;
   else next.availability.push(updated);
   audit(next, actorId, "availability.save", "availability", pattern.id, { before, after: updated, now });
+  return next;
+}
+
+export function saveWorkingHours(
+  db: Database,
+  pattern: WorkingHoursPattern,
+  actorId: string,
+  now: string,
+): Database {
+  const next = clone(db);
+  const idx = next.workingHours.findIndex((p) => p.id === pattern.id);
+  const before = idx >= 0 ? next.workingHours[idx] : undefined;
+  const updated = { ...pattern, updatedBy: actorId, updatedAt: now };
+  if (idx >= 0) next.workingHours[idx] = updated;
+  else next.workingHours.push(updated);
+  audit(next, actorId, "workingHours.save", "workingHours", pattern.id, { before, after: updated, now });
   return next;
 }
 

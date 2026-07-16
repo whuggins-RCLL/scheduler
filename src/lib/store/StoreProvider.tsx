@@ -12,6 +12,7 @@ import type {
   Shift,
   Task,
   UserAccount,
+  WorkingHoursPattern,
 } from "@/domain/types";
 import type { GenerationMode, GenerationResult, ScheduleWeights } from "@/domain";
 import { canManage, canPublishSchedule, isAdmin } from "@/domain/scope";
@@ -28,8 +29,10 @@ import {
 import {
   subscribeAvailabilityPatterns,
   subscribeEmployeeProfiles,
+  subscribeWorkingHoursPatterns,
   writeAvailabilityPattern,
   writeEmployeeProfile,
+  writeWorkingHoursPattern,
 } from "./firestore-workforce";
 import { buildSeed } from "./seed";
 import type { Database } from "./types";
@@ -95,6 +98,7 @@ export interface StoreContextValue {
   signOut: () => void;
   now: () => string;
   saveAvailability: (pattern: AvailabilityPattern) => Promise<void>;
+  saveWorkingHours: (pattern: WorkingHoursPattern) => Promise<void>;
   saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
   submitLeave: (record: LeaveRecord) => void;
   cancelLeave: (id: string) => void;
@@ -188,13 +192,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let unsubscribeUsers: () => void = () => {};
     let unsubscribeProfiles: () => void = () => {};
     let unsubscribeAvailability: () => void = () => {};
+    let unsubscribeWorkingHours: () => void = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       unsubscribeUsers();
       unsubscribeProfiles();
       unsubscribeAvailability();
+      unsubscribeWorkingHours();
       unsubscribeUsers = () => {};
       unsubscribeProfiles = () => {};
       unsubscribeAvailability = () => {};
+      unsubscribeWorkingHours = () => {};
       if (!fbUser) {
         writeSessionCookies(null);
         setSessionUserId(null);
@@ -234,6 +241,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         () => setDb((d) => ({ ...d, availability: [] })),
         selfOnly,
       );
+      unsubscribeWorkingHours = subscribeWorkingHoursPatterns(
+        (workingHours) => setDb((d) => ({ ...d, workingHours })),
+        () => setDb((d) => ({ ...d, workingHours: [] })),
+        selfOnly,
+      );
       setHydrated(true);
     });
 
@@ -242,6 +254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeUsers();
       unsubscribeProfiles();
       unsubscribeAvailability();
+      unsubscribeWorkingHours();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -285,6 +298,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
         if (isFirebaseConfigured) await writeAvailabilityPattern(persisted);
         setDb((d) => actions.saveAvailability(d, persisted, actorId, persisted.updatedAt));
+      },
+      saveWorkingHours: async (pattern) => {
+        const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
+        if (isFirebaseConfigured) await writeWorkingHoursPattern(persisted);
+        setDb((d) => actions.saveWorkingHours(d, persisted, actorId, persisted.updatedAt));
       },
       saveEmployeeProfile: async (profile) => {
         if (isFirebaseConfigured) await writeEmployeeProfile(profile);
