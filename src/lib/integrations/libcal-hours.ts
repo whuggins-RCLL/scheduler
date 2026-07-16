@@ -1,5 +1,5 @@
 import { HoursProvider, HoursProviderResult, LIBCAL_HOURS_URL, OperationalHoursInterval } from "./hours";
-import { DESK_COVERAGE_BUFFER_MINUTES } from "@/lib/config";
+import { DESK_COVERAGE_BUFFER_MINUTES, SLS_OPEN_ACCESS_HOURS_LABEL } from "@/lib/config";
 import { formatTime, parseTime } from "@/domain/time";
 
 type JsonRecord = Record<string, unknown>;
@@ -130,7 +130,7 @@ export function deskCoverageInterval(
   return {
     ...staffed,
     closesAt: formatTime(extended),
-    note: `Desk staffed ${(bufferMinutes / 60).toFixed(bufferMinutes % 60 === 0 ? 0 : 1)}h past library close`,
+    note: SLS_OPEN_ACCESS_HOURS_LABEL,
   };
 }
 

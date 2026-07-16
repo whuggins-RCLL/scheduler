@@ -19,7 +19,7 @@ describe("desk coverage +2h rule", () => {
     const desk = deskCoverageInterval(staffed("09:00", "15:00"));
     expect(desk.opensAt).toBe("09:00");
     expect(desk.closesAt).toBe("17:00");
-    expect(desk.note).toMatch(/2h past library close/);
+    expect(desk.note).toBe("Staffed, SLS Open Access Hours");
   });
 
   it("tolerates HH:MM:SS values from the feed", () => {

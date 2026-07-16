@@ -3,13 +3,16 @@
 import { useStore } from "@/lib/store/StoreProvider";
 import { formatTime12, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { TimeInterval } from "@/domain/types";
+import { DEFAULT_TIMEZONE } from "@/lib/config";
+import {
+  formatOperatingHoursSummary,
+  splitOpenAccessSegments,
+  type OperatingHoursSegment,
+} from "@/lib/operating-hours-display";
+import { todayISO } from "@/lib/schedule-view";
 import { CollapsibleCard } from "./CollapsibleCard";
 
 const LONG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function todayHoursSummary(
   weekly: Record<number, TimeInterval[]>,
@@ -18,13 +21,23 @@ function todayHoursSummary(
 ): string {
   if (todayException) {
     if (todayException.closed) return "Today: Closed (exception)";
-    const hours = todayException.intervals.map((iv) => `${formatTime12(iv.start)}–${formatTime12(iv.end)}`).join(", ");
+    const hours = formatOperatingHoursSummary(splitOpenAccessSegments(todayException.intervals));
     return `Today: ${hours}${todayException.reason ? ` — ${todayException.reason}` : ""}`;
   }
   const intervals = weekly[todayIdx] ?? [];
   if (intervals.length === 0) return "Today: Closed";
-  const hours = intervals.map((iv) => `${formatTime12(iv.start)}–${formatTime12(iv.end)}`).join(", ");
-  return `Today: ${hours}`;
+  return `Today: ${formatOperatingHoursSummary(splitOpenAccessSegments(intervals))}`;
+}
+
+function renderSegments(segments: OperatingHoursSegment[]) {
+  if (segments.length === 0) return <span className="closed">Closed</span>;
+  return segments.map((seg, i) => (
+    <span key={i} className="val">
+      {i > 0 ? ", " : ""}
+      {formatTime12(seg.start)}–{formatTime12(seg.end)}
+      {seg.label ? <span className="hours-label"> {seg.label}</span> : null}
+    </span>
+  ));
 }
 
 /** Compact operating-hours embed for the dashboard, today highlighted. */
@@ -32,7 +45,8 @@ export function OperatingHoursCard() {
   const { db } = useStore();
   const hours = db.operatingHours.find((o) => o.locationId === "loc-main") ?? db.operatingHours[0];
   const location = hours ? db.locations.find((l) => l.id === hours.locationId) : undefined;
-  const today = todayISO();
+  const timeZone = location?.timeZone ?? DEFAULT_TIMEZONE;
+  const today = todayISO(timeZone);
   const todayIdx = weekdayOf(today);
   const todayException = hours?.exceptions.find((e) => e.date === today);
 
@@ -43,17 +57,6 @@ export function OperatingHoursCard() {
       </CollapsibleCard>
     );
   }
-
-  const renderIntervals = (idx: number) => {
-    const intervals = hours.weekly[idx] ?? [];
-    if (intervals.length === 0) return <span className="closed">Closed</span>;
-    return intervals.map((iv, i) => (
-      <span key={i} className="val">
-        {i > 0 ? ", " : ""}
-        {formatTime12(iv.start)}–{formatTime12(iv.end)}
-      </span>
-    ));
-  };
 
   return (
     <CollapsibleCard
@@ -66,7 +69,7 @@ export function OperatingHoursCard() {
         {WEEKDAY_LABELS.map((_, idx) => (
           <div key={idx} className={`hours-row${idx === todayIdx ? " today" : ""}`}>
             <span className="day">{LONG_DAYS[idx]}{idx === todayIdx ? " · Today" : ""}</span>
-            <span>{renderIntervals(idx)}</span>
+            <span>{renderSegments(splitOpenAccessSegments(hours.weekly[idx] ?? []))}</span>
           </div>
         ))}
       </div>
@@ -74,7 +77,7 @@ export function OperatingHoursCard() {
         <p className="muted" style={{ marginTop: "0.6rem", fontSize: "0.82rem" }}>
           Today: {todayException.closed
             ? "Closed (exception)"
-            : todayException.intervals.map((iv) => `${formatTime12(iv.start)}–${formatTime12(iv.end)}`).join(", ")}
+            : formatOperatingHoursSummary(splitOpenAccessSegments(todayException.intervals))}
           {todayException.reason ? ` — ${todayException.reason}` : ""}
         </p>
       )}

@@ -1,4 +1,5 @@
-import { addDays, weekdayOf } from "@/domain/time";
+import { addDays, todayInTimeZone, weekdayOf } from "@/domain/time";
+import { DEFAULT_TIMEZONE } from "@/lib/config";
 import type { ISODate } from "@/domain/types";
 
 /** Half-hour grid geometry shared by the dashboard schedule surfaces. */
@@ -19,9 +20,9 @@ export function mondayOf(iso: ISODate): ISODate {
   return addDays(iso, diff);
 }
 
-/** ISO date for today (local calendar day). */
-export function todayISO(): ISODate {
-  return new Date().toISOString().slice(0, 10);
+/** ISO date for today in the given IANA timezone (defaults to library Pacific time). */
+export function todayISO(timeZone: string = DEFAULT_TIMEZONE): ISODate {
+  return todayInTimeZone(timeZone);
 }
 
 /** First-of-month, `delta` months away from the month containing `iso`. */

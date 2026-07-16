@@ -9,10 +9,7 @@ import { isRegularDayOff } from "@/domain/working-hours";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
 import { formatTime12 } from "@/domain/time";
 import type { BreakReminderItem } from "@/domain/break-reminders";
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayISO } from "@/lib/schedule-view";
 
 function nowMinutes(): number {
   const d = new Date();

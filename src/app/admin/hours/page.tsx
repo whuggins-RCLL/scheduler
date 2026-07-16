@@ -4,7 +4,8 @@ import { AppShell } from "@/components/AppShell";
 import { ConfigList } from "@/components/admin/ConfigList";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
-import { formatTime, WEEKDAY_LABELS } from "@/domain/time";
+import { WEEKDAY_LABELS } from "@/domain/time";
+import { formatOperatingHoursSummary, splitOpenAccessSegments } from "@/lib/operating-hours-display";
 
 export default function Page() {
   const { db, currentUser } = useStore();
@@ -28,7 +29,7 @@ export default function Page() {
       row[`d${d}`] =
         intervals.length === 0
           ? "Closed"
-          : intervals.map((iv) => `${formatTime(iv.start)}–${formatTime(iv.end)}`).join(", ");
+          : formatOperatingHoursSummary(splitOpenAccessSegments(intervals));
     }
     return row;
   });
