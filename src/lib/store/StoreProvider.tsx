@@ -131,6 +131,7 @@ export interface StoreContextValue {
   toggleLock: (id: string) => void;
   upsertLocation: (location: Location) => void;
   setScheduleTypeAccess: (employeeId: string, locationIds: string[]) => void;
+  setTaskQualifications: (employeeId: string, taskIds: string[]) => void;
   upsertPosition: (position: Position) => void;
   archivePosition: (id: string) => void;
   upsertTask: (task: Task) => void;
@@ -439,6 +440,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleLock: (id) => setDb((d) => actions.toggleLock(d, id, actorId, now())),
       upsertLocation: (location) => setDb((d) => actions.upsertLocation(d, location, actorId, now())),
       setScheduleTypeAccess: (employeeId, locationIds) => setDb((d) => actions.setScheduleTypeAccess(d, employeeId, locationIds, actorId, now())),
+      setTaskQualifications: (employeeId, taskIds) => setDb((d) => actions.setTaskQualifications(d, employeeId, taskIds, actorId, now())),
       upsertPosition: (position) => setDb((d) => actions.upsertPosition(d, position, actorId, now())),
       archivePosition: (id) => setDb((d) => actions.archivePosition(d, id, actorId, now())),
       upsertTask: (task) => setDb((d) => actions.upsertTask(d, task, actorId, now())),

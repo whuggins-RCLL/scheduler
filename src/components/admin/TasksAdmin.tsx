@@ -18,6 +18,7 @@ function blankTask(order: number): Task {
     icon: "check",
     requiredQualification: undefined,
     applicableLocationIds: [],
+    applicablePositionIds: [],
     estimatedMinutes: 30,
     priority: "normal",
     minAssignees: 1,
@@ -41,6 +42,8 @@ export function TasksAdmin() {
   }
 
   const tasks = [...db.tasks].sort((a, b) => a.order - b.order);
+  const positions = [...db.positions].filter((p) => p.active).sort((a, b) => a.order - b.order);
+  const positionName = (id: string) => positions.find((p) => p.id === id)?.shortLabel ?? id;
 
   return (
     <div className="stack">
@@ -67,6 +70,7 @@ export function TasksAdmin() {
                 <th scope="col">Priority</th>
                 <th scope="col">Est.</th>
                 <th scope="col">Assignees</th>
+                <th scope="col">Positions</th>
                 <th scope="col">Checklist</th>
                 <th scope="col">Dependency</th>
                 <th scope="col">Status</th>
@@ -81,6 +85,13 @@ export function TasksAdmin() {
                   <td>{t.priority}</td>
                   <td>{hoursLabel(t.estimatedMinutes)}</td>
                   <td>{t.minAssignees}–{t.maxAssignees}</td>
+                  <td>
+                    {t.applicablePositionIds.length === 0 ? (
+                      <span className="muted">Any</span>
+                    ) : (
+                      t.applicablePositionIds.map((id) => positionName(id)).join(", ")
+                    )}
+                  </td>
                   <td>{t.checklist.length} steps</td>
                   <td>
                     <span className="row" style={{ gap: "0.35rem" }}>
@@ -104,17 +115,39 @@ export function TasksAdmin() {
       )}
 
       {editing && (
-        <TaskDialog task={editing} onCancel={() => setEditing(null)} onSave={(t) => { upsertTask(t); setEditing(null); }} />
+        <TaskDialog
+          task={editing}
+          positions={positions}
+          onCancel={() => setEditing(null)}
+          onSave={(t) => { upsertTask(t); setEditing(null); }}
+        />
       )}
     </div>
   );
 }
 
-function TaskDialog({ task, onCancel, onSave }: { task: Task; onCancel: () => void; onSave: (t: Task) => void }) {
+function TaskDialog({
+  task,
+  positions,
+  onCancel,
+  onSave,
+}: {
+  task: Task;
+  positions: { id: string; name: string; shortLabel: string }[];
+  onCancel: () => void;
+  onSave: (t: Task) => void;
+}) {
   const [t, setT] = useState<Task>(task);
   const [checklistText, setChecklistText] = useState(task.checklist.join("\n"));
   const [error, setError] = useState("");
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((cur) => ({ ...cur, [k]: v }));
+
+  function togglePosition(positionId: string, on: boolean) {
+    const next = on
+      ? [...new Set([...t.applicablePositionIds, positionId])]
+      : t.applicablePositionIds.filter((id) => id !== positionId);
+    set("applicablePositionIds", next);
+  }
 
   function save() {
     if (!t.name.trim()) { setError("Name is required."); return; }
@@ -159,6 +192,29 @@ function TaskDialog({ task, onCancel, onSave }: { task: Task; onCancel: () => vo
               <input id="t-maxa" type="number" min={1} value={t.maxAssignees} onChange={(e) => set("maxAssignees", Number(e.target.value))} />
             </div>
           </div>
+          <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Applicable positions</legend>
+            <p className="muted" style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.85rem" }}>
+              Select which positions this task can be assigned to. Leave all unchecked to allow any position.
+            </p>
+            {positions.length === 0 ? (
+              <p className="muted">No active positions yet.</p>
+            ) : (
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+                {positions.map((p) => (
+                  <label key={p.id} className="row" style={{ gap: "0.4rem" }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: "auto", minHeight: 0 }}
+                      checked={t.applicablePositionIds.includes(p.id)}
+                      onChange={(e) => togglePosition(p.id, e.target.checked)}
+                    />
+                    {p.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
           <div className="field">
             <label htmlFor="t-check">Checklist steps (one per line)</label>
             <textarea id="t-check" value={checklistText} onChange={(e) => setChecklistText(e.target.value)} />

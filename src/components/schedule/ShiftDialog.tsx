@@ -26,6 +26,25 @@ export function ShiftDialog({
   const [error, setError] = useState("");
 
   const position = db.positions.find((p) => p.id === positionId);
+  const applicableTasks = db.tasks.filter(
+    (t) =>
+      t.active &&
+      (t.applicablePositionIds.length === 0 || t.applicablePositionIds.includes(positionId)),
+  );
+
+  function onPositionChange(nextPositionId: string) {
+    setPositionId(nextPositionId);
+    const allowed = new Set(
+      db.tasks
+        .filter(
+          (t) =>
+            t.active &&
+            (t.applicablePositionIds.length === 0 || t.applicablePositionIds.includes(nextPositionId)),
+        )
+        .map((t) => t.id),
+    );
+    setTaskIds((ids) => ids.filter((id) => allowed.has(id)));
+  }
 
   function save() {
     const s = parseTime(start);
@@ -88,7 +107,7 @@ export function ShiftDialog({
           </div>
           <div className="field">
             <label htmlFor="sd-pos">Position</label>
-            <select id="sd-pos" value={positionId} onChange={(e) => setPositionId(e.target.value)}>
+            <select id="sd-pos" value={positionId} onChange={(e) => onPositionChange(e.target.value)}>
               {db.positions.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -109,7 +128,7 @@ export function ShiftDialog({
           <fieldset className="field" style={{ border: "none", padding: 0, margin: 0 }}>
             <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Tasks</legend>
             <div className="row">
-              {db.tasks.map((t) => (
+              {applicableTasks.map((t) => (
                 <label key={t.id} className="chip" style={{ cursor: "pointer" }}>
                   <input
                     type="checkbox"

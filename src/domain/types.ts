@@ -207,6 +207,8 @@ export interface Task {
   icon: string;
   requiredQualification?: string;
   applicableLocationIds: string[];
+  /** Positions this task may be assigned alongside during scheduling. */
+  applicablePositionIds: string[];
   estimatedMinutes: number;
   priority: TaskPriority;
   minAssignees: number;
