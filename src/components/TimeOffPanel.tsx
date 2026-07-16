@@ -11,6 +11,7 @@ import {
 import { humanDate } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
 import type { LeaveRecord } from "@/domain/types";
+import { HOLIDAY_LEAVE_TYPE_ID } from "@/domain/global-exceptions";
 
 const UNAVAILABLE_TYPE_ID = "lt-unavailable";
 
@@ -68,6 +69,13 @@ export function TimeOffPanel() {
 
   const universityWide = globalLeaveRecordsForEmployee(db, targetEmployeeId);
   const personal = personalLeaveRecordsForEmployee(db, targetEmployeeId);
+
+  function leaveLabel(record: LeaveRecord): string {
+    if (record.globalExceptionId || record.leaveTypeId === HOLIDAY_LEAVE_TYPE_ID) {
+      return record.note ?? "University holiday";
+    }
+    return "Unavailable";
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
