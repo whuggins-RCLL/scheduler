@@ -8,9 +8,8 @@ import { firstName, humanDate, timeRange } from "@/lib/ui";
 import { TIMEKEEPING_URL } from "@/lib/config";
 import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
-import { DeskScheduleBoard } from "./dashboard/DeskScheduleBoard";
-import { MySchedule } from "./dashboard/MySchedule";
-import { StudentAvailabilityGrid } from "./dashboard/StudentAvailabilityGrid";
+import { CollapsibleCard } from "./CollapsibleCard";
+import { ScheduleHubPanel } from "./dashboard/ScheduleHubPanel";
 import type { Shift } from "@/domain/types";
 
 function todayISO(): string {
@@ -53,8 +52,7 @@ function QuickLinks() {
     { href: "/swaps", icon: "🔄", title: "Swaps", hint: "Offer or pick up shifts" },
   ];
   return (
-    <section className="card glass" aria-labelledby="quick-links">
-      <h2 id="quick-links">Quick links</h2>
+    <CollapsibleCard title="Quick links" summary="Time-keeping, schedule, availability, and swaps" defaultOpen={false}>
       <div className="link-tiles">
         {tiles.map((t) =>
           t.external ? (
@@ -72,7 +70,7 @@ function QuickLinks() {
           ),
         )}
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }
 
@@ -107,11 +105,9 @@ function EmployeeDashboard() {
         </div>
       </section>
 
-      <DeskScheduleBoard />
-
       <div className="dash-columns">
         <div className="stack">
-          <MySchedule />
+          <ScheduleHubPanel />
 
           <section className="card glass pad-lg" aria-labelledby="next-shift">
             <h2 id="next-shift">Your next shift</h2>
@@ -168,8 +164,6 @@ function EmployeeDashboard() {
             </p>
             <Link href="/availability" className="button sm glass-button mt">Manage exceptions</Link>
           </section>
-
-          <StudentAvailabilityGrid />
         </div>
 
         <SideRail>
@@ -234,11 +228,9 @@ function ManagerDashboard() {
         <StatCard value={openShifts.length} label="Open / uncovered" href="/schedule" tone={openShifts.length ? "warn" : ""} />
       </div>
 
-      <DeskScheduleBoard />
-
       <div className="dash-columns">
         <div className="stack">
-          <MySchedule />
+          <ScheduleHubPanel />
 
           <section className="card glass" aria-labelledby="working-now">
             <h2 id="working-now">On the schedule today</h2>
@@ -291,8 +283,6 @@ function ManagerDashboard() {
             )}
             <Link href="/schedule" className="button sm glass-button">Open scheduling workspace</Link>
           </section>
-
-          <StudentAvailabilityGrid />
         </div>
 
         <SideRail />
