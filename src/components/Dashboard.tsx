@@ -109,47 +109,49 @@ function EmployeeDashboard() {
         <div className="stack">
           <ScheduleHubPanel />
 
-          <section className="card glass pad-lg" aria-labelledby="next-shift">
-            <h2 id="next-shift">Your next shift</h2>
-            {next ? (
-              <div>
-                <p className="metric" style={{ fontSize: "1.5rem" }}>
-                  {humanDate(next.date)} · {timeRange(next.start, next.end)}
-                </p>
-                <p className="muted" style={{ marginBottom: "0.75rem" }}>
-                  {pos(next.positionId)?.name} · {loc(next.locationId)?.name}
-                </p>
-                {next.taskIds.length > 0 && (
-                  <div className="row">
-                    {next.taskIds.map((t) => (
-                      <span key={t} className="chip">{db.tasks.find((x) => x.id === t)?.name}</span>
-                    ))}
+          <section className="card glass pad-lg" aria-labelledby="upcoming-shifts">
+            <h2 id="upcoming-shifts">Upcoming shifts</h2>
+            {upcoming.length === 0 ? (
+              <p className="muted">No upcoming shifts scheduled.</p>
+            ) : (
+              <>
+                {next && (
+                  <div className="upcoming-featured">
+                    <p className="eyebrow" style={{ marginBottom: "0.35rem" }}>Next up</p>
+                    <p className="metric" style={{ fontSize: "1.5rem", marginBottom: "0.35rem" }}>
+                      {humanDate(next.date)} · {timeRange(next.start, next.end)}
+                    </p>
+                    <p className="muted" style={{ marginBottom: "0.75rem" }}>
+                      {pos(next.positionId)?.name} · {loc(next.locationId)?.name}
+                    </p>
+                    {next.taskIds.length > 0 && (
+                      <div className="row">
+                        {next.taskIds.map((t) => (
+                          <span key={t} className="chip">{db.tasks.find((x) => x.id === t)?.name}</span>
+                        ))}
+                      </div>
+                    )}
+                    {next.breaks.length > 0 && (
+                      <p className="muted mt" style={{ fontSize: "0.85rem" }}>
+                        Break: {next.breaks.map((b) => `${b.kind} ${timeRange(b.start, b.end)}`).join(", ")}
+                      </p>
+                    )}
                   </div>
                 )}
-                {next.breaks.length > 0 && (
-                  <p className="muted mt" style={{ fontSize: "0.85rem" }}>
-                    Break: {next.breaks.map((b) => `${b.kind} ${timeRange(b.start, b.end)}`).join(", ")}
-                  </p>
+                {upcoming.length > 1 && (
+                  <div className={next ? "upcoming-rest" : undefined}>
+                    {next && <h3 className="upcoming-rest-label">Also coming up</h3>}
+                    <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
+                      {(next ? upcoming.slice(1) : upcoming).slice(0, 5).map((s) => (
+                        <li key={s.id} className="spread">
+                          <span>{humanDate(s.date)} · {timeRange(s.start, s.end)}</span>
+                          <span className="badge">{pos(s.positionId)?.shortLabel}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-              </div>
-            ) : (
-              <p className="muted">No upcoming shifts scheduled.</p>
-            )}
-          </section>
-
-          <section className="card glass" aria-labelledby="week-glance">
-            <h2 id="week-glance">Upcoming shifts</h2>
-            {upcoming.length === 0 ? (
-              <p className="muted">Nothing scheduled yet.</p>
-            ) : (
-              <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-                {upcoming.slice(0, 6).map((s) => (
-                  <li key={s.id} className="spread">
-                    <span>{humanDate(s.date)} · {timeRange(s.start, s.end)}</span>
-                    <span className="badge">{pos(s.positionId)?.shortLabel}</span>
-                  </li>
-                ))}
-              </ul>
+              </>
             )}
             <Link href="/schedule" className="button sm glass-button mt">View full schedule</Link>
           </section>
