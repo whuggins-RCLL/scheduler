@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
+import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import { canViewStudentAvailability } from "@/domain/scope";
 import { WEEKDAY_LABELS, formatTime } from "@/domain/time";
 import { GRID_SLOTS } from "@/lib/schedule-view";
@@ -17,8 +18,11 @@ function kindAt(pattern: AvailabilityPattern | undefined, weekday: number, slot:
 }
 
 export function StudentAvailabilityGrid({ embedded = false }: { embedded?: boolean }) {
-  const { db, currentUser } = useStore();
-  const myProfile = db.employees.find((e) => e.id === currentUser.id);
+  const { db, currentUser, viewAs } = useStore();
+  const myProfile = useMemo(
+    () => resolveEmployeeProfile(db.employees, currentUser, viewAs),
+    [db.employees, currentUser, viewAs],
+  );
 
   const students = useMemo(
     () => db.employees.filter((e) => e.active && e.classification === "student_worker"),
@@ -27,7 +31,7 @@ export function StudentAvailabilityGrid({ embedded = false }: { embedded?: boole
   const patternFor = (id: string) => db.availability.find((p) => p.employeeId === id);
 
   // Gate: student workers and view-only accounts never see this grid.
-  if (!canViewStudentAvailability(currentUser, myProfile?.classification)) return null;
+  if (!canViewStudentAvailability(currentUser, myProfile.classification)) return null;
 
   if (students.length === 0) {
     const empty = (

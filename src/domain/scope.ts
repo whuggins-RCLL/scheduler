@@ -67,13 +67,24 @@ export function canOverrideCompliance(viewer: UserAccount): boolean {
   return isAdmin(viewer) || hasRole(viewer, "MANAGER");
 }
 
+/** Employment types that may view the pooled student-availability grid. */
+const STAFF_CLASSIFICATIONS: EmploymentClassification[] = [
+  "non_exempt_staff",
+  "exempt_staff",
+  "manager",
+  "temporary",
+  "casual",
+  "other",
+];
+
 /**
  * Whether the viewer may see the combined student-availability grid.
  *
  * Schedulers, managers, and admins always may. Staff-level employees may too.
  * Student workers and view-only accounts (VIEWER) may NOT — they never see the
  * pooled student schedule. Classification is authoritative: an EMPLOYEE-role
- * account that is a `student_worker` is still hidden.
+ * account that is a `student_worker` is still hidden. Unknown classification
+ * defaults to deny for employee-tier accounts.
  */
 export function canViewStudentAvailability(
   viewer: Pick<UserAccount, "roles">,
@@ -82,6 +93,7 @@ export function canViewStudentAvailability(
   if (canManage(viewer)) return true; // scheduler / manager / super admin
   if (classification === "student_worker") return false;
   if (hasRole(viewer, "VIEWER")) return false;
-  // Remaining: staff employees (and auditors) at or above the employee tier.
-  return hasRole(viewer, "EMPLOYEE") || hasRole(viewer, "AUDITOR");
+  if (hasRole(viewer, "AUDITOR")) return true;
+  if (!hasRole(viewer, "EMPLOYEE")) return false;
+  return classification !== undefined && STAFF_CLASSIFICATIONS.includes(classification);
 }
