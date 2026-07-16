@@ -8,6 +8,7 @@ import type {
   FairnessSnapshot,
   GlobalException,
   LeaveRecord,
+  Location,
   Position,
   Shift,
   StudentAvailabilityWindow,
@@ -30,6 +31,7 @@ import {
 } from "@/domain";
 import { canApproveStudentAvailability, canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
 import { coverageDeadlinePassed } from "@/domain/desk-coverage";
+import { isPurgeableDate, SCHEDULE_RETENTION_DAYS } from "@/domain/retention";
 import { syncGlobalExceptionsToLeave, HOLIDAY_LEAVE_TYPE_ID, leaveRecordsForEmployee } from "@/domain/global-exceptions";
 import {
   activeStudentAvailabilityWindow as pickWindow,
@@ -761,6 +763,66 @@ export function expireStaleCoverage(
 // ---------------------------------------------------------------------------
 // Positions & Tasks (admin/manager CRUD — not hard-coded)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Schedule types (formerly "locations") + per-type access matrix
+// ---------------------------------------------------------------------------
+
+export function upsertLocation(db: Database, location: Location, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.locations.findIndex((l) => l.id === location.id);
+  const before = idx >= 0 ? next.locations[idx] : undefined;
+  if (idx >= 0) next.locations[idx] = location;
+  else {
+    next.locations.push(location);
+    // A new schedule type also needs an operating-hours row so it has a board.
+    if (!next.operatingHours.some((o) => o.locationId === location.id)) {
+      next.operatingHours.push({ locationId: location.id, weekly: {}, exceptions: [] });
+    }
+  }
+  audit(next, actorId, idx >= 0 ? "scheduleType.update" : "scheduleType.create", "location", location.id, { before, after: location, now });
+  return next;
+}
+
+/** Set which schedule types an employee may be scheduled on (the access matrix). */
+export function setScheduleTypeAccess(
+  db: Database,
+  employeeId: string,
+  locationIds: string[],
+  actorId: string,
+  now: string,
+): Database {
+  const idx = db.employees.findIndex((e) => e.id === employeeId);
+  if (idx < 0) return db;
+  const next = clone(db);
+  const emp = next.employees[idx];
+  const before = emp.eligibleLocationIds;
+  emp.eligibleLocationIds = [...new Set(locationIds)];
+  // Keep the primary location valid: clear it if access was revoked.
+  if (emp.primaryLocationId && !emp.eligibleLocationIds.includes(emp.primaryLocationId)) {
+    emp.primaryLocationId = emp.eligibleLocationIds[0];
+  }
+  audit(next, actorId, "scheduleType.access", "employee", employeeId, { before, after: emp.eligibleLocationIds, now });
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Retention — purge schedules/shifts older than the retention window
+// ---------------------------------------------------------------------------
+
+export function purgeOldSchedules(db: Database, today: string, actorId: string, now: string): Database {
+  const staleShifts = db.shifts.filter((s) => isPurgeableDate(s.date, today));
+  const staleSchedules = db.schedules.filter((sc) => isPurgeableDate(sc.endDate, today));
+  if (staleShifts.length === 0 && staleSchedules.length === 0) return db;
+  const next = clone(db);
+  next.shifts = next.shifts.filter((s) => !isPurgeableDate(s.date, today));
+  next.schedules = next.schedules.filter((sc) => !isPurgeableDate(sc.endDate, today));
+  audit(next, actorId, "schedule.purged", "schedule", "retention", {
+    after: { shiftsRemoved: staleShifts.length, schedulesRemoved: staleSchedules.length, retentionDays: SCHEDULE_RETENTION_DAYS },
+    now,
+  });
+  return next;
+}
 
 export function upsertPosition(db: Database, position: Position, actorId: string, now: string): Database {
   const next = clone(db);

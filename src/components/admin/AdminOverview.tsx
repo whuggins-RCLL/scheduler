@@ -58,6 +58,14 @@ const SECTIONS: AdminSection[] = [
         access: "manage",
       },
       {
+        href: "/admin/schedule-access",
+        icon: "🧩",
+        label: "Schedule access",
+        metric: (db) => `${db.locations.filter((l) => l.active).length}`,
+        caption: "Set which schedule types each employee can be scheduled on.",
+        access: "manage",
+      },
+      {
         href: "/admin/preview",
         icon: "👁️",
         label: "View previews",
@@ -121,10 +129,10 @@ const SECTIONS: AdminSection[] = [
     cards: [
       {
         href: "/admin/locations",
-        icon: "📍",
-        label: "Locations",
+        icon: "🗂️",
+        label: "Schedule types",
         metric: (db) => `${db.locations.filter((l) => l.active).length}`,
-        caption: "Configure library locations, staffing minimums, and open/close buffers.",
+        caption: "Add and manage schedule boards — desk, stacks, breaks, special events.",
         access: "manage",
       },
       {

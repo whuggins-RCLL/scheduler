@@ -27,12 +27,12 @@ export function DeskScheduleBoard({ embedded = false }: { embedded?: boolean }) 
   const empName = (id: string | null) => (id ? db.employees.find((e) => e.id === id)?.preferredName ?? "Unknown" : "Open shift");
   const pos = (id: string) => db.positions.find((p) => p.id === id);
 
-  const filterLocations = useMemo(() => {
-    const fromPositions = new Set(
-      db.positions.map((p) => p.locationId).filter((id): id is string => Boolean(id)),
-    );
-    return db.locations.filter((l) => fromPositions.has(l.id) || l.id === deskLocation?.id);
-  }, [db.locations, db.positions, deskLocation?.id]);
+  // Every active schedule type is its own selectable board (desk, stacks,
+  // breaks, special events, …).
+  const filterLocations = useMemo(
+    () => db.locations.filter((l) => l.active),
+    [db.locations],
+  );
 
   const shifts = useMemo(
     () =>
