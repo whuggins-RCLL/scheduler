@@ -8,18 +8,33 @@ export function globalLeaveId(globalExceptionId: string, employeeId: string): st
   return `leave-global-${globalExceptionId}-${employeeId}`;
 }
 
-/** Fingerprint of active employees + global exceptions — used to trigger re-sync. */
+/** Fingerprint of active accounts + global exceptions — used to trigger re-sync. */
 export function globalSyncFingerprint(db: Database): string {
-  const employees = db.employees
-    .filter((e) => e.active)
-    .map((e) => e.id)
-    .sort()
-    .join(",");
+  const accounts = activeAccountHolderIds(db).join(",");
   const globals = (db.globalExceptions ?? [])
     .map((g) => `${g.id}:${g.startDate}:${g.endDate}:${g.name}`)
     .sort()
     .join("|");
-  return `${employees}::${globals}`;
+  return `${accounts}::${globals}`;
+}
+
+/** Every signed-in account that should receive university-wide exceptions. */
+export function activeAccountHolderIds(db: Database): string[] {
+  const ids = new Set<string>();
+  for (const user of db.users) {
+    if (user.state === "active") ids.add(user.id);
+  }
+  for (const employee of db.employees) {
+    if (employee.active) ids.add(employee.id);
+  }
+  return [...ids].sort();
+}
+
+export function isActiveAccountHolder(db: Database, accountId: string): boolean {
+  const user = db.users.find((u) => u.id === accountId);
+  if (user?.state === "active") return true;
+  const employee = db.employees.find((e) => e.id === accountId);
+  return employee?.active === true;
 }
 
 export function isGlobalSyncedLeave(record: LeaveRecord): boolean {
@@ -57,14 +72,14 @@ export function syncGlobalExceptionsToLeave(
   actorId: string,
   now: ISODateTime,
 ): Database {
-  const activeEmployees = db.employees.filter((e) => e.active);
+  const accountIds = activeAccountHolderIds(db);
   const globalExceptions = db.globalExceptions ?? [];
   const globalById = new Map(globalExceptions.map((g) => [g.id, g]));
   const expectedIds = new Set<string>();
 
   for (const global of globalExceptions) {
-    for (const employee of activeEmployees) {
-      expectedIds.add(globalLeaveId(global.id, employee.id));
+    for (const accountId of accountIds) {
+      expectedIds.add(globalLeaveId(global.id, accountId));
     }
   }
 
@@ -93,10 +108,10 @@ export function syncGlobalExceptionsToLeave(
 
   const existingIds = new Set(leave.map((record) => record.id));
   for (const global of globalExceptions) {
-    for (const employee of activeEmployees) {
-      const id = globalLeaveId(global.id, employee.id);
+    for (const accountId of accountIds) {
+      const id = globalLeaveId(global.id, accountId);
       if (!existingIds.has(id)) {
-        leave.push(leaveFromGlobal(global, employee.id, actorId, now));
+        leave.push(leaveFromGlobal(global, accountId, actorId, now));
       }
     }
   }
@@ -104,18 +119,18 @@ export function syncGlobalExceptionsToLeave(
   return { ...db, leave };
 }
 
-/** University-wide exceptions for one employee — always derived from global config. */
-export function globalLeaveRecordsForEmployee(db: Database, employeeId: string): LeaveRecord[] {
-  const employee = db.employees.find((e) => e.id === employeeId);
-  if (!employee?.active) return [];
+/** University-wide exceptions for one account — always derived from global config. */
+export function globalLeaveRecordsForEmployee(db: Database, accountId: string): LeaveRecord[] {
+  if (!isActiveAccountHolder(db, accountId)) return [];
   const globals = db.globalExceptions ?? [];
+  if (globals.length === 0) return [];
   return globals
     .map((global) => {
       const existing = db.leave.find(
         (record) =>
-          record.id === globalLeaveId(global.id, employeeId) && record.status !== "cancelled",
+          record.id === globalLeaveId(global.id, accountId) && record.status !== "cancelled",
       );
-      return existing ?? leaveFromGlobal(global, employeeId, "system", "");
+      return existing ?? leaveFromGlobal(global, accountId, "system", "");
     })
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 }

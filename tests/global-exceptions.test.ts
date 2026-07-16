@@ -154,43 +154,56 @@ describe("global exceptions", () => {
     expect(merged.length).toBeGreaterThanOrEqual(db.globalExceptions.length);
   });
 
-  it("re-syncs when a new employee is added after seed", () => {
+  it("syncs university holidays to active user accounts without employee profiles", () => {
     let db = buildSeed();
-    db = syncAllGlobalExceptions(
-      {
-        ...db,
-        employees: [
-          ...db.employees,
-          {
-            id: "emp-new",
-            legalName: "New Hire",
-            email: "new@example.test",
-            classification: "non_exempt_staff",
-            eligibleLocationIds: [],
-            additionalManagerIds: [],
-            active: true,
-            targetWeeklyHours: 40,
-            minWeeklyHours: 0,
-            maxWeeklyHours: 40,
-            maxDailyHours: 8,
-            earliestStart: 480,
-            latestEnd: 1020,
-            minTurnaroundMinutes: 480,
-            overtimeEligible: false,
-            breakPolicyId: "ca-nonexempt-v1",
-            qualifiedPositionIds: [],
-            qualifiedTaskIds: [],
-            employmentPercentage: 1,
-            googleCalendarConnected: false,
-            notificationPrefs: { inApp: true, email: false, calendar: false, digest: false },
-          },
-        ],
-      },
-      ACTOR,
-      NOW,
-    );
-    expect(db.leave.filter((l) => l.employeeId === "emp-new" && l.globalExceptionId).length).toBe(
+    db = {
+      ...db,
+      users: [
+        ...db.users,
+        {
+          id: "user-student-namig",
+          email: "namig@stanford.edu",
+          displayName: "Namig Abbasov",
+          state: "active",
+          roles: [{ role: "EMPLOYEE" }],
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
+      ],
+      employees: db.employees.filter((e) => e.id !== "user-student-namig"),
+      leave: db.leave.filter((l) => l.employeeId !== "user-student-namig"),
+    };
+    db = syncAllGlobalExceptions(db, ACTOR, NOW);
+    const derived = globalLeaveRecordsForEmployee(db, "user-student-namig");
+    expect(derived.length).toBe(db.globalExceptions.length);
+    expect(db.leave.filter((l) => l.employeeId === "user-student-namig" && l.globalExceptionId).length).toBe(
       db.globalExceptions.length,
     );
+  });
+
+  it("shows a unified exceptions list with university-wide and personal entries", () => {
+    let db = buildSeed();
+    const accountId = db.users[0].id;
+    db = {
+      ...db,
+      leave: [
+        ...db.leave,
+        {
+          id: "leave-personal-1",
+          employeeId: accountId,
+          leaveTypeId: "lt-unavailable",
+          startDate: "2026-08-01",
+          endDate: "2026-08-01",
+          partialDay: false,
+          status: "recorded",
+          enteredBy: accountId,
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
+      ],
+    };
+    const merged = leaveRecordsForEmployee(db, accountId);
+    expect(merged.some((l) => l.globalExceptionId)).toBe(true);
+    expect(merged.some((l) => l.id === "leave-personal-1")).toBe(true);
   });
 });
