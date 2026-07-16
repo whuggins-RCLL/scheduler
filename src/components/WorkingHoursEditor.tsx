@@ -3,49 +3,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
-import { WEEKDAY_LABELS, formatTime } from "@/domain/time";
-import type { WorkingHoursBlock, WorkingHoursPattern } from "@/domain/types";
+import {
+  WORKING_WEEKDAYS,
+  defaultWorkingWeek,
+  normalizeWorkingDays,
+  validateEffectiveDates,
+  validateWorkingDays,
+} from "@/domain/working-hours";
+import { formatTime, parseTime } from "@/domain/time";
+import type { WorkingDaySchedule, WorkingHoursPattern } from "@/domain/types";
 
-const SLOT_MINUTES = 30;
-const DAY_START = 8 * 60;
-const DAY_END = 21 * 60;
-const SLOTS = Array.from(
-  { length: (DAY_END - DAY_START) / SLOT_MINUTES },
-  (_, i) => DAY_START + i * SLOT_MINUTES,
-);
-
-type Cell = Record<string, boolean>; // key `${day}-${slotStartMinute}` -> working
-
-function blocksToCells(blocks: WorkingHoursBlock[]): Cell {
-  const cell: Cell = {};
-  for (const b of blocks) {
-    for (const s of SLOTS) {
-      if (s >= b.start && s < b.end) cell[`${b.weekday}-${s}`] = true;
-    }
-  }
-  return cell;
-}
-
-function cellsToBlocks(cell: Cell): WorkingHoursBlock[] {
-  const blocks: WorkingHoursBlock[] = [];
-  for (let day = 0; day < 7; day++) {
-    let runStart: number | null = null;
-    for (const s of SLOTS) {
-      const working = cell[`${day}-${s}`] === true;
-      if (runStart != null && !working) {
-        blocks.push({ weekday: day, start: runStart, end: s });
-        runStart = null;
-      }
-      if (working && runStart == null) runStart = s;
-    }
-    if (runStart != null) blocks.push({ weekday: day, start: runStart, end: DAY_END });
-  }
-  return blocks;
+function minutesToTimeInput(minutes: number | undefined): string {
+  if (minutes == null) return "09:00";
+  return formatTime(minutes);
 }
 
 export function WorkingHoursEditor() {
   const { db, currentUser, saveWorkingHours } = useStore();
   const manager = canManage(currentUser);
+  const scheduleStart = db.schedules[0]?.startDate ?? "";
+  const scheduleEnd = db.schedules[0]?.endDate ?? "";
   const activeUserIds = useMemo(
     () => new Set(db.users.filter((user) => user.state === "active").map((user) => user.id)),
     [db.users],
@@ -60,7 +37,12 @@ export function WorkingHoursEditor() {
     () => db.workingHours.find((p) => p.employeeId === targetEmployeeId),
     [db.workingHours, targetEmployeeId],
   );
-  const [cells, setCells] = useState<Cell>(() => blocksToCells(existing?.blocks ?? []));
+  const [days, setDays] = useState<WorkingDaySchedule[]>(() =>
+    normalizeWorkingDays(existing?.days ?? defaultWorkingWeek()),
+  );
+  const [effectiveStart, setEffectiveStart] = useState(existing?.effectiveStart ?? scheduleStart);
+  const [effectiveEnd, setEffectiveEnd] = useState(existing?.effectiveEnd ?? scheduleEnd);
+  const [label, setLabel] = useState(existing?.label ?? "");
   const [note, setNote] = useState(existing?.note ?? "");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,35 +60,50 @@ export function WorkingHoursEditor() {
   }, [activeEmployees, currentUser.id, manager, targetEmployeeId]);
 
   useEffect(() => {
-    setCells(blocksToCells(existing?.blocks ?? []));
+    setDays(normalizeWorkingDays(existing?.days ?? defaultWorkingWeek()));
+    setEffectiveStart(existing?.effectiveStart ?? scheduleStart);
+    setEffectiveEnd(existing?.effectiveEnd ?? scheduleEnd);
+    setLabel(existing?.label ?? "");
     setNote(existing?.note ?? "");
     setSaved(false);
     setSaveError(null);
-  }, [existing, targetEmployeeId]);
+  }, [existing, targetEmployeeId, scheduleStart, scheduleEnd]);
 
-  function toggle(day: number, slot: number) {
-    const key = `${day}-${slot}`;
+  function updateDay(weekday: number, patch: Partial<WorkingDaySchedule>) {
     setSaved(false);
-    setCells((c) => ({ ...c, [key]: !c[key] }));
+    setDays((current) =>
+      current.map((row) => (row.weekday === weekday ? { ...row, ...patch } : row)),
+    );
   }
 
-  function setColumn(day: number, working: boolean) {
-    setSaved(false);
-    setCells((c) => {
-      const next = { ...c };
-      for (const s of SLOTS) next[`${day}-${s}`] = working;
-      return next;
+  function toggleDayOff(weekday: number, off: boolean) {
+    updateDay(weekday, {
+      regularDayOff: off,
+      start: off ? undefined : 9 * 60,
+      end: off ? undefined : 17 * 60,
     });
   }
 
   async function save() {
+    const normalized = normalizeWorkingDays(days);
+    const errors = [
+      ...validateEffectiveDates(effectiveStart || undefined, effectiveEnd || undefined),
+      ...validateWorkingDays(normalized),
+    ];
+    if (errors.length) {
+      setSaveError(errors[0]);
+      setSaved(false);
+      return;
+    }
+
     const pattern: WorkingHoursPattern = {
       id: existing?.id ?? `workhours-${targetEmployeeId}`,
       employeeId: targetEmployeeId,
-      label: existing?.label ?? "Current term",
-      blocks: cellsToBlocks(cells),
-      daysOff: existing?.daysOff ?? [],
-      note,
+      effectiveStart: effectiveStart || undefined,
+      effectiveEnd: effectiveEnd || undefined,
+      label: label.trim() || undefined,
+      days: normalized,
+      note: note.trim() || undefined,
       updatedBy: currentUser.id,
       updatedAt: new Date().toISOString(),
     };
@@ -131,8 +128,8 @@ export function WorkingHoursEditor() {
         {forSelf ? "My working hours" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} working hours`}
       </h2>
       <p className="muted" style={{ fontSize: "0.88rem" }}>
-        When {forSelf ? "you're" : "they're"} generally on the clock for this job — separate from desk coverage.
-        This helps break reminders and hour planning stay accurate.
+        Set {forSelf ? "your" : "their"} regular weekly schedule — separate from desk coverage below.
+        Mark a weekday as a regular day off, or enter start and end times.
       </p>
 
       {manager && (
@@ -152,71 +149,105 @@ export function WorkingHoursEditor() {
         </div>
       )}
 
-      <div className="row" style={{ marginBottom: "0.75rem" }}>
-        <span className="badge">Legend</span>
-        <span className="chip" style={{ background: "color-mix(in srgb, var(--palo-alto) 22%, var(--surface))" }}>Working</span>
-        <span className="chip">Off</span>
-      </div>
-
-      <div style={{ overflowX: "auto" }}>
-        <div className="avail-grid" role="grid" aria-label="Weekly working hours">
-          <div className="avail-head" role="columnheader">Time</div>
-          {WEEKDAY_LABELS.map((d, i) => (
-            <div className="avail-head" role="columnheader" key={d}>
-              {d}
-              <div>
-                <button
-                  className="button sm ghost"
-                  style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }}
-                  onClick={() => setColumn(i, true)}
-                  aria-label={`Mark all ${d} as working`}
-                >
-                  all
-                </button>
-                <button
-                  className="button sm ghost"
-                  style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }}
-                  onClick={() => setColumn(i, false)}
-                  aria-label={`Clear all ${d}`}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
-          {SLOTS.map((slot) => {
-            const onHour = slot % 60 === 0;
-            return (
-              <div key={slot} style={{ display: "contents" }}>
-                <div className={`avail-rowlabel${onHour ? "" : " half"}`} role="rowheader">{formatTime(slot)}</div>
-                {WEEKDAY_LABELS.map((_, day) => {
-                  const working = cells[`${day}-${slot}`] === true;
-                  return (
-                    <button
-                      key={`${day}-${slot}`}
-                      role="gridcell"
-                      className={`avail-cell ${working ? "preferred" : "unavailable"}${onHour ? "" : " half"}`}
-                      onClick={() => toggle(day, slot)}
-                      aria-label={`${WEEKDAY_LABELS[day]} ${formatTime(slot)}: ${working ? "Working" : "Off"}. Activate to toggle.`}
-                      aria-pressed={working}
-                    >
-                      {working ? "●" : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
+      <div className="row" style={{ marginBottom: "1rem" }}>
+        <div className="field" style={{ flex: "1 1 180px" }}>
+          <label htmlFor="workhours-effective-start">Effective from</label>
+          <input
+            id="workhours-effective-start"
+            type="date"
+            value={effectiveStart}
+            onChange={(e) => { setEffectiveStart(e.target.value); setSaved(false); }}
+            required
+          />
+        </div>
+        <div className="field" style={{ flex: "1 1 180px" }}>
+          <label htmlFor="workhours-effective-end">Effective through (optional)</label>
+          <input
+            id="workhours-effective-end"
+            type="date"
+            value={effectiveEnd}
+            onChange={(e) => { setEffectiveEnd(e.target.value); setSaved(false); }}
+          />
+        </div>
+        <div className="field" style={{ flex: "2 1 220px" }}>
+          <label htmlFor="workhours-label">Label (optional)</label>
+          <input
+            id="workhours-label"
+            type="text"
+            value={label}
+            onChange={(e) => { setLabel(e.target.value); setSaved(false); }}
+            placeholder="e.g. Fall term"
+          />
         </div>
       </div>
 
+      <div className="table-wrap">
+        <table className="data working-hours-table">
+          <thead>
+            <tr>
+              <th scope="col">Day</th>
+              <th scope="col">Regular day off</th>
+              <th scope="col">Start</th>
+              <th scope="col">End</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WORKING_WEEKDAYS.map(({ weekday, label: dayLabel }) => {
+              const row = days.find((d) => d.weekday === weekday) ?? { weekday, regularDayOff: true };
+              return (
+                <tr key={weekday}>
+                  <th scope="row">{dayLabel}</th>
+                  <td>
+                    <label className="row" style={{ justifyContent: "flex-start", gap: "0.45rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={row.regularDayOff}
+                        onChange={(e) => toggleDayOff(weekday, e.target.checked)}
+                        aria-label={`${dayLabel} regular day off`}
+                      />
+                      Day off
+                    </label>
+                  </td>
+                  <td>
+                    <input
+                      type="time"
+                      value={minutesToTimeInput(row.start)}
+                      disabled={row.regularDayOff}
+                      onChange={(e) => {
+                        try {
+                          updateDay(weekday, { start: parseTime(e.target.value) });
+                        } catch { /* ignore invalid partial input */ }
+                      }}
+                      aria-label={`${dayLabel} start time`}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="time"
+                      value={minutesToTimeInput(row.end)}
+                      disabled={row.regularDayOff}
+                      onChange={(e) => {
+                        try {
+                          updateDay(weekday, { end: parseTime(e.target.value) });
+                        } catch { /* ignore invalid partial input */ }
+                      }}
+                      aria-label={`${dayLabel} end time`}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
       <div className="field mt">
-        <label htmlFor="workhours-note">Working hours note (optional)</label>
+        <label htmlFor="workhours-note">Note (optional)</label>
         <textarea
           id="workhours-note"
           value={note}
           onChange={(e) => { setNote(e.target.value); setSaved(false); }}
-          placeholder="e.g. Only work Tue/Thu during midterms."
+          placeholder="e.g. Hours may shift during finals week."
         />
       </div>
 

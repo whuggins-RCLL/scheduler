@@ -250,17 +250,12 @@ export interface AvailabilityPattern {
   updatedAt: ISODateTime;
 }
 
-/** A block of general weekly working hours (on the clock), separate from desk availability. */
-export interface WorkingHoursBlock {
+/** Per-weekday working schedule — start/end times or a regular day off. */
+export interface WorkingDaySchedule {
   weekday: number; // 0=Sun..6=Sat
-  start: MinuteOfDay;
-  end: MinuteOfDay;
-}
-
-/** A specific calendar day marked as a day off from work. */
-export interface DayOff {
-  date: ISODate;
-  note?: string;
+  regularDayOff: boolean;
+  start?: MinuteOfDay;
+  end?: MinuteOfDay;
 }
 
 /**
@@ -270,9 +265,10 @@ export interface DayOff {
 export interface WorkingHoursPattern {
   id: string;
   employeeId: string;
+  effectiveStart?: ISODate;
+  effectiveEnd?: ISODate;
   label?: string;
-  blocks: WorkingHoursBlock[];
-  daysOff: DayOff[];
+  days: WorkingDaySchedule[];
   note?: string;
   updatedBy: string;
   updatedAt: ISODateTime;

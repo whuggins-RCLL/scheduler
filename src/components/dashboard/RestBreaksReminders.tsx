@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useStore } from "@/lib/store/StoreProvider";
 import { computeBreakReminders } from "@/domain/break-reminders";
 import { resolveEmployeeProfile } from "@/domain/employee-profile";
+import { isRegularDayOff } from "@/domain/working-hours";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
 import { formatTime12 } from "@/domain/time";
 import type { BreakReminderItem } from "@/domain/break-reminders";
@@ -56,7 +57,7 @@ export function RestBreaksReminders() {
 
   const avail = db.availability.find((p) => p.employeeId === currentUser.id);
   const workHours = db.workingHours.find((p) => p.employeeId === currentUser.id);
-  const isDayOff = workHours?.daysOff.some((d) => d.date === today);
+  const isDayOff = workHours ? isRegularDayOff(workHours, today) : false;
   const myShifts = useMemo(
     () => db.shifts.filter((s) => s.employeeId === currentUser.id && s.status !== "cancelled"),
     [db.shifts, currentUser.id],
@@ -76,7 +77,6 @@ export function RestBreaksReminders() {
   );
 
   if (isDayOff) {
-    const note = workHours?.daysOff.find((d) => d.date === today)?.note;
     return (
       <section className="card glass rest-breaks-card" aria-labelledby="rest-breaks">
         <div className="rest-breaks-header">
@@ -84,13 +84,13 @@ export function RestBreaksReminders() {
           <div>
             <h2 id="rest-breaks" style={{ margin: 0 }}>Rest break reminders</h2>
             <p className="muted" style={{ margin: "0.2rem 0 0", fontSize: "0.85rem" }}>
-              You marked today as a day off — enjoy!
+              Today is one of your regular days off — enjoy!
             </p>
           </div>
         </div>
-        <p className="rest-breaks-headline">Day off today</p>
+        <p className="rest-breaks-headline">Regular day off</p>
         <p className="muted rest-breaks-subline">
-          {note ? note : "No shift or break tracking needed. See you next time you're on the schedule! ☀️"}
+          No shift or break tracking needed. See you on your next working day! ☀️
         </p>
         <Link href="/availability" className="button sm glass-button mt">Manage working hours</Link>
       </section>

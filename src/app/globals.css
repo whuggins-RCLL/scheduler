@@ -724,6 +724,17 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .break-chip-emoji { font-size: 1.35rem; }
 .break-chip-body { display: grid; gap: 0.1rem; }
 .break-chip-deadline { font-size: 0.8rem; color: var(--ink-2); }
+
+.working-hours-table input[type="time"] {
+  min-height: 36px;
+  padding: 0.35rem 0.5rem;
+  width: 100%;
+  max-width: 9rem;
+}
+.working-hours-table input[type="time"]:disabled {
+  opacity: 0.45;
+}
+
 @keyframes break-wiggle {
   0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
   25% { transform: translate(-50%, -50%) rotate(-8deg); }
