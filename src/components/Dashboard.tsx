@@ -8,9 +8,8 @@ import { firstName, humanDate, timeRange } from "@/lib/ui";
 import { TIMEKEEPING_URL } from "@/lib/config";
 import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
-import { DeskScheduleBoard } from "./dashboard/DeskScheduleBoard";
-import { MySchedule } from "./dashboard/MySchedule";
-import { StudentAvailabilityGrid } from "./dashboard/StudentAvailabilityGrid";
+import { CollapsibleCard } from "./CollapsibleCard";
+import { ScheduleHubPanel } from "./dashboard/ScheduleHubPanel";
 import type { Shift } from "@/domain/types";
 
 function todayISO(): string {
@@ -53,8 +52,7 @@ function QuickLinks() {
     { href: "/swaps", icon: "🔄", title: "Swaps", hint: "Offer or pick up shifts" },
   ];
   return (
-    <section className="card glass" aria-labelledby="quick-links">
-      <h2 id="quick-links">Quick links</h2>
+    <CollapsibleCard title="Quick links" summary="Time-keeping, schedule, availability, and swaps" defaultOpen={false}>
       <div className="link-tiles">
         {tiles.map((t) =>
           t.external ? (
@@ -72,7 +70,7 @@ function QuickLinks() {
           ),
         )}
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }
 
@@ -107,53 +105,53 @@ function EmployeeDashboard() {
         </div>
       </section>
 
-      <DeskScheduleBoard />
-
       <div className="dash-columns">
         <div className="stack">
-          <MySchedule />
+          <ScheduleHubPanel />
 
-          <section className="card glass pad-lg" aria-labelledby="next-shift">
-            <h2 id="next-shift">Your next shift</h2>
-            {next ? (
-              <div>
-                <p className="metric" style={{ fontSize: "1.5rem" }}>
-                  {humanDate(next.date)} · {timeRange(next.start, next.end)}
-                </p>
-                <p className="muted" style={{ marginBottom: "0.75rem" }}>
-                  {pos(next.positionId)?.name} · {loc(next.locationId)?.name}
-                </p>
-                {next.taskIds.length > 0 && (
-                  <div className="row">
-                    {next.taskIds.map((t) => (
-                      <span key={t} className="chip">{db.tasks.find((x) => x.id === t)?.name}</span>
-                    ))}
+          <section className="card glass pad-lg" aria-labelledby="upcoming-shifts">
+            <h2 id="upcoming-shifts">Upcoming shifts</h2>
+            {upcoming.length === 0 ? (
+              <p className="muted">No upcoming shifts scheduled.</p>
+            ) : (
+              <>
+                {next && (
+                  <div className="upcoming-featured">
+                    <p className="eyebrow" style={{ marginBottom: "0.35rem" }}>Next up</p>
+                    <p className="metric" style={{ fontSize: "1.5rem", marginBottom: "0.35rem" }}>
+                      {humanDate(next.date)} · {timeRange(next.start, next.end)}
+                    </p>
+                    <p className="muted" style={{ marginBottom: "0.75rem" }}>
+                      {pos(next.positionId)?.name} · {loc(next.locationId)?.name}
+                    </p>
+                    {next.taskIds.length > 0 && (
+                      <div className="row">
+                        {next.taskIds.map((t) => (
+                          <span key={t} className="chip">{db.tasks.find((x) => x.id === t)?.name}</span>
+                        ))}
+                      </div>
+                    )}
+                    {next.breaks.length > 0 && (
+                      <p className="muted mt" style={{ fontSize: "0.85rem" }}>
+                        Break: {next.breaks.map((b) => `${b.kind} ${timeRange(b.start, b.end)}`).join(", ")}
+                      </p>
+                    )}
                   </div>
                 )}
-                {next.breaks.length > 0 && (
-                  <p className="muted mt" style={{ fontSize: "0.85rem" }}>
-                    Break: {next.breaks.map((b) => `${b.kind} ${timeRange(b.start, b.end)}`).join(", ")}
-                  </p>
+                {upcoming.length > 1 && (
+                  <div className={next ? "upcoming-rest" : undefined}>
+                    {next && <h3 className="upcoming-rest-label">Also coming up</h3>}
+                    <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
+                      {(next ? upcoming.slice(1) : upcoming).slice(0, 5).map((s) => (
+                        <li key={s.id} className="spread">
+                          <span>{humanDate(s.date)} · {timeRange(s.start, s.end)}</span>
+                          <span className="badge">{pos(s.positionId)?.shortLabel}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-              </div>
-            ) : (
-              <p className="muted">No upcoming shifts scheduled.</p>
-            )}
-          </section>
-
-          <section className="card glass" aria-labelledby="week-glance">
-            <h2 id="week-glance">Upcoming shifts</h2>
-            {upcoming.length === 0 ? (
-              <p className="muted">Nothing scheduled yet.</p>
-            ) : (
-              <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-                {upcoming.slice(0, 6).map((s) => (
-                  <li key={s.id} className="spread">
-                    <span>{humanDate(s.date)} · {timeRange(s.start, s.end)}</span>
-                    <span className="badge">{pos(s.positionId)?.shortLabel}</span>
-                  </li>
-                ))}
-              </ul>
+              </>
             )}
             <Link href="/schedule" className="button sm glass-button mt">View full schedule</Link>
           </section>
@@ -168,8 +166,6 @@ function EmployeeDashboard() {
             </p>
             <Link href="/availability" className="button sm glass-button mt">Manage exceptions</Link>
           </section>
-
-          <StudentAvailabilityGrid />
         </div>
 
         <SideRail>
@@ -234,11 +230,9 @@ function ManagerDashboard() {
         <StatCard value={openShifts.length} label="Open / uncovered" href="/schedule" tone={openShifts.length ? "warn" : ""} />
       </div>
 
-      <DeskScheduleBoard />
-
       <div className="dash-columns">
         <div className="stack">
-          <MySchedule />
+          <ScheduleHubPanel />
 
           <section className="card glass" aria-labelledby="working-now">
             <h2 id="working-now">On the schedule today</h2>
@@ -291,8 +285,6 @@ function ManagerDashboard() {
             )}
             <Link href="/schedule" className="button sm glass-button">Open scheduling workspace</Link>
           </section>
-
-          <StudentAvailabilityGrid />
         </div>
 
         <SideRail />

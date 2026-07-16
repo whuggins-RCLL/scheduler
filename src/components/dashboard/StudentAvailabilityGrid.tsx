@@ -16,7 +16,7 @@ function kindAt(pattern: AvailabilityPattern | undefined, weekday: number, slot:
   return null;
 }
 
-export function StudentAvailabilityGrid() {
+export function StudentAvailabilityGrid({ embedded = false }: { embedded?: boolean }) {
   const { db, currentUser } = useStore();
   const myProfile = db.employees.find((e) => e.id === currentUser.id);
 
@@ -30,29 +30,35 @@ export function StudentAvailabilityGrid() {
   if (!canViewStudentAvailability(currentUser, myProfile?.classification)) return null;
 
   if (students.length === 0) {
+    const empty = (
+      <p className="muted" style={{ margin: embedded ? "0.75rem 0 0" : undefined }}>
+        No student workers are set up yet.
+      </p>
+    );
+    if (embedded) return empty;
     return (
       <section className="card glass" aria-labelledby="stu-avail-heading">
         <h2 id="stu-avail-heading" style={{ marginTop: 0 }}>Student availability</h2>
-        <p className="muted">No student workers are set up yet.</p>
+        {empty}
       </section>
     );
   }
 
-  return (
-    <section className="card glass pad-lg" aria-labelledby="stu-avail-heading">
-      <div className="spread" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
-        <h2 id="stu-avail-heading" style={{ marginTop: 0 }}>Student availability</h2>
-        <span className="badge info">{students.length} student{students.length === 1 ? "" : "s"}</span>
-      </div>
-      <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.86rem" }}>
-        Combined student-worker availability across the week. Numbers show how many students can work each
-        half-hour; hover a cell for names. Visible to staff and above only.
+  const content = (
+    <>
+      {!embedded && (
+        <div className="spread" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
+          <h2 id="stu-avail-heading" style={{ marginTop: 0 }}>Student availability</h2>
+          <span className="badge info">{students.length} student{students.length === 1 ? "" : "s"}</span>
+        </div>
+      )}
+      <p className="muted" style={{ margin: embedded ? "0.75rem 0" : "0 0 0.75rem", fontSize: "0.86rem" }}>
+        Half-hour counts show how many students can work; hover a cell for names.
       </p>
 
-      <div className="row" style={{ marginBottom: "0.6rem" }}>
-        <span className="badge">Legend</span>
-        <span className="chip" style={{ background: "color-mix(in srgb, var(--palo-alto) 22%, var(--surface))" }}>★ someone prefers this time</span>
-        <span className="chip">count = students available</span>
+      <div className="row" style={{ marginBottom: "0.6rem", flexWrap: "wrap", gap: "0.35rem" }}>
+        <span className="chip" style={{ background: "color-mix(in srgb, var(--palo-alto) 22%, var(--surface))" }}>★ preferred time</span>
+        <span className="chip">{students.length} student{students.length === 1 ? "" : "s"} tracked</span>
       </div>
 
       <div style={{ overflowX: "auto" }}>
@@ -124,6 +130,14 @@ export function StudentAvailabilityGrid() {
           </tbody>
         </table>
       </div>
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <section className="card glass pad-lg" aria-labelledby="stu-avail-heading">
+      {content}
     </section>
   );
 }

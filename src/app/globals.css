@@ -426,6 +426,48 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 
 .dash-columns { display: grid; grid-template-columns: 1.55fr 1fr; gap: 1.25rem; align-items: start; }
 
+/* Collapsible dashboard cards */
+.collapsible-card { padding: 0; overflow: hidden; }
+.collapsible-trigger {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.collapsible-trigger:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.collapsible-trigger-text { flex: 1; min-width: 0; }
+.collapsible-summary { margin-top: 0.3rem; font-size: 0.84rem; line-height: 1.4; }
+.collapsible-chevron { color: var(--muted); font-size: 0.95rem; line-height: 1.4; flex: none; }
+.collapsible-body { padding: 0 1.1rem 1.1rem; }
+
+/* Unified schedule hub */
+.schedule-hub-head { margin-bottom: 0.25rem; }
+.schedule-hub-panel { margin-top: 0.85rem; }
+.schedule-day-nav { align-items: center; }
+
+.upcoming-featured {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--cardinal) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--cardinal) 18%, var(--border));
+}
+.upcoming-rest { margin-top: 1rem; }
+.upcoming-rest-label {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Notes feed — rolls like an embedded feed */
 .feed { display: grid; gap: 0.75rem; max-height: 30rem; overflow-y: auto; padding-right: 0.35rem; scroll-behavior: smooth; }
 .feed::-webkit-scrollbar { width: 8px; }
@@ -472,6 +514,8 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 @media (max-width: 900px) {
   .dash-columns { grid-template-columns: 1fr; }
   .dash-hero { padding: 1.4rem; }
+  .schedule-hub-head .pill-toggle { width: 100%; }
+  .schedule-hub-head .pill-toggle button { flex: 1; text-align: center; padding-inline: 0.5rem; font-size: 0.82rem; }
 }
 
 /* ---- Tours and previews ---- */
