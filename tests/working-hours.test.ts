@@ -3,6 +3,7 @@ import {
   blocksToDaySchedules,
   defaultWorkingWeek,
   effectiveOn,
+  isExemptWorkingHours,
   isRegularDayOff,
   validateEffectiveDates,
   validateWorkingDays,
@@ -26,6 +27,7 @@ describe("working-hours helpers", () => {
       regularDayOff: false,
       start: 540,
       end: 1020,
+      workLocation: "on_site",
     });
     expect(days.find((d) => d.weekday === 2)?.regularDayOff).toBe(true);
   });
@@ -50,5 +52,22 @@ describe("working-hours helpers", () => {
     expect(
       validateWorkingDays([{ weekday: 2, regularDayOff: false, start: 600, end: 540 }]),
     ).toHaveLength(1);
+  });
+
+  it("skips start/end validation for exempt staff", () => {
+    expect(
+      validateWorkingDays([{ weekday: 2, regularDayOff: false }], { exempt: true }),
+    ).toHaveLength(0);
+  });
+
+  it("identifies exempt classifications for working hours", () => {
+    expect(isExemptWorkingHours("exempt_staff")).toBe(true);
+    expect(isExemptWorkingHours("manager")).toBe(true);
+    expect(isExemptWorkingHours("non_exempt_staff")).toBe(false);
+  });
+
+  it("defaults work location to on_site", () => {
+    const week = defaultWorkingWeek();
+    expect(week.find((d) => d.weekday === 1)?.workLocation).toBe("on_site");
   });
 });

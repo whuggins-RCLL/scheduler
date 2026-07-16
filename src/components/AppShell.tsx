@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin, primaryRole } from "@/domain/scope";
 import { firstName } from "@/lib/ui";
 import { ThemeControls } from "./ThemeControls";
+import { TimeFormatSync } from "./TimeFormatSync";
 
 const employeeLinks: [string, string][] = [
   ["/dashboard", "Dashboard"],
@@ -163,16 +164,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main id="main">
-          {viewingAs && (
-            <div className="viewas-banner" role="status">
-              <span>
-                👁 You are sampling the <strong>{viewAs === "student" ? "student" : "staff"}</strong> experience
-                {currentUser.displayName ? ` as ${currentUser.displayName}` : ""}.
-              </span>
-              <button className="button sm" onClick={() => setViewAs("self")}>Exit preview</button>
-            </div>
-          )}
-          {children}
+          <TimeFormatSync>
+            {viewingAs && (
+              <div className="viewas-banner" role="status">
+                <span>
+                  👁 You are sampling the <strong>{viewAs === "student" ? "student" : "staff"}</strong> experience
+                  {currentUser.displayName ? ` as ${currentUser.displayName}` : ""}.
+                </span>
+                <button className="button sm" onClick={() => setViewAs("self")}>Exit preview</button>
+              </div>
+            )}
+            {children}
+          </TimeFormatSync>
         </main>
       </div>
     </div>

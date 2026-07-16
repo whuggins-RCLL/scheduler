@@ -1,5 +1,12 @@
-import type { ISODate, MinuteOfDay, WorkingDaySchedule, WorkingHoursPattern } from "./types";
+import type { EmploymentClassification, ISODate, MinuteOfDay, WorkingDaySchedule, WorkingHoursPattern } from "./types";
 import { weekdayOf } from "./time";
+
+/** Classifications that use on-shift/off instead of start/end times in working hours. */
+const EXEMPT_WORKING_HOURS: EmploymentClassification[] = ["exempt_staff", "manager"];
+
+export function isExemptWorkingHours(classification: EmploymentClassification): boolean {
+  return EXEMPT_WORKING_HOURS.includes(classification);
+}
 
 /** Monday-first labels for working-hours forms. */
 export const WORKING_WEEKDAYS: { weekday: number; label: string }[] = [
@@ -25,6 +32,7 @@ export function defaultWorkingWeek(): WorkingDaySchedule[] {
     regularDayOff: weekday === 0 || weekday === 6,
     start: weekday === 0 || weekday === 6 ? undefined : 9 * 60,
     end: weekday === 0 || weekday === 6 ? undefined : 17 * 60,
+    workLocation: "on_site" as const,
   }));
 }
 
@@ -42,6 +50,7 @@ export function blocksToDaySchedules(blocks: LegacyWorkingHoursBlock[]): Working
       regularDayOff: false,
       start: dayBlocks[0].start,
       end: dayBlocks[dayBlocks.length - 1].end,
+      workLocation: "on_site",
     };
   });
 }
@@ -57,6 +66,7 @@ export function normalizeWorkingDays(days: WorkingDaySchedule[] | undefined): Wo
       regularDayOff: false,
       start: row.start,
       end: row.end,
+      workLocation: row.workLocation ?? "on_site",
     };
   });
 }
@@ -82,11 +92,16 @@ export function isRegularDayOff(pattern: WorkingHoursPattern, date: ISODate): bo
   return row?.regularDayOff === true;
 }
 
-export function validateWorkingDays(days: WorkingDaySchedule[]): string[] {
+export function validateWorkingDays(
+  days: WorkingDaySchedule[],
+  options?: { exempt?: boolean },
+): string[] {
   const errors: string[] = [];
+  const exempt = options?.exempt ?? false;
   for (const row of normalizeWorkingDays(days)) {
     const label = WORKING_WEEKDAYS.find((d) => d.weekday === row.weekday)?.label ?? `Day ${row.weekday}`;
     if (row.regularDayOff) continue;
+    if (exempt) continue;
     if (row.start == null || row.end == null) {
       errors.push(`${label}: enter a start and end time, or mark it as a regular day off.`);
       continue;

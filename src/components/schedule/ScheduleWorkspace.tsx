@@ -5,11 +5,12 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { buildSchedulerHelper } from "@/domain/scheduling";
 import { addDays, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { Shift } from "@/domain/types";
-import { canManage, canOverrideCompliance } from "@/domain/scope";
-import { hoursLabel, humanDate, positionColorVar, severityBadge, statusBadge, timeRange } from "@/lib/ui";
+import { canManage } from "@/domain/scope";
+import { humanDate, positionColorVar, statusBadge, timeRange } from "@/lib/ui";
 import { fullDayLabel, todayISO } from "@/lib/schedule-view";
 import { ShiftDialog } from "./ShiftDialog";
 import { CombinedTaskScheduleGrid } from "./CombinedTaskScheduleGrid";
+import { PersonalScheduleView } from "./PersonalScheduleView";
 
 type View = "board" | "list" | "grid";
 
@@ -35,8 +36,8 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
     [db.shifts, schedule?.id],
   );
 
-  const findings = useMemo(() => (schedule ? store.compliance(schedule.id) : []), [store, schedule]);
-  const fairness = useMemo(() => (schedule ? store.fairness(schedule.id) : null), [store, schedule]);
+  const findings = useMemo(() => (schedule && manager ? store.compliance(schedule.id) : []), [store, schedule, manager]);
+  const fairness = useMemo(() => (schedule && manager ? store.fairness(schedule.id) : null), [store, schedule, manager]);
   const helperSuggestions = useMemo(() => {
     if (!schedule || !manager) return [];
     const requirements = db.coverage.filter((c) => c.date >= schedule.startDate && c.date <= schedule.endDate);
@@ -44,6 +45,8 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
   }, [db.coverage, findings, manager, schedule, shifts]);
 
   if (!schedule) return <div className="empty-state">No schedule found.</div>;
+
+  if (!manager) return <PersonalScheduleView />;
 
   const empName = (id: string | null) =>
     id ? db.employees.find((e) => e.id === id)?.preferredName ?? "Unknown" : "Open shift";
@@ -181,57 +184,6 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
         <ListView days={days} shifts={shifts} empName={empName} pos={pos} taskName={(id) => db.tasks.find((t) => t.id === id)?.name ?? id} />
       )}
 
-      <div className="grid-2" aria-label="Schedule insights">
-          <section className="card">
-            <h2>Compliance</h2>
-            {findings.length === 0 ? (
-              <p className="muted">No compliance issues detected for this schedule.</p>
-            ) : (
-              <ul className="list-reset stack" style={{ gap: "0.6rem" }}>
-                {findings.map((f) => (
-                  <li key={f.id} className="card" style={{ padding: "0.65rem 0.75rem", boxShadow: "none" }}>
-                    <div className="spread">
-                      <span className={`badge ${severityBadge[f.severity].cls}`}>{severityBadge[f.severity].label}</span>
-                      {f.employeeId && <small className="muted">{empName(f.employeeId)} · {humanDate(f.date)}</small>}
-                    </div>
-                    <p style={{ margin: "0.4rem 0 0.2rem" }}>{f.message}</p>
-                    <small className="muted">{f.remediation}</small>
-                    {manager && f.overrideable && canOverrideCompliance(currentUser) && (
-                      <OverrideButton findingRuleId={f.ruleId} employeeId={f.employeeId} date={f.date} />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {fairness && (
-            <section className="card">
-              <h2>Fairness</h2>
-              <p className="muted" style={{ fontSize: "0.82rem" }}>
-                Normalized load compares each person&apos;s public-service hours to their fair share
-                (scaled by availability and %FTE). 1.0 = exactly fair.
-              </p>
-              <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-                {fairness.metrics
-                  .filter((m) => m.totalMinutes > 0)
-                  .sort((a, b) => b.normalizedLoad - a.normalizedLoad)
-                  .map((m) => (
-                    <li key={m.employeeId}>
-                      <div className="spread" style={{ marginBottom: 2 }}>
-                        <span>{empName(m.employeeId)}</span>
-                        <small className="muted">{hoursLabel(m.totalMinutes)} · load {m.normalizedLoad.toFixed(2)}</small>
-                      </div>
-                      <div className={`meter ${m.normalizedLoad > 1.25 ? "over" : ""}`} aria-hidden>
-                        <span style={{ width: `${Math.min(100, m.normalizedLoad * 50)}%` }} />
-                      </div>
-                    </li>
-                  ))}
-              </ul>
-            </section>
-          )}
-      </div>
-
       {dialog && (
         <ShiftDialog
           shift={dialog.shift}
@@ -240,38 +192,6 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
           onClose={() => setDialog(null)}
         />
       )}
-    </div>
-  );
-}
-
-function OverrideButton({ findingRuleId, employeeId, date }: { findingRuleId: string; employeeId: string | null; date: string }) {
-  const { overrideCompliance, currentUser } = useStore();
-  const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  if (!open)
-    return (
-      <button className="button sm mt" onClick={() => setOpen(true)}>
-        Override with reason
-      </button>
-    );
-  return (
-    <div className="mt stack" style={{ gap: "0.4rem" }}>
-      <input
-        aria-label="Override reason"
-        placeholder="Reason (required)"
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-      />
-      <div className="row">
-        <button
-          className="button sm primary"
-          disabled={!reason.trim()}
-          onClick={() => overrideCompliance({ findingRuleId, employeeId, date, reason, actorId: currentUser.id })}
-        >
-          Record override
-        </button>
-        <button className="button sm" onClick={() => setOpen(false)}>Cancel</button>
-      </div>
     </div>
   );
 }

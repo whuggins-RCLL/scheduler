@@ -89,7 +89,6 @@ function EmployeeDashboard() {
   const pos = (id: string) => db.positions.find((p) => p.id === id);
   const loc = (id: string) => db.locations.find((l) => l.id === id);
   const notifications = db.notifications.filter((n) => n.userId === currentUser.id);
-  const myExceptions = db.leave.filter((l) => l.employeeId === currentUser.id && l.status !== "cancelled");
 
   return (
     <div className="stack">
@@ -154,17 +153,6 @@ function EmployeeDashboard() {
               </>
             )}
             <Link href="/schedule" className="button sm glass-button mt">View full schedule</Link>
-          </section>
-
-          <section className="card glass" aria-labelledby="my-exceptions">
-            <div className="spread">
-              <h2 id="my-exceptions" style={{ margin: 0 }}>My availability exceptions</h2>
-              <span className={`badge ${myExceptions.length ? "info" : ""}`}>{myExceptions.length} on file</span>
-            </div>
-            <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.88rem" }}>
-              Flag dates or hours you are unavailable so scheduling works around them.
-            </p>
-            <Link href="/availability" className="button sm glass-button mt">Manage exceptions</Link>
           </section>
         </div>
 

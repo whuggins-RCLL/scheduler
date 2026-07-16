@@ -250,12 +250,17 @@ export interface AvailabilityPattern {
   updatedAt: ISODateTime;
 }
 
+/** Where someone expects to work on a given weekday. */
+export type WorkLocation = "on_site" | "remote";
+
 /** Per-weekday working schedule — start/end times or a regular day off. */
 export interface WorkingDaySchedule {
   weekday: number; // 0=Sun..6=Sat
   regularDayOff: boolean;
   start?: MinuteOfDay;
   end?: MinuteOfDay;
+  /** On-site vs remote — applies to both exempt and non-exempt schedules. */
+  workLocation?: WorkLocation;
 }
 
 /**

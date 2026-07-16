@@ -6,12 +6,13 @@ import { canManage } from "@/domain/scope";
 import {
   WORKING_WEEKDAYS,
   defaultWorkingWeek,
+  isExemptWorkingHours,
   normalizeWorkingDays,
   validateEffectiveDates,
   validateWorkingDays,
 } from "@/domain/working-hours";
 import { formatTime, parseTime } from "@/domain/time";
-import type { WorkingDaySchedule, WorkingHoursPattern } from "@/domain/types";
+import type { WorkLocation, WorkingDaySchedule, WorkingHoursPattern } from "@/domain/types";
 
 function minutesToTimeInput(minutes: number | undefined): string {
   if (minutes == null) return "09:00";
@@ -33,6 +34,7 @@ export function WorkingHoursEditor() {
   );
   const [targetEmployeeId, setTargetEmployeeId] = useState(currentUser.id);
   const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId);
+  const exempt = targetEmployee ? isExemptWorkingHours(targetEmployee.classification) : false;
   const existing = useMemo(
     () => db.workingHours.find((p) => p.employeeId === targetEmployeeId),
     [db.workingHours, targetEmployeeId],
@@ -84,11 +86,15 @@ export function WorkingHoursEditor() {
     });
   }
 
+  function toggleOnShift(weekday: number, onShift: boolean) {
+    updateDay(weekday, { regularDayOff: !onShift });
+  }
+
   async function save() {
     const normalized = normalizeWorkingDays(days);
     const errors = [
       ...validateEffectiveDates(effectiveStart || undefined, effectiveEnd || undefined),
-      ...validateWorkingDays(normalized),
+      ...validateWorkingDays(normalized, { exempt }),
     ];
     if (errors.length) {
       setSaveError(errors[0]);
@@ -128,8 +134,9 @@ export function WorkingHoursEditor() {
         {forSelf ? "My working hours" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} working hours`}
       </h2>
       <p className="muted" style={{ fontSize: "0.88rem" }}>
-        Set {forSelf ? "your" : "their"} regular weekly schedule — separate from desk coverage below.
-        Mark a weekday as a regular day off, or enter start and end times.
+        {exempt
+          ? `Set ${forSelf ? "your" : "their"} regular weekly schedule — mark each day as on shift or off. Exempt staff do not track specific start and end times.`
+          : `Set ${forSelf ? "your" : "their"} regular weekly schedule — separate from desk coverage below. Mark a weekday as a regular day off, or enter start and end times.`}
       </p>
 
       {manager && (
@@ -186,53 +193,88 @@ export function WorkingHoursEditor() {
           <thead>
             <tr>
               <th scope="col">Day</th>
-              <th scope="col">Regular day off</th>
-              <th scope="col">Start</th>
-              <th scope="col">End</th>
+              {exempt ? (
+                <th scope="col">On shift</th>
+              ) : (
+                <>
+                  <th scope="col">Regular day off</th>
+                  <th scope="col">Start</th>
+                  <th scope="col">End</th>
+                </>
+              )}
+              <th scope="col">Location</th>
             </tr>
           </thead>
           <tbody>
             {WORKING_WEEKDAYS.map(({ weekday, label: dayLabel }) => {
               const row = days.find((d) => d.weekday === weekday) ?? { weekday, regularDayOff: true };
+              const location: WorkLocation = row.workLocation ?? "on_site";
               return (
                 <tr key={weekday}>
                   <th scope="row">{dayLabel}</th>
+                  {exempt ? (
+                    <td>
+                      <label className="row" style={{ justifyContent: "flex-start", gap: "0.45rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={!row.regularDayOff}
+                          onChange={(e) => toggleOnShift(weekday, e.target.checked)}
+                          aria-label={`${dayLabel} on shift`}
+                        />
+                        On shift
+                      </label>
+                    </td>
+                  ) : (
+                    <>
+                      <td>
+                        <label className="row" style={{ justifyContent: "flex-start", gap: "0.45rem" }}>
+                          <input
+                            type="checkbox"
+                            checked={row.regularDayOff}
+                            onChange={(e) => toggleDayOff(weekday, e.target.checked)}
+                            aria-label={`${dayLabel} regular day off`}
+                          />
+                          Day off
+                        </label>
+                      </td>
+                      <td>
+                        <input
+                          type="time"
+                          value={minutesToTimeInput(row.start)}
+                          disabled={row.regularDayOff}
+                          onChange={(e) => {
+                            try {
+                              updateDay(weekday, { start: parseTime(e.target.value) });
+                            } catch { /* ignore invalid partial input */ }
+                          }}
+                          aria-label={`${dayLabel} start time`}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="time"
+                          value={minutesToTimeInput(row.end)}
+                          disabled={row.regularDayOff}
+                          onChange={(e) => {
+                            try {
+                              updateDay(weekday, { end: parseTime(e.target.value) });
+                            } catch { /* ignore invalid partial input */ }
+                          }}
+                          aria-label={`${dayLabel} end time`}
+                        />
+                      </td>
+                    </>
+                  )}
                   <td>
-                    <label className="row" style={{ justifyContent: "flex-start", gap: "0.45rem" }}>
-                      <input
-                        type="checkbox"
-                        checked={row.regularDayOff}
-                        onChange={(e) => toggleDayOff(weekday, e.target.checked)}
-                        aria-label={`${dayLabel} regular day off`}
-                      />
-                      Day off
-                    </label>
-                  </td>
-                  <td>
-                    <input
-                      type="time"
-                      value={minutesToTimeInput(row.start)}
+                    <select
+                      value={location}
                       disabled={row.regularDayOff}
-                      onChange={(e) => {
-                        try {
-                          updateDay(weekday, { start: parseTime(e.target.value) });
-                        } catch { /* ignore invalid partial input */ }
-                      }}
-                      aria-label={`${dayLabel} start time`}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="time"
-                      value={minutesToTimeInput(row.end)}
-                      disabled={row.regularDayOff}
-                      onChange={(e) => {
-                        try {
-                          updateDay(weekday, { end: parseTime(e.target.value) });
-                        } catch { /* ignore invalid partial input */ }
-                      }}
-                      aria-label={`${dayLabel} end time`}
-                    />
+                      onChange={(e) => updateDay(weekday, { workLocation: e.target.value as WorkLocation })}
+                      aria-label={`${dayLabel} work location`}
+                    >
+                      <option value="on_site">On site</option>
+                      <option value="remote">Remote</option>
+                    </select>
                   </td>
                 </tr>
               );

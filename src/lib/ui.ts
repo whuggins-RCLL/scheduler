@@ -1,5 +1,6 @@
-import { formatTime12, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
+import { WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { Severity, ShiftStatus } from "@/domain/types";
+import { formatDisplayTimeRange } from "@/lib/time-format";
 
 /** First token of a person's name for casual greetings and compact UI labels. */
 export function firstName(fullName: string): string {
@@ -9,7 +10,7 @@ export function firstName(fullName: string): string {
 }
 
 export function timeRange(start: number, end: number): string {
-  return `${formatTime12(start)} – ${formatTime12(end)}`;
+  return formatDisplayTimeRange(start, end);
 }
 
 export function humanDate(iso: string): string {
