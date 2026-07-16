@@ -3,21 +3,20 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, canSubmitAvailabilityException, isStudentWorker } from "@/domain/scope";
+import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import { humanDate } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
 import type { LeaveRecord } from "@/domain/types";
 
 const UNAVAILABLE_TYPE_ID = "lt-unavailable";
 
-/**
- * Availability exceptions — managers record these on behalf of student workers;
- * staff may record their own. Students can view but not submit.
- */
 export function TimeOffPanel() {
-  const { db, currentUser, submitLeave } = useStore();
-  const manager = canManage(currentUser);
+  const { db, currentUser, viewAs, submitLeave } = useStore();
+  const manager = canManage(currentUser) && viewAs === "self";
+  const selfProfile = resolveEmployeeProfile(db.employees, currentUser, viewAs);
   const [targetEmployeeId, setTargetEmployeeId] = useState(currentUser.id);
-  const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId);
+  const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId)
+    ?? (targetEmployeeId === currentUser.id ? selfProfile : undefined);
   const unavailableType = db.leaveTypes.find((t) => t.id === UNAVAILABLE_TYPE_ID && t.active);
   const [startDate, setStartDate] = useState(db.schedules[0]?.startDate ?? "");
   const [endDate, setEndDate] = useState(db.schedules[0]?.startDate ?? "");
@@ -29,8 +28,9 @@ export function TimeOffPanel() {
 
   const forSelf = targetEmployeeId === currentUser.id;
   const isStudent = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
+  const onBehalf = manager && !forSelf;
   const canSubmit = targetEmployee
-    ? canSubmitAvailabilityException(currentUser, targetEmployee)
+    ? canSubmitAvailabilityException(currentUser, targetEmployee, { onBehalf })
     : false;
   const studentViewOnly = isStudent && forSelf;
 
@@ -78,8 +78,8 @@ export function TimeOffPanel() {
       updatedAt: "",
     };
     try {
-      submitLeave(record);
-      setConfirmation(targetEmployeeId === currentUser.id ? "Unavailable exception saved." : "Employee unavailable exception saved.");
+      submitLeave(record, { onBehalf });
+      setConfirmation(onBehalf ? "Employee unavailable exception saved." : "Unavailable exception saved.");
       setErrors([]);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : String(error)]);
@@ -91,8 +91,8 @@ export function TimeOffPanel() {
       <h2 id="exceptions-heading">{forSelf ? "Exceptions" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} exceptions`}</h2>
       <p className="muted" style={{ fontSize: "0.85rem" }}>
         {studentViewOnly
-          ? "Dates or hours when you are unavailable outside your regular availability. Only managers can record exceptions on your behalf — you can view them here."
-          : "Mark dates or hours when someone is unavailable outside their regular availability grid. This is not a time-off request; it alerts scheduling and managers to exceptions."}
+          ? "Dates when you are unavailable outside your sign-up grid. Only managers can record exceptions on your behalf."
+          : "Mark dates or hours when someone is unavailable outside their regular availability."}
       </p>
 
       {errors.length > 0 && (
@@ -123,9 +123,8 @@ export function TimeOffPanel() {
               <input id="ex-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
-
           <fieldset className="field">
-            <legend>When are they unavailable?</legend>
+            <legend>Duration</legend>
             <label className="row" style={{ justifyContent: "flex-start" }}>
               <input type="radio" name="exception-duration" checked={allDay} onChange={() => setAllDay(true)} />
               All day
@@ -135,7 +134,6 @@ export function TimeOffPanel() {
               Certain hours
             </label>
           </fieldset>
-
           {!allDay && (
             <div className="row">
               <div className="field" style={{ flex: "1 1 130px" }}>
@@ -148,7 +146,6 @@ export function TimeOffPanel() {
               </div>
             </div>
           )}
-
           <div className="row">
             <button type="submit" className="button primary">Save exception</button>
             {confirmation && <span role="status" className="badge ok">{confirmation}</span>}

@@ -1,4 +1,8 @@
-import type { EmploymentClassification, ISODate, StudentAvailabilityWindow } from "./types";
+import type { AvailabilityBlock, EmploymentClassification, ISODate, StudentAvailabilityWindow } from "./types";
+import { overlaps } from "./time";
+
+/** Maximum weekly library hours for student workers. */
+export const STUDENT_MAX_WEEKLY_MINUTES = 15 * 60;
 
 /** Pick the active student submission window from a list. */
 export function activeStudentAvailabilityWindow(
@@ -78,4 +82,54 @@ export function canSwapBetween(
 ): boolean {
   if (isStudentWorker(initiator)) return isStudentWorker(recipient);
   return true;
+}
+
+/** Total weekly minutes a student has signed up for (available + preferred). */
+export function weeklySignUpMinutes(blocks: AvailabilityBlock[]): number {
+  return blocks
+    .filter((b) => b.kind !== "unavailable")
+    .reduce((sum, b) => sum + (b.end - b.start), 0);
+}
+
+/** Total weekly minutes a manager has approved for a student. */
+export function weeklyApprovedMinutes(blocks: AvailabilityBlock[]): number {
+  return blocks.reduce((sum, b) => sum + (b.end - b.start), 0);
+}
+
+export function formatWeeklyHours(minutes: number): string {
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
+export function validateStudentWeeklyCap(
+  minutes: number,
+  context: "sign-up" | "approved" = "sign-up",
+): string | null {
+  if (minutes > STUDENT_MAX_WEEKLY_MINUTES) {
+    const max = STUDENT_MAX_WEEKLY_MINUTES / 60;
+    const actual = formatWeeklyHours(minutes);
+    return `Student ${context} cannot exceed ${max} hours per week (currently ${actual} hours).`;
+  }
+  return null;
+}
+
+/** Drop approvals that no longer overlap a student sign-up slot. */
+export function pruneApprovedBlocks(
+  signUp: AvailabilityBlock[],
+  approved: AvailabilityBlock[],
+): AvailabilityBlock[] {
+  return approved.filter((a) =>
+    signUp.some(
+      (s) => s.weekday === a.weekday && s.kind !== "unavailable" && overlaps(s, a),
+    ),
+  );
+}
+
+/** Blocks used by the scheduling engine for an employee. */
+export function schedulingBlocks(
+  pattern: { blocks: AvailabilityBlock[]; approvedBlocks?: AvailabilityBlock[] },
+  classification: EmploymentClassification,
+): AvailabilityBlock[] {
+  if (!isStudentWorker(classification)) return pattern.blocks;
+  return pattern.approvedBlocks ?? [];
 }

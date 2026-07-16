@@ -35,7 +35,7 @@ export function resolveEmployeeProfile(
     active: true,
     targetWeeklyHours: classification === "student_worker" ? 10 : 20,
     minWeeklyHours: 0,
-    maxWeeklyHours: classification === "student_worker" ? 20 : 40,
+    maxWeeklyHours: classification === "student_worker" ? 15 : 40,
     maxDailyHours: 8,
     earliestStart: 8 * 60,
     latestEnd: 21 * 60,

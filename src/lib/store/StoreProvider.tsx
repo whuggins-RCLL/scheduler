@@ -98,11 +98,12 @@ export interface StoreContextValue {
   signIn: (userId: string) => void;
   signOut: () => void;
   now: () => string;
-  saveAvailability: (pattern: AvailabilityPattern) => Promise<void>;
+  saveAvailability: (pattern: AvailabilityPattern, options?: { onBehalf?: boolean }) => Promise<void>;
+  saveStudentAvailabilityApproval: (patternId: string, approvedBlocks: import("@/domain/types").AvailabilityBlock[]) => Promise<void>;
   saveWorkingHours: (pattern: WorkingHoursPattern) => Promise<void>;
   saveStudentAvailabilityWindow: (window: StudentAvailabilityWindow) => void;
   saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
-  submitLeave: (record: LeaveRecord) => void;
+  submitLeave: (record: LeaveRecord, options?: { onBehalf?: boolean }) => void;
   cancelLeave: (id: string) => void;
   upsertDailyNote: (note: DailyNote) => void;
   setDailyNotePublished: (id: string, published: boolean) => void;
@@ -296,11 +297,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSessionUserId(null);
       },
       now,
-      saveAvailability: async (pattern) => {
+      saveAvailability: async (pattern, options) => {
         const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
         if (isFirebaseConfigured) await writeAvailabilityPattern(persisted);
-        const actor = db.users.find((u) => u.id === actorId);
-        setDb((d) => actions.saveAvailability(d, persisted, actorId, persisted.updatedAt, actor));
+        setDb((d) => actions.saveAvailability(d, persisted, actorId, persisted.updatedAt, currentUser, options));
+      },
+      saveStudentAvailabilityApproval: async (patternId, approvedBlocks) => {
+        const ts = now();
+        if (isFirebaseConfigured) {
+          const pattern = db.availability.find((p) => p.id === patternId);
+          if (pattern) {
+            await writeAvailabilityPattern({
+              ...pattern,
+              approvedBlocks,
+              approvedBy: actorId,
+              approvedAt: ts,
+              updatedAt: ts,
+            });
+          }
+        }
+        setDb((d) => actions.saveStudentAvailabilityApproval(d, patternId, approvedBlocks, actorId, ts, currentUser));
       },
       saveWorkingHours: async (pattern) => {
         const persisted = { ...pattern, updatedBy: actorId, updatedAt: now() };
@@ -315,7 +331,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (isFirebaseConfigured) await writeEmployeeProfile(profile);
         setDb((d) => mergeEmployeeProfile(d, profile));
       },
-      submitLeave: (record) => setDb((d) => actions.submitLeave(d, record, actorId, now())),
+      submitLeave: (record, options) => setDb((d) => actions.submitLeave(d, record, actorId, now(), currentUser, options)),
       cancelLeave: (id) => setDb((d) => actions.cancelLeave(d, id, actorId, now())),
       upsertDailyNote: (note) => setDb((d) => actions.upsertDailyNote(d, note, actorId, now())),
       setDailyNotePublished: (id, published) => setDb((d) => actions.setDailyNotePublished(d, id, published, actorId, now())),

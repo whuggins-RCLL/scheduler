@@ -76,6 +76,7 @@ export function evaluateSwap(input: SwapEvaluationInput): SwapEvaluation {
     input.leaveTypes,
     shift.date,
     { start: shift.start, end: shift.end },
+    recipient.classification,
   );
   if (!available) reasons.push("Recipient is unavailable or on leave during this shift.");
 

@@ -1,13 +1,15 @@
 import type {
   AvailabilityKind,
   AvailabilityPattern,
+  EmploymentClassification,
   ISODate,
   LeaveRecord,
   LeaveType,
   MinuteOfDay,
   TimeInterval,
 } from "./types";
-import { contains, overlaps, weekdayOf } from "./time";
+import { overlaps, weekdayOf } from "./time";
+import { schedulingBlocks } from "./student-availability";
 
 export interface AvailabilityResolution {
   kind: AvailabilityKind | "unknown";
@@ -44,6 +46,7 @@ export function resolveAvailability(
   leaveTypes: LeaveType[],
   date: ISODate,
   interval: TimeInterval,
+  classification?: EmploymentClassification,
 ): AvailabilityResolution {
   const leaveHit = leaveForInterval(leave, leaveTypes, date, interval);
 
@@ -52,7 +55,8 @@ export function resolveAvailability(
     return { kind: "unknown", onLeave: !!leaveHit, leaveBlocks: leaveHit?.blocks ?? false };
   }
   const weekday = weekdayOf(date);
-  const blocks = pattern.blocks.filter((b) => b.weekday === weekday);
+  const sourceBlocks = schedulingBlocks(pattern, classification ?? "non_exempt_staff");
+  const blocks = sourceBlocks.filter((b) => b.weekday === weekday);
 
   const unavailable = blocks.filter((b) => b.kind === "unavailable");
   if (unavailable.some((b) => overlaps(b, interval))) {
@@ -129,8 +133,9 @@ export function isAvailableForShift(
   leaveTypes: LeaveType[],
   date: ISODate,
   interval: TimeInterval,
+  classification?: EmploymentClassification,
 ): boolean {
-  const r = resolveAvailability(patterns, leave, leaveTypes, date, interval);
+  const r = resolveAvailability(patterns, leave, leaveTypes, date, interval, classification);
   if (r.onLeave && r.leaveBlocks) return false;
   return r.kind === "available" || r.kind === "preferred";
 }

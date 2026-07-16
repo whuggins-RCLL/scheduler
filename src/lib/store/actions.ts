@@ -1,5 +1,6 @@
 import type {
   AvailabilityPattern,
+  AvailabilityBlock,
   ComplianceFinding,
   ComplianceOverride,
   DailyNote,
@@ -26,8 +27,15 @@ import {
   type GenerationResult,
   type ScheduleWeights,
 } from "@/domain";
-import { canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
-import { activeStudentAvailabilityWindow as pickWindow } from "@/domain/student-availability";
+import { canApproveStudentAvailability, canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
+import {
+  activeStudentAvailabilityWindow as pickWindow,
+  isStudentWorker,
+  pruneApprovedBlocks,
+  validateStudentWeeklyCap,
+  weeklyApprovedMinutes,
+  weeklySignUpMinutes,
+} from "@/domain/student-availability";
 import { addDays } from "@/domain/time";
 import type { Database } from "./types";
 
@@ -157,24 +165,76 @@ export function saveAvailability(
   pattern: AvailabilityPattern,
   actorId: string,
   now: string,
-  actor?: UserAccount,
+  permissionUser: UserAccount,
+  options?: { onBehalf?: boolean },
 ): Database {
   const employee = db.employees.find((e) => e.id === pattern.employeeId);
-  const actorUser = actor ?? db.users.find((u) => u.id === actorId);
-  if (employee && actorUser) {
+  if (employee) {
     const window = activeStudentAvailabilityWindow(db);
     const today = now.slice(0, 10);
-    if (!canEditDeskAvailability(actorUser, employee, window, today)) {
+    if (!canEditDeskAvailability(permissionUser, employee, window, today, options)) {
       throw new Error("Student availability is locked. Contact a manager to make changes.");
+    }
+    if (isStudentWorker(employee.classification)) {
+      const signUpMinutes = weeklySignUpMinutes(pattern.blocks);
+      const capError = validateStudentWeeklyCap(signUpMinutes, "sign-up");
+      if (capError) throw new Error(capError);
     }
   }
   const next = clone(db);
   const idx = next.availability.findIndex((p) => p.id === pattern.id);
   const before = idx >= 0 ? next.availability[idx] : undefined;
-  const updated = { ...pattern, updatedBy: actorId, updatedAt: now };
+  const existing = before;
+  let approvedBlocks = pattern.approvedBlocks ?? existing?.approvedBlocks;
+  if (employee && isStudentWorker(employee.classification) && approvedBlocks?.length) {
+    approvedBlocks = pruneApprovedBlocks(pattern.blocks, approvedBlocks);
+  }
+  const updated = {
+    ...pattern,
+    approvedBlocks,
+    updatedBy: actorId,
+    updatedAt: now,
+  };
   if (idx >= 0) next.availability[idx] = updated;
   else next.availability.push(updated);
   audit(next, actorId, "availability.save", "availability", pattern.id, { before, after: updated, now });
+  return next;
+}
+
+export function saveStudentAvailabilityApproval(
+  db: Database,
+  patternId: string,
+  approvedBlocks: AvailabilityBlock[],
+  actorId: string,
+  now: string,
+  permissionUser: UserAccount,
+): Database {
+  const idx = db.availability.findIndex((p) => p.id === patternId);
+  if (idx < 0) throw new Error("Availability pattern not found.");
+  const existing = db.availability[idx];
+  const employee = db.employees.find((e) => e.id === existing.employeeId);
+  if (!employee || !isStudentWorker(employee.classification)) {
+    throw new Error("Approvals apply only to student workers.");
+  }
+  if (!canApproveStudentAvailability(permissionUser, employee)) {
+    throw new Error("Only managers and admins may approve student availability.");
+  }
+  const pruned = pruneApprovedBlocks(existing.blocks, approvedBlocks);
+  const approvedMinutes = weeklyApprovedMinutes(pruned);
+  const capError = validateStudentWeeklyCap(approvedMinutes, "approved");
+  if (capError) throw new Error(capError);
+
+  const next = clone(db);
+  const before = next.availability[idx];
+  const updated = {
+    ...before,
+    approvedBlocks: pruned,
+    approvedBy: actorId,
+    approvedAt: now,
+    updatedAt: now,
+  };
+  next.availability[idx] = updated;
+  audit(next, actorId, "availability.approve", "availability", patternId, { before, after: updated, now });
   return next;
 }
 
@@ -223,10 +283,16 @@ export function saveStudentAvailabilityWindow(
 // Leave
 // ---------------------------------------------------------------------------
 
-export function submitLeave(db: Database, record: LeaveRecord, actorId: string, now: string): Database {
+export function submitLeave(
+  db: Database,
+  record: LeaveRecord,
+  actorId: string,
+  now: string,
+  permissionUser: UserAccount,
+  options?: { onBehalf?: boolean },
+): Database {
   const target = db.employees.find((e) => e.id === record.employeeId);
-  const actor = db.users.find((u) => u.id === actorId);
-  if (target && actor && !canSubmitAvailabilityException(actor, target)) {
+  if (target && !canSubmitAvailabilityException(permissionUser, target, options)) {
     throw new Error("Only managers and admins may submit availability exceptions for student workers.");
   }
   const next = clone(db);

@@ -62,8 +62,9 @@ export function StudentAvailabilityAdmin() {
       <div className="page-head">
         <h1>Student availability windows</h1>
         <p className="muted">
-          Enable and control when student workers can edit their desk-availability grids. After the
-          close date, grids auto-lock for students. Managers and admins can always edit on their behalf.
+          Enable and control when student workers can edit their availability sign-up grids.
+          After the close date, grids auto-lock. Managers review sign-ups and approve the hours
+          to schedule (up to 15 hours per week per student).
         </p>
       </div>
 
@@ -137,8 +138,8 @@ export function StudentAvailabilityAdmin() {
                 </span>
               </div>
               <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
-                Students see these dates on their availability page. When the window is open they can edit;
-                otherwise their grid is read-only.
+                Students see these dates on their availability page. Review and approve sign-ups under
+                Availability &amp; exceptions after the submission window.
               </p>
             </div>
 
