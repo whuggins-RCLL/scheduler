@@ -37,6 +37,12 @@ import {
   writeEmployeeProfile,
   writeWorkingHoursPattern,
 } from "./firestore-workforce";
+import {
+  bootstrapGlobalExceptions,
+  deleteGlobalExceptionDoc,
+  subscribeGlobalExceptions,
+  writeGlobalException,
+} from "./firestore-global-exceptions";
 import { buildSeed } from "./seed";
 import type { Database } from "./types";
 
@@ -173,8 +179,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [viewAs, setViewAs] = useState<ViewAs>("self");
   const globalSyncKey = useRef("");
+  const globalBootstrapDone = useRef(false);
 
-  // Keep university-wide exceptions materialized for every active employee whenever
+  // Keep university-wide exceptions materialized for every active account whenever
   // the roster or global exception list changes (including Firestore profile loads).
   useEffect(() => {
     if (!hydrated) return;
@@ -182,7 +189,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (globalSyncKey.current === fingerprint) return;
     globalSyncKey.current = fingerprint;
     setDb((current) => actions.syncAllGlobalExceptions(current, "system", new Date().toISOString()));
-  }, [hydrated, db.employees, db.globalExceptions]);
+  }, [hydrated, db.users, db.employees, db.globalExceptions]);
 
   // Session restore. Two mutually exclusive paths:
   //  - Demo/local mode: restore the seeded session id from localStorage.
@@ -212,15 +219,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let unsubscribeProfiles: () => void = () => {};
     let unsubscribeAvailability: () => void = () => {};
     let unsubscribeWorkingHours: () => void = () => {};
+    let unsubscribeGlobalExceptions: () => void = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       unsubscribeUsers();
       unsubscribeProfiles();
       unsubscribeAvailability();
       unsubscribeWorkingHours();
+      unsubscribeGlobalExceptions();
       unsubscribeUsers = () => {};
       unsubscribeProfiles = () => {};
       unsubscribeAvailability = () => {};
       unsubscribeWorkingHours = () => {};
+      unsubscribeGlobalExceptions = () => {};
       if (!fbUser) {
         writeSessionCookies(null);
         setSessionUserId(null);
@@ -244,7 +254,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Admins/staff can read every user; ordinary users get a permission error
       // here, which we ignore (they only ever see themselves).
       unsubscribeUsers = subscribeUsers(
-        (users) => setDb((d) => ({ ...d, users })),
+        (users) =>
+          setDb((d) => actions.syncAllGlobalExceptions({ ...d, users }, "system", new Date().toISOString())),
         () => {
           /* not staff: self-only view already merged above */
         },
@@ -266,6 +277,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         () => setDb((d) => ({ ...d, workingHours: [] })),
         selfOnly,
       );
+      unsubscribeGlobalExceptions = subscribeGlobalExceptions(
+        (globalExceptions) => {
+          setDb((d) => {
+            // Keep the in-memory seed until Firestore has been populated.
+            const source = globalExceptions.length > 0 ? globalExceptions : d.globalExceptions;
+            const next = { ...d, globalExceptions: source };
+            return actions.syncAllGlobalExceptions(next, "system", new Date().toISOString());
+          });
+          if (
+            !globalBootstrapDone.current
+            && globalExceptions.length === 0
+            && account
+            && canManage(account)
+          ) {
+            globalBootstrapDone.current = true;
+            setDb((d) => {
+              if (d.globalExceptions.length > 0) void bootstrapGlobalExceptions(d.globalExceptions);
+              return d;
+            });
+          }
+        },
+        () => {
+          /* keep in-memory seed when Firestore is unavailable */
+        },
+      );
       setHydrated(true);
     });
 
@@ -275,6 +311,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeProfiles();
       unsubscribeAvailability();
       unsubscribeWorkingHours();
+      unsubscribeGlobalExceptions();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -350,8 +387,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       submitLeave: (record, options) => setDb((d) => actions.submitLeave(d, record, actorId, now(), currentUser, options)),
       cancelLeave: (id) => setDb((d) => actions.cancelLeave(d, id, actorId, now())),
-      upsertGlobalException: (exception) => setDb((d) => actions.upsertGlobalException(d, exception, actorId, now())),
-      deleteGlobalException: (id) => setDb((d) => actions.deleteGlobalException(d, id, actorId, now())),
+      upsertGlobalException: (exception) => {
+        if (isFirebaseConfigured) void writeGlobalException(exception);
+        setDb((d) => actions.upsertGlobalException(d, exception, actorId, now()));
+      },
+      deleteGlobalException: (id) => {
+        if (isFirebaseConfigured) void deleteGlobalExceptionDoc(id);
+        setDb((d) => actions.deleteGlobalException(d, id, actorId, now()));
+      },
       upsertDailyNote: (note) => setDb((d) => actions.upsertDailyNote(d, note, actorId, now())),
       setDailyNotePublished: (id, published) => setDb((d) => actions.setDailyNotePublished(d, id, published, actorId, now())),
       deleteDailyNote: (id) => setDb((d) => actions.deleteDailyNote(d, id, actorId, now())),

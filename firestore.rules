@@ -99,8 +99,10 @@ service cloud.firestore {
       allow update: if isStaff() || resource.data.employeeId == request.auth.uid;
       allow delete: if false;
     }
-
-    // ---- Manager notes (private scheduling rules) ----
+    match /organizations/{orgId}/globalExceptions/{exceptionId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin() || isManager();
+    }
     match /organizations/{orgId}/managerNotes/{noteId} {
       allow read, write: if isStaff();
     }

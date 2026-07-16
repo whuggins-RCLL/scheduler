@@ -5,8 +5,8 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, canSubmitAvailabilityException, isStudentWorker } from "@/domain/scope";
 import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import {
-  globalLeaveRecordsForEmployee,
-  personalLeaveRecordsForEmployee,
+  isGlobalSyncedLeave,
+  leaveRecordsForEmployee,
 } from "@/domain/global-exceptions";
 import { humanDate } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
@@ -15,13 +15,8 @@ import { HOLIDAY_LEAVE_TYPE_ID } from "@/domain/global-exceptions";
 
 const UNAVAILABLE_TYPE_ID = "lt-unavailable";
 
-function ExceptionRow({
-  record,
-  readOnly,
-}: {
-  record: LeaveRecord;
-  readOnly: boolean;
-}) {
+function ExceptionRow({ record }: { record: LeaveRecord }) {
+  const readOnly = isGlobalSyncedLeave(record);
   const label = readOnly ? (record.note ?? "University holiday") : "Unavailable";
   return (
     <li className="spread">
@@ -39,13 +34,25 @@ function ExceptionRow({
   );
 }
 
+function accountLabel(
+  db: ReturnType<typeof useStore>["db"],
+  accountId: string,
+): string {
+  const employee = db.employees.find((e) => e.id === accountId);
+  if (employee?.preferredName || employee?.legalName) {
+    return employee.preferredName ?? employee.legalName;
+  }
+  const user = db.users.find((u) => u.id === accountId);
+  return user?.displayName ?? accountId;
+}
+
 export function TimeOffPanel() {
   const { db, currentUser, viewAs, submitLeave } = useStore();
   const manager = canManage(currentUser) && viewAs === "self";
   const selfProfile = resolveEmployeeProfile(db.employees, currentUser, viewAs);
-  const [targetEmployeeId, setTargetEmployeeId] = useState(currentUser.id);
-  const targetEmployee = db.employees.find((e) => e.id === targetEmployeeId)
-    ?? (targetEmployeeId === currentUser.id ? selfProfile : undefined);
+  const [targetAccountId, setTargetAccountId] = useState(currentUser.id);
+  const targetEmployee = db.employees.find((e) => e.id === targetAccountId)
+    ?? (targetAccountId === currentUser.id ? selfProfile : undefined);
   const unavailableType = db.leaveTypes.find((t) => t.id === UNAVAILABLE_TYPE_ID && t.active);
   const [startDate, setStartDate] = useState(db.schedules[0]?.startDate ?? "");
   const [endDate, setEndDate] = useState(db.schedules[0]?.startDate ?? "");
@@ -56,10 +63,10 @@ export function TimeOffPanel() {
   const [confirmation, setConfirmation] = useState("");
 
   useEffect(() => {
-    setTargetEmployeeId(currentUser.id);
+    setTargetAccountId(currentUser.id);
   }, [currentUser.id]);
 
-  const forSelf = targetEmployeeId === currentUser.id;
+  const forSelf = targetAccountId === currentUser.id;
   const isStudent = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
   const onBehalf = manager && !forSelf;
   const canSubmit = targetEmployee
@@ -67,8 +74,11 @@ export function TimeOffPanel() {
     : false;
   const studentViewOnly = isStudent && forSelf;
 
-  const universityWide = globalLeaveRecordsForEmployee(db, targetEmployeeId);
-  const personal = personalLeaveRecordsForEmployee(db, targetEmployeeId);
+  const exceptions = leaveRecordsForEmployee(db, targetAccountId);
+
+  const activeAccounts = db.users
+    .filter((u) => u.state === "active")
+    .sort((a, b) => accountLabel(db, a.id).localeCompare(accountLabel(db, b.id)));
 
   function leaveLabel(record: LeaveRecord): string {
     if (record.globalExceptionId || record.leaveTypeId === HOLIDAY_LEAVE_TYPE_ID) {
@@ -104,7 +114,7 @@ export function TimeOffPanel() {
 
     const record: LeaveRecord = {
       id: `leave-${Date.now()}`,
-      employeeId: targetEmployeeId,
+      employeeId: targetAccountId,
       leaveTypeId: unavailableType.id,
       startDate,
       endDate,
@@ -127,11 +137,13 @@ export function TimeOffPanel() {
 
   return (
     <section className="card" aria-labelledby="exceptions-heading">
-      <h2 id="exceptions-heading">{forSelf ? "Exceptions" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} exceptions`}</h2>
+      <h2 id="exceptions-heading">
+        {forSelf ? "Exceptions" : `${accountLabel(db, targetAccountId)} exceptions`}
+      </h2>
       <p className="muted" style={{ fontSize: "0.85rem" }}>
         {studentViewOnly
-          ? "Dates when you are unavailable outside your sign-up grid. Only managers can record exceptions on your behalf."
-          : "Mark dates or hours when someone is unavailable outside their regular availability."}
+          ? "University holidays appear automatically. Personal exceptions outside your sign-up grid are recorded by your manager."
+          : "University holidays are posted for everyone automatically. Add personal unavailable dates below."}
       </p>
 
       {errors.length > 0 && (
@@ -143,9 +155,11 @@ export function TimeOffPanel() {
 
       {manager && (
         <div className="field" style={{ maxWidth: 420, marginBottom: "1rem" }}>
-          <label htmlFor="exception-employee">Employee</label>
-          <select id="exception-employee" value={targetEmployeeId} onChange={(e) => setTargetEmployeeId(e.target.value)}>
-            {db.employees.filter((e) => e.active).map((e) => <option key={e.id} value={e.id}>{e.preferredName ?? e.legalName}</option>)}
+          <label htmlFor="exception-employee">Person</label>
+          <select id="exception-employee" value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)}>
+            {activeAccounts.map((u) => (
+              <option key={u.id} value={u.id}>{accountLabel(db, u.id)}</option>
+            ))}
           </select>
         </div>
       )}
@@ -191,32 +205,17 @@ export function TimeOffPanel() {
           </div>
         </form>
       ) : studentViewOnly ? null : (
-        <p className="muted">You cannot submit exceptions for this employee.</p>
+        <p className="muted">You cannot submit personal exceptions for this person.</p>
       )}
 
       <hr className="divider" />
-      <h3>University-wide exceptions</h3>
-      <p className="muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
-        Posted automatically for every employee from Admin → Global exceptions. These cannot be edited here.
-      </p>
-      {universityWide.length === 0 ? (
-        <p className="muted">No university-wide exceptions on file.</p>
+      <h3>{forSelf ? "My exceptions" : "Exceptions list"}</h3>
+      {exceptions.length === 0 ? (
+        <p className="muted">No exceptions on file.</p>
       ) : (
         <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-          {universityWide.map((record) => (
-            <ExceptionRow key={record.id} record={record} readOnly />
-          ))}
-        </ul>
-      )}
-
-      <hr className="divider" />
-      <h3>{forSelf ? "My exceptions" : "Personal exceptions"}</h3>
-      {personal.length === 0 ? (
-        <p className="muted">No personal exceptions on file.</p>
-      ) : (
-        <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-          {personal.map((record) => (
-            <ExceptionRow key={record.id} record={record} readOnly={false} />
+          {exceptions.map((record) => (
+            <ExceptionRow key={record.id} record={record} />
           ))}
         </ul>
       )}
