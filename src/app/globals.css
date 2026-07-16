@@ -256,14 +256,77 @@ table.data tbody tr:hover { background: var(--surface-2); }
 .shift-block.is-open { border-left-color: var(--open-shift); background: color-mix(in srgb, var(--open-shift) 10%, var(--surface)); }
 .chip { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; padding: 0.08rem 0.4rem; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); }
 
-/* ---- Availability editor ---- */
-.avail-grid { display: grid; grid-template-columns: 76px repeat(7, 1fr); gap: 3px; min-width: 640px; }
+/* ---- Availability editor (half-hour grid) ---- */
+.avail-grid { display: grid; grid-template-columns: 76px repeat(7, 1fr); gap: 2px; min-width: 640px; }
 .avail-head { font-size: 0.78rem; font-weight: 650; text-align: center; padding: 0.3rem; }
-.avail-rowlabel { font-size: 0.72rem; color: var(--muted); text-align: right; padding: 0.2rem 0.4rem; align-self: center; }
-.avail-cell { border: 1px solid var(--border); border-radius: 6px; min-height: 34px; font-size: 0.68rem; padding: 2px 4px; cursor: pointer; background: var(--surface); color: var(--ink); }
+.avail-rowlabel { font-size: 0.72rem; color: var(--muted); text-align: right; padding: 0.1rem 0.4rem; align-self: center; }
+.avail-rowlabel.half { font-size: 0.64rem; opacity: 0.6; }
+.avail-cell { border: 1px solid var(--border); border-radius: 6px; min-height: 24px; font-size: 0.68rem; padding: 1px 4px; cursor: pointer; background: var(--surface); color: var(--ink); }
+.avail-cell.half { border-top-style: dashed; }
 .avail-cell.preferred { background: color-mix(in srgb, var(--palo-alto) 22%, var(--surface)); border-color: var(--palo-alto); }
 .avail-cell.available { background: color-mix(in srgb, var(--info) 15%, var(--surface)); border-color: var(--info); }
 .avail-cell.unavailable { background: var(--surface-2); color: var(--muted); }
+
+/* ---- Combined student-availability grid ---- */
+.stu-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); gap: 2px; min-width: 620px; }
+.stu-cell { border: 1px solid var(--border); border-radius: 6px; min-height: 24px; display: grid; place-items: center; font-size: 0.72rem; font-weight: 600; color: var(--ink); background: var(--surface); }
+.stu-cell.half { border-top-style: dashed; }
+.stu-cell:not(.has) { color: var(--muted); }
+
+/* ---- Dashboard day timeline ---- */
+.day-tl { display: grid; grid-template-columns: 60px 1fr; gap: 0; }
+.day-tl-rail { position: relative; }
+.day-tl-hour { position: absolute; right: 6px; transform: translateY(-50%); font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+.day-tl-lanes { position: relative; border-left: 1px solid var(--border); border-top: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.day-tl-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); }
+.day-tl-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.86rem; }
+.tl-block {
+  position: absolute; overflow: hidden; border-left: 4px solid var(--pos, var(--cardinal)); border-radius: 8px;
+  padding: 0.2rem 0.4rem; background: color-mix(in srgb, var(--pos, var(--cardinal)) 14%, var(--surface));
+  color: var(--ink); text-align: left; font-size: 0.74rem; display: flex; flex-direction: column; gap: 1px; line-height: 1.2;
+}
+button.tl-block { cursor: pointer; }
+button.tl-block:hover { background: color-mix(in srgb, var(--pos, var(--cardinal)) 24%, var(--surface)); }
+.tl-block.is-open { border-left-color: var(--open-shift); background: color-mix(in srgb, var(--open-shift) 12%, var(--surface)); }
+.tl-block.is-draft { border-style: dashed; }
+.tl-block .tl-time { font-weight: 650; font-size: 0.7rem; }
+.tl-block .tl-name { font-weight: 600; }
+.tl-block .tl-pos { color: var(--muted); font-size: 0.68rem; }
+
+/* ---- Dashboard week columns ---- */
+.desk-week { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 0.5rem; overflow-x: auto; }
+.desk-week-col { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; background: var(--surface); min-width: 120px; }
+.desk-week-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+.desk-week-head.is-today { border-bottom-color: var(--brand-solid); }
+.desk-week-head.is-today strong { color: var(--brand-solid); }
+.desk-chip {
+  display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; border-radius: 8px;
+  border-left: 4px solid var(--pos, var(--cardinal)); padding: 0.25rem 0.4rem; font-size: 0.74rem; color: var(--ink);
+  background: color-mix(in srgb, var(--pos, var(--cardinal)) 12%, var(--surface));
+}
+button.desk-chip { cursor: pointer; }
+button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardinal)) 22%, var(--surface)); }
+.desk-chip.is-open { border-left-color: var(--open-shift); background: color-mix(in srgb, var(--open-shift) 12%, var(--surface)); }
+.desk-chip-time { font-weight: 650; }
+.desk-chip-name { font-weight: 600; }
+
+/* ---- Dashboard month grid ---- */
+.desk-month { display: flex; flex-direction: column; gap: 2px; }
+.desk-month-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.desk-month-label { text-align: center; font-size: 0.74rem; font-weight: 650; color: var(--muted); padding: 0.2rem; }
+.desk-month-cell {
+  min-height: 62px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  padding: 0.3rem; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 0.2rem; color: var(--ink);
+}
+.desk-month-cell:hover { background: var(--surface-2); }
+.desk-month-cell.is-out { opacity: 0.45; }
+.desk-month-cell.is-today { border-color: var(--brand-solid); box-shadow: inset 0 0 0 1px var(--brand-solid); }
+.desk-month-date { font-weight: 650; font-size: 0.8rem; }
+.desk-month-count { font-size: 0.7rem; color: var(--palo-alto); font-weight: 600; }
+.desk-month-open { color: var(--open-shift); }
+
+/* ---- Utilities ---- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* ---- Misc ---- */
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(20, 18, 16, 0.45); display: grid; place-items: center; padding: 1rem; z-index: 50; }

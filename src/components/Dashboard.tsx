@@ -8,6 +8,9 @@ import { humanDate, timeRange } from "@/lib/ui";
 import { TIMEKEEPING_URL } from "@/lib/config";
 import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
+import { DeskScheduleBoard } from "./dashboard/DeskScheduleBoard";
+import { MySchedule } from "./dashboard/MySchedule";
+import { StudentAvailabilityGrid } from "./dashboard/StudentAvailabilityGrid";
 import type { Shift } from "@/domain/types";
 
 function todayISO(): string {
@@ -104,8 +107,12 @@ function EmployeeDashboard() {
         </div>
       </section>
 
+      <DeskScheduleBoard />
+
       <div className="dash-columns">
         <div className="stack">
+          <MySchedule />
+
           <section className="card glass pad-lg" aria-labelledby="next-shift">
             <h2 id="next-shift">Your next shift</h2>
             {next ? (
@@ -161,6 +168,8 @@ function EmployeeDashboard() {
             </p>
             <Link href="/availability" className="button sm glass-button mt">Manage exceptions</Link>
           </section>
+
+          <StudentAvailabilityGrid />
         </div>
 
         <SideRail>
@@ -225,8 +234,12 @@ function ManagerDashboard() {
         <StatCard value={openShifts.length} label="Open / uncovered" href="/schedule" tone={openShifts.length ? "warn" : ""} />
       </div>
 
+      <DeskScheduleBoard />
+
       <div className="dash-columns">
         <div className="stack">
+          <MySchedule />
+
           <section className="card glass" aria-labelledby="working-now">
             <h2 id="working-now">On the schedule today</h2>
             {todayShifts.length === 0 ? (
@@ -278,6 +291,8 @@ function ManagerDashboard() {
             )}
             <Link href="/schedule" className="button sm glass-button">Open scheduling workspace</Link>
           </section>
+
+          <StudentAvailabilityGrid />
         </div>
 
         <SideRail />

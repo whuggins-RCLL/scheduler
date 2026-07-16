@@ -28,6 +28,7 @@ function blankPosition(order: number): Position {
     minStaffing: 1,
     preferredStaffing: 1,
     maxStaffing: 2,
+    unlimitedSeating: false,
     minAssignmentMinutes: 60,
     maxContinuousMinutes: 120,
     requiresPhysicalPresence: false,
@@ -95,7 +96,7 @@ export function PositionsAdmin() {
                     </span>
                   </td>
                   <td>{p.shortLabel}</td>
-                  <td>{p.minStaffing} / {p.preferredStaffing} / {p.maxStaffing}</td>
+                  <td>{p.minStaffing} / {p.preferredStaffing} / {p.unlimitedSeating ? "∞" : p.maxStaffing}</td>
                   <td>{p.countsAsPublicService ? "Yes" : "No"}</td>
                   <td>{p.swapsAllowed ? "Yes" : "No"}</td>
                   <td><span className={`badge ${p.active ? "ok" : ""}`}>{p.active ? "Active" : "Archived"}</span></td>
@@ -143,7 +144,7 @@ function PositionDialog({
 
   function save() {
     if (!p.name.trim()) { setError("Name is required."); return; }
-    if (p.maxStaffing < p.minStaffing) { setError("Max staffing must be ≥ min staffing."); return; }
+    if (!p.unlimitedSeating && p.maxStaffing < p.minStaffing) { setError("Max staffing must be ≥ min staffing."); return; }
     onSave({ ...p, shortLabel: p.shortLabel.trim() || p.name.trim().slice(0, 6) });
   }
 
@@ -187,9 +188,25 @@ function PositionDialog({
             </div>
             <div className="field" style={{ flex: 1 }}>
               <label htmlFor="p-max">Max</label>
-              <input id="p-max" type="number" min={1} value={p.maxStaffing} onChange={(e) => set("maxStaffing", Number(e.target.value))} />
+              <input
+                id="p-max"
+                type="number"
+                min={1}
+                value={p.maxStaffing}
+                disabled={p.unlimitedSeating}
+                onChange={(e) => set("maxStaffing", Number(e.target.value))}
+              />
             </div>
           </div>
+          <label className="row" style={{ gap: "0.4rem" }}>
+            <input
+              type="checkbox"
+              style={{ width: "auto", minHeight: 0 }}
+              checked={p.unlimitedSeating ?? false}
+              onChange={(e) => set("unlimitedSeating", e.target.checked)}
+            />
+            Unlimited seatings (no maximum — skips staffing caps when assigning)
+          </label>
           <div className="field">
             <label htmlFor="p-cont">Max continuous minutes</label>
             <input id="p-cont" type="number" min={0} step={15} value={p.maxContinuousMinutes} onChange={(e) => set("maxContinuousMinutes", Number(e.target.value))} />

@@ -112,6 +112,7 @@ function sampleAvailability(p: SamplePerson, now: string): AvailabilityPattern {
     employeeId: p.id,
     label: "Sample term availability",
     blocks,
+    mealBreakMinutes: p.classification === "student_worker" ? 30 : 60,
     updatedBy: "admin-whuggins",
     updatedAt: now,
   };

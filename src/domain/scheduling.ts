@@ -13,7 +13,7 @@ import type {
   Shift,
   StructuredRule,
 } from "./types";
-import { isAvailableForShift, resolveAvailability } from "./availability";
+import { effectivePattern, isAvailableForShift, resolveAvailability } from "./availability";
 import { validateWorkday } from "./compliance";
 import { EVENING_START, hashString, isWeekend, seededRandom } from "./time";
 
@@ -346,15 +346,20 @@ function planBreaks(
   const length = req.end - req.start;
   const breaks: Break[] = [];
 
+  // Honour the employee's stated meal-break preference (30 or 60 min) but never
+  // schedule a meal shorter than the legal minimum for their classification.
+  const preferred = effectivePattern(input.patterns[emp.id] ?? [], req.date)?.mealBreakMinutes;
+  const mealMinutes = Math.max(policy.mealMinDurationMinutes, preferred ?? policy.mealMinDurationMinutes);
+
   // Unpaid meal for shifts beyond the meal threshold; placed to satisfy timing.
   if (length > policy.mealRequiredAfterMinutes) {
     const mealStart = Math.min(
-      req.start + policy.mealMustStartByMinutesWorked - policy.mealMinDurationMinutes,
-      req.start + Math.floor(length / 2) - Math.floor(policy.mealMinDurationMinutes / 2),
+      req.start + policy.mealMustStartByMinutesWorked - mealMinutes,
+      req.start + Math.floor(length / 2) - Math.floor(mealMinutes / 2),
     );
     const start = Math.max(req.start + 60, mealStart);
-    if (start + policy.mealMinDurationMinutes <= req.end - 30) {
-      breaks.push({ kind: "meal", start, end: start + policy.mealMinDurationMinutes, paid: false });
+    if (start + mealMinutes <= req.end - 30) {
+      breaks.push({ kind: "meal", start, end: start + mealMinutes, paid: false });
     }
   }
 

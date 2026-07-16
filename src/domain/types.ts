@@ -177,6 +177,13 @@ export interface Position {
   minStaffing: number;
   preferredStaffing: number;
   maxStaffing: number;
+  /**
+   * When true the position has no upper limit on how many people may be
+   * seated/assigned at once ("unlimited seatings"). `maxStaffing` is ignored
+   * while this is set, which saves administrators from tuning caps for posts
+   * such as project time, meetings, or overflow desk coverage.
+   */
+  unlimitedSeating?: boolean;
   minAssignmentMinutes: number;
   maxContinuousMinutes: number;
   requiresPhysicalPresence: boolean;
@@ -222,6 +229,9 @@ export interface AvailabilityBlock {
   kind: AvailabilityKind;
 }
 
+/** How long an unpaid meal break the person prefers when one is scheduled. */
+export type MealBreakMinutes = 30 | 60;
+
 export interface AvailabilityPattern {
   id: string;
   employeeId: string;
@@ -230,6 +240,12 @@ export interface AvailabilityPattern {
   label?: string; // e.g. "Fall term"
   blocks: AvailabilityBlock[];
   note?: string;
+  /**
+   * The person's preferred unpaid meal-break length (30 minutes or 1 hour).
+   * Required from every staff member; the scheduling engine uses it (never
+   * below the legal minimum) when it plans an unpaid meal for a long shift.
+   */
+  mealBreakMinutes?: MealBreakMinutes;
   updatedBy: string; // for manager-entered audit attribution
   updatedAt: ISODateTime;
 }
