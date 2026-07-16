@@ -110,6 +110,9 @@ export function mapAvailabilityPattern(id: string, data: DocumentData): Availabi
     blocks: Array.isArray(data.blocks) ? data.blocks : [],
     note: typeof data.note === "string" ? data.note : undefined,
     mealBreakMinutes: data.mealBreakMinutes === 30 || data.mealBreakMinutes === 60 ? data.mealBreakMinutes : undefined,
+    approvedBlocks: Array.isArray(data.approvedBlocks) ? data.approvedBlocks : undefined,
+    approvedBy: typeof data.approvedBy === "string" ? data.approvedBy : undefined,
+    approvedAt: typeof data.approvedAt === "string" ? data.approvedAt : undefined,
     updatedBy: String(data.updatedBy ?? "system"),
     updatedAt: toIso(data.updatedAt),
   };
@@ -239,6 +242,9 @@ export async function writeAvailabilityPattern(pattern: AvailabilityPattern): Pr
   if (pattern.label !== undefined) payload.label = pattern.label;
   if (pattern.note !== undefined) payload.note = pattern.note;
   if (pattern.mealBreakMinutes !== undefined) payload.mealBreakMinutes = pattern.mealBreakMinutes;
+  if (pattern.approvedBlocks !== undefined) payload.approvedBlocks = pattern.approvedBlocks;
+  if (pattern.approvedBy !== undefined) payload.approvedBy = pattern.approvedBy;
+  if (pattern.approvedAt !== undefined) payload.approvedAt = pattern.approvedAt;
   await setDoc(doc(db, collectionPath("availabilityPatterns"), pattern.id), payload, { merge: true });
 }
 

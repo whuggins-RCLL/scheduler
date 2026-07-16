@@ -377,6 +377,7 @@ table.data tbody tr:hover { background: var(--surface-2); }
 .avail-cell.preferred { background: color-mix(in srgb, var(--palo-alto) 22%, var(--surface)); border-color: var(--palo-alto); }
 .avail-cell.available { background: color-mix(in srgb, var(--info) 15%, var(--surface)); border-color: var(--info); }
 .avail-cell.unavailable { background: var(--surface-2); color: var(--muted); }
+.avail-cell.approved { background: color-mix(in srgb, var(--palo-alto) 35%, var(--surface)); border-color: var(--palo-alto); box-shadow: inset 0 0 0 2px var(--palo-alto); }
 
 /* ---- Combined student-availability grid ---- */
 .stu-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); gap: 2px; min-width: 620px; }

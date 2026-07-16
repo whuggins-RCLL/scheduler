@@ -21,7 +21,8 @@ describe("end-to-end workflows on the data store", () => {
   it("saves employee availability with audit attribution", () => {
     const db = buildSeed();
     const pattern = db.availability.find((p) => p.employeeId === "emp-maya")!;
-    const next = saveAvailability(db, { ...pattern, note: "Updated for exams" }, "emp-maya", NOW);
+    const maya = db.users.find((u) => u.id === "emp-maya")!;
+    const next = saveAvailability(db, { ...pattern, note: "Updated for exams" }, "emp-maya", NOW, maya);
     expect(next.availability.find((p) => p.id === pattern.id)?.note).toBe("Updated for exams");
     expect(next.audit[0].action).toBe("availability.save");
     expect(next.audit[0].actorId).toBe("emp-maya");
@@ -34,7 +35,7 @@ describe("end-to-end workflows on the data store", () => {
       startDate: addDays(SEED_WEEK_START, 1), endDate: addDays(SEED_WEEK_START, 1),
       partialDay: false, status: "requested", enteredBy: "emp-sam", createdAt: "", updatedAt: "",
     };
-    const submitted = submitLeave(db, record, "emp-sam", NOW);
+    const submitted = submitLeave(db, record, "emp-sam", NOW, db.users.find((u) => u.id === "emp-sam")!);
     expect(submitted.leave.find((l) => l.id === "leave-new")?.status).toBe("recorded");
     expect(submitted.audit[0].action).toBe("leave.submit");
   });

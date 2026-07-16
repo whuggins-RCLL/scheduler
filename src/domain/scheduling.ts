@@ -235,7 +235,7 @@ function pickCandidate(
     }
     if (!e.eligibleLocationIds.includes(req.locationId)) return false;
     // Hard: availability + leave
-    if (!isAvailableForShift(input.patterns[e.id] ?? [], input.leave[e.id] ?? [], input.leaveTypes, req.date, window)) {
+    if (!isAvailableForShift(input.patterns[e.id] ?? [], input.leave[e.id] ?? [], input.leaveTypes, req.date, window, e.classification)) {
       blockReasons.add("No available staff for this window.");
       return false;
     }
@@ -303,6 +303,7 @@ function scoreCandidate(
     input.leaveTypes,
     req.date,
     { start: req.start, end: req.end },
+    e.classification,
   );
   if (res.kind === "preferred") score += weights.preferredWindow;
 

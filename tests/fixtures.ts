@@ -169,13 +169,27 @@ export function buildFixture(): Database {
   );
 
   db.availability.push(
-    weekdayAvailability("avail-maya", "emp-maya", [{ days: [1, 3], start: "09:00", end: "14:00", kind: "preferred" }, { days: [2, 4], start: "12:00", end: "17:00", kind: "available" }, { days: [5], start: "09:00", end: "13:00", kind: "available" }]),
-    weekdayAvailability("avail-jordan", "emp-jordan", [{ days: [1, 2, 3, 4], start: "13:00", end: "20:00", kind: "preferred" }, { days: [5], start: "13:00", end: "18:00", kind: "available" }]),
+    weekdayAvailability("avail-maya", "emp-maya", [
+      { days: [1], start: "13:00", end: "15:00", kind: "preferred" },
+      { days: [3], start: "09:00", end: "12:00", kind: "available" },
+      { days: [5], start: "09:00", end: "12:00", kind: "available" },
+    ]),
+    weekdayAvailability("avail-jordan", "emp-jordan", [
+      { days: [1], start: "13:00", end: "18:00", kind: "preferred" },
+      { days: [3], start: "13:00", end: "18:00", kind: "available" },
+      { days: [5], start: "13:00", end: "16:00", kind: "available" },
+    ]),
     weekdayAvailability("avail-sam", "emp-sam", [{ days: [1, 2, 3, 4, 5], start: "08:00", end: "17:00", kind: "preferred" }]),
     weekdayAvailability("avail-avery", "emp-avery", [{ days: [1, 2, 3], start: "10:00", end: "18:00", kind: "preferred" }, { days: [4, 5], start: "10:00", end: "16:00", kind: "available" }]),
     weekdayAvailability("avail-noah", "emp-noah", [{ days: [2, 4], start: "09:00", end: "13:00", kind: "available" }]),
     weekdayAvailability("avail-riley", "emp-riley", [{ days: [3, 6], start: "10:00", end: "17:00", kind: "available" }]),
   );
+  for (const pattern of db.availability) {
+    const employee = db.employees.find((e) => e.id === pattern.employeeId);
+    if (employee?.classification === "student_worker") {
+      pattern.approvedBlocks = [...pattern.blocks];
+    }
+  }
 
   db.schedules.push({ id: "sched-week", name: `Week of ${FIXTURE_WEEK_START}`, startDate: FIXTURE_WEEK_START, endDate: addDays(FIXTURE_WEEK_START, 6), status: "draft", version: 1, createdBy: "admin-whuggins", createdAt: FIXTURE_NOW, updatedAt: FIXTURE_NOW });
   db.studentAvailabilityWindows.push({

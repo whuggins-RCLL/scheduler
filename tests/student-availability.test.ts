@@ -2,10 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   activeStudentAvailabilityWindow,
   canSwapBetween,
+  schedulingBlocks,
   studentAvailabilityEditable,
   studentAvailabilityStatus,
+  STUDENT_MAX_WEEKLY_MINUTES,
+  validateStudentWeeklyCap,
+  weeklyApprovedMinutes,
+  weeklySignUpMinutes,
 } from "../src/domain/student-availability";
-import type { StudentAvailabilityWindow } from "../src/domain/types";
+import { canEditDeskAvailability } from "../src/domain/scope";
+import type { EmployeeProfile, AvailabilityPattern, StudentAvailabilityWindow, UserAccount } from "../src/domain/types";
 
 const window: StudentAvailabilityWindow = {
   id: "w1",
@@ -58,5 +64,96 @@ describe("swap classification rules", () => {
   it("allows staff to swap with students and staff", () => {
     expect(canSwapBetween("non_exempt_staff", "student_worker")).toBe(true);
     expect(canSwapBetween("exempt_staff", "non_exempt_staff")).toBe(true);
+  });
+});
+
+describe("weekly hour caps", () => {
+  it("enforces the 15-hour student weekly maximum", () => {
+    expect(STUDENT_MAX_WEEKLY_MINUTES).toBe(900);
+    expect(validateStudentWeeklyCap(900, "sign-up")).toBeNull();
+    expect(validateStudentWeeklyCap(960, "sign-up")).toMatch(/15 hours/);
+  });
+
+  it("counts sign-up and approved minutes", () => {
+    const blocks = [{ weekday: 1, start: 480, end: 960, kind: "available" as const }];
+    expect(weeklySignUpMinutes(blocks)).toBe(480);
+    expect(weeklyApprovedMinutes(blocks)).toBe(480);
+  });
+
+  it("schedules students from approved blocks only", () => {
+    const pattern: AvailabilityPattern = {
+      id: "a1",
+      employeeId: "e1",
+      blocks: [{ weekday: 1, start: 480, end: 960, kind: "available" }],
+      approvedBlocks: [{ weekday: 1, start: 480, end: 720, kind: "available" }],
+      updatedBy: "m",
+      updatedAt: "",
+    };
+    expect(schedulingBlocks(pattern, "student_worker")).toHaveLength(1);
+    expect(schedulingBlocks(pattern, "student_worker")[0].end).toBe(720);
+    expect(schedulingBlocks(pattern, "non_exempt_staff")).toEqual(pattern.blocks);
+  });
+});
+
+describe("edit permissions", () => {
+  const today = "2026-09-10";
+  const window: StudentAvailabilityWindow = {
+    id: "w1",
+    scheduleId: "s1",
+    label: "Fall",
+    submissionOpens: "2026-09-01",
+    submissionCloses: "2026-09-15",
+    enabled: true,
+    frozen: false,
+    updatedBy: "admin",
+    updatedAt: "",
+  };
+  const student: EmployeeProfile = {
+    id: "emp-student",
+    legalName: "Student",
+    email: "s@test",
+    classification: "student_worker",
+    eligibleLocationIds: [],
+    additionalManagerIds: [],
+    active: true,
+    targetWeeklyHours: 10,
+    minWeeklyHours: 0,
+    maxWeeklyHours: 15,
+    maxDailyHours: 8,
+    earliestStart: 480,
+    latestEnd: 1260,
+    minTurnaroundMinutes: 480,
+    overtimeEligible: false,
+    breakPolicyId: "ca-student-v1",
+    qualifiedPositionIds: [],
+    qualifiedTaskIds: [],
+    employmentPercentage: 0.5,
+    googleCalendarConnected: false,
+    notificationPrefs: { inApp: true, email: false, calendar: false, digest: false },
+  };
+  const studentUser: UserAccount = {
+    id: "emp-student",
+    email: "s@test",
+    displayName: "Student",
+    state: "active",
+    roles: [{ role: "EMPLOYEE" }],
+    createdAt: "",
+    updatedAt: "",
+  };
+  const adminUser: UserAccount = {
+    id: "admin",
+    email: "a@test",
+    displayName: "Admin",
+    state: "active",
+    roles: [{ role: "SUPER_ADMIN" }],
+    createdAt: "",
+    updatedAt: "",
+  };
+
+  it("respects submission window for students including view-as", () => {
+    const closed = { ...window, enabled: false };
+    expect(canEditDeskAvailability(studentUser, student, closed, today)).toBe(false);
+    expect(canEditDeskAvailability(adminUser, student, closed, today)).toBe(false);
+    expect(canEditDeskAvailability(adminUser, student, closed, today, { onBehalf: true })).toBe(true);
   });
 });

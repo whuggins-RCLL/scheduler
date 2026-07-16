@@ -104,8 +104,9 @@ export function canEditDeskAvailability(
   target: EmployeeProfile,
   window: StudentAvailabilityWindow | undefined,
   today: ISODate,
+  options?: { onBehalf?: boolean },
 ): boolean {
-  if (canManage(actor)) return true;
+  if (options?.onBehalf && canManage(actor)) return true;
   if (actor.id !== target.id) return false;
   if (!isStudentWorker(target.classification)) return true;
   return studentAvailabilityEditable(window, today);
@@ -115,9 +116,20 @@ export function canEditDeskAvailability(
 export function canSubmitAvailabilityException(
   actor: UserAccount,
   target: EmployeeProfile,
+  options?: { onBehalf?: boolean },
 ): boolean {
-  if (isStudentWorker(target.classification)) return canManage(actor);
+  if (isStudentWorker(target.classification)) {
+    return !!options?.onBehalf && canManage(actor);
+  }
   return actor.id === target.id || canManage(actor);
+}
+
+/** Whether `actor` may approve student availability hours for `target`. */
+export function canApproveStudentAvailability(
+  actor: UserAccount,
+  target: EmployeeProfile,
+): boolean {
+  return isStudentWorker(target.classification) && (isAdmin(actor) || hasRole(actor, "MANAGER"));
 }
 
 export function canViewStudentAvailability(

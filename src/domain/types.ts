@@ -246,6 +246,13 @@ export interface AvailabilityPattern {
    * below the legal minimum) when it plans an unpaid meal for a long shift.
    */
   mealBreakMinutes?: MealBreakMinutes;
+  /**
+   * For student workers: manager-approved subset of `blocks`. Scheduling uses
+   * only approved hours; students may sign up for more than managers approve.
+   */
+  approvedBlocks?: AvailabilityBlock[];
+  approvedBy?: string;
+  approvedAt?: ISODateTime;
   updatedBy: string; // for manager-entered audit attribution
   updatedAt: ISODateTime;
 }
