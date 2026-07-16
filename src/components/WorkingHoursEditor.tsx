@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
-import { canManage } from "@/domain/scope";
+import { canManage, isStudentWorker } from "@/domain/scope";
 import {
   WORKING_WEEKDAYS,
   defaultWorkingWeek,
@@ -12,7 +12,7 @@ import {
   validateWorkingDays,
 } from "@/domain/working-hours";
 import { formatTime, parseTime } from "@/domain/time";
-import type { WorkLocation, WorkingDaySchedule, WorkingHoursPattern } from "@/domain/types";
+import type { WorkingDaySchedule, WorkingHoursPattern } from "@/domain/types";
 
 function minutesToTimeInput(minutes: number | undefined): string {
   if (minutes == null) return "09:00";
@@ -127,16 +127,26 @@ export function WorkingHoursEditor() {
   }
 
   const forSelf = targetEmployeeId === currentUser.id;
+  const editingStudent = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
+  const studentViewOnly = forSelf && editingStudent;
+
+  if (studentViewOnly) {
+    return null;
+  }
+
+  const heading = editingStudent
+    ? (forSelf ? "My quarter schedule" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Student"} quarter schedule`)
+    : (forSelf ? "My working hours" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} working hours`);
 
   return (
     <section className="card" aria-labelledby="working-hours-heading">
-      <h2 id="working-hours-heading">
-        {forSelf ? "My working hours" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} working hours`}
-      </h2>
+      <h2 id="working-hours-heading">{heading}</h2>
       <p className="muted" style={{ fontSize: "0.88rem" }}>
-        {exempt
-          ? `Set ${forSelf ? "your" : "their"} regular weekly schedule — mark each day as on shift or off. Exempt staff do not track specific start and end times.`
-          : `Set ${forSelf ? "your" : "their"} regular weekly schedule — separate from desk coverage below. Mark a weekday as a regular day off, or enter start and end times.`}
+        {editingStudent
+          ? `Set the student's final working hours for the quarter. Students see this schedule as view-only.`
+          : exempt
+            ? `Set ${forSelf ? "your" : "their"} regular weekly schedule — mark each day as on shift or off. Exempt staff do not track specific start and end times.`
+            : `Set ${forSelf ? "your" : "their"} regular weekly schedule — separate from desk coverage below. Mark a weekday as a regular day off, or enter start and end times.`}
       </p>
 
       {manager && (
@@ -202,13 +212,11 @@ export function WorkingHoursEditor() {
                   <th scope="col">End</th>
                 </>
               )}
-              <th scope="col">Location</th>
             </tr>
           </thead>
           <tbody>
             {WORKING_WEEKDAYS.map(({ weekday, label: dayLabel }) => {
               const row = days.find((d) => d.weekday === weekday) ?? { weekday, regularDayOff: true };
-              const location: WorkLocation = row.workLocation ?? "on_site";
               return (
                 <tr key={weekday}>
                   <th scope="row">{dayLabel}</th>
@@ -265,17 +273,6 @@ export function WorkingHoursEditor() {
                       </td>
                     </>
                   )}
-                  <td>
-                    <select
-                      value={location}
-                      disabled={row.regularDayOff}
-                      onChange={(e) => updateDay(weekday, { workLocation: e.target.value as WorkLocation })}
-                      aria-label={`${dayLabel} work location`}
-                    >
-                      <option value="on_site">On site</option>
-                      <option value="remote">Remote</option>
-                    </select>
-                  </td>
                 </tr>
               );
             })}

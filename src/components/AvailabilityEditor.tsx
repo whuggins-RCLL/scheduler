@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
-import { canManage } from "@/domain/scope";
+import { canEditDeskAvailability, canManage, isStudentWorker } from "@/domain/scope";
+import { activeStudentAvailabilityWindow, studentAvailabilityStatus, studentAvailabilityStatusMessage } from "@/domain/student-availability";
 import { WEEKDAY_LABELS, formatTime } from "@/domain/time";
 import type {
   AvailabilityKind,
@@ -11,12 +12,9 @@ import type {
   MealBreakMinutes,
 } from "@/domain/types";
 
-// Half-hour grid across the staffed day (08:00–21:00). Using 30-minute slots
-// lets people mark availability that starts or ends on the half hour, which the
-// old hour-only grid could not represent.
 const SLOT_MINUTES = 30;
-const DAY_START = 8 * 60; // 08:00
-const DAY_END = 21 * 60; // 21:00
+const DAY_START = 8 * 60;
+const DAY_END = 21 * 60;
 const SLOTS = Array.from(
   { length: (DAY_END - DAY_START) / SLOT_MINUTES },
   (_, i) => DAY_START + i * SLOT_MINUTES,
@@ -34,7 +32,7 @@ const MEAL_OPTIONS: { value: MealBreakMinutes; label: string }[] = [
   { value: 60, label: "1 hour" },
 ];
 
-type Cell = Record<string, AvailabilityKind>; // key `${day}-${slotStartMinute}`
+type Cell = Record<string, AvailabilityKind>;
 
 function blocksToCells(blocks: AvailabilityBlock[]): Cell {
   const cell: Cell = {};
@@ -67,6 +65,8 @@ function cellsToBlocks(cell: Cell): AvailabilityBlock[] {
 export function AvailabilityEditor() {
   const { db, currentUser, saveAvailability } = useStore();
   const manager = canManage(currentUser);
+  const today = new Date().toISOString().slice(0, 10);
+  const submissionWindow = useMemo(() => activeStudentAvailabilityWindow(db.studentAvailabilityWindows), [db.studentAvailabilityWindows]);
   const activeUserIds = useMemo(
     () => new Set(db.users.filter((user) => user.state === "active").map((user) => user.id)),
     [db.users],
@@ -88,6 +88,15 @@ export function AvailabilityEditor() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const forSelf = targetEmployeeId === currentUser.id;
+  const isStudent = targetEmployee ? isStudentWorker(targetEmployee.classification) : false;
+  const editable = targetEmployee
+    ? canEditDeskAvailability(currentUser, targetEmployee, submissionWindow, today)
+    : true;
+  const readOnly = !editable;
+  const showStudentWindowBanner = isStudent && (forSelf || manager);
+  const windowStatus = studentAvailabilityStatus(submissionWindow, today);
+
   useEffect(() => {
     if (!manager) {
       if (targetEmployeeId !== currentUser.id) setTargetEmployeeId(currentUser.id);
@@ -99,7 +108,6 @@ export function AvailabilityEditor() {
     }
   }, [activeEmployees, currentUser.id, manager, targetEmployeeId]);
 
-  // Resync when the employee changes or the live Firestore record arrives.
   useEffect(() => {
     setCells(blocksToCells(existing?.blocks ?? []));
     setNote(existing?.note ?? "");
@@ -109,6 +117,7 @@ export function AvailabilityEditor() {
   }, [existing, targetEmployeeId]);
 
   function cycle(day: number, slot: number) {
+    if (readOnly) return;
     const key = `${day}-${slot}`;
     setSaved(false);
     setCells((c) => {
@@ -119,6 +128,7 @@ export function AvailabilityEditor() {
   }
 
   function setColumn(day: number, kind: AvailabilityKind) {
+    if (readOnly) return;
     setSaved(false);
     setCells((c) => {
       const next = { ...c };
@@ -128,6 +138,7 @@ export function AvailabilityEditor() {
   }
 
   async function save() {
+    if (readOnly) return;
     if (mealBreak == null) {
       setSaved(false);
       setSaveError("Select an unpaid meal break preference (30 minutes or 1 hour) before saving.");
@@ -136,7 +147,9 @@ export function AvailabilityEditor() {
     const pattern: AvailabilityPattern = {
       id: existing?.id ?? `avail-${targetEmployeeId}`,
       employeeId: targetEmployeeId,
-      label: existing?.label ?? "Current term",
+      label: existing?.label ?? submissionWindow?.label ?? "Current term",
+      effectiveStart: submissionWindow?.submissionOpens,
+      effectiveEnd: submissionWindow?.submissionCloses,
       blocks: cellsToBlocks(cells),
       note,
       mealBreakMinutes: mealBreak,
@@ -156,22 +169,42 @@ export function AvailabilityEditor() {
     }
   }
 
-  const forSelf = targetEmployeeId === currentUser.id;
-
   return (
     <div className="stack">
       <div className="page-head">
         <h1>{forSelf ? "Desk availability" : `${targetEmployee?.preferredName ?? targetEmployee?.legalName ?? "Employee"} desk availability`}</h1>
         <p className="muted">
           When {forSelf ? "you can" : "they can"} cover the borrowing desk. Click a cell to cycle
-          Unavailable → Available → Preferred. This is separate from general working hours above.
+          Unavailable → Available → Preferred. This is separate from your quarter working schedule above.
         </p>
       </div>
+
+      {showStudentWindowBanner && submissionWindow && (
+        <section
+          className={`card glass${readOnly && forSelf ? " warn-border" : ""}`}
+          aria-labelledby="availability-window-status"
+          role="status"
+        >
+          <h2 id="availability-window-status" style={{ margin: "0 0 0.35rem", fontSize: "1rem" }}>
+            {forSelf ? "Availability submission window" : "Student submission window"}
+          </h2>
+          <p style={{ margin: 0, fontSize: "0.9rem" }}>
+            {forSelf
+              ? studentAvailabilityStatusMessage(submissionWindow, today)
+              : `Period: ${submissionWindow.label}. Students may edit ${submissionWindow.submissionOpens} through ${submissionWindow.submissionCloses}. Status: ${windowStatus.replace(/_/g, " ")}.`}
+          </p>
+          {readOnly && forSelf && (
+            <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
+              Your grid is read-only. Contact a manager if you need changes.
+            </p>
+          )}
+        </section>
+      )}
 
       {manager && (
         <section className="card" aria-labelledby="employee-availability-picker">
           <h2 id="employee-availability-picker">Edit employee availability</h2>
-          <p className="muted" style={{ fontSize: "0.85rem" }}>Admins and managers can open an employee's availability and enter recurring changes or exceptions directly.</p>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>Admins and managers can open an employee&apos;s availability and enter recurring changes directly.</p>
           <div className="field" style={{ maxWidth: 420 }}>
             <label htmlFor="availability-employee">Employee</label>
             <select id="availability-employee" value={targetEmployeeId} onChange={(e) => setTargetEmployeeId(e.target.value)}>
@@ -191,23 +224,24 @@ export function AvailabilityEditor() {
           Required. When a shift is long enough to need an unpaid meal, how long would {forSelf ? "you" : "they"}{" "}
           prefer it to be? The scheduler uses this (never shorter than the legal minimum).
         </p>
-        <fieldset style={{ border: "none", padding: 0, margin: 0 }} aria-required="true">
+        <fieldset style={{ border: "none", padding: 0, margin: 0 }} aria-required="true" disabled={readOnly}>
           <legend className="sr-only">Unpaid meal break preference</legend>
           <div className="row">
             {MEAL_OPTIONS.map((opt) => (
-              <label key={opt.value} className="chip" style={{ cursor: "pointer", gap: "0.4rem" }}>
+              <label key={opt.value} className="chip" style={{ cursor: readOnly ? "default" : "pointer", gap: "0.4rem" }}>
                 <input
                   type="radio"
                   name="meal-break"
                   style={{ width: "auto", minHeight: 0 }}
                   checked={mealBreak === opt.value}
+                  disabled={readOnly}
                   onChange={() => { setMealBreak(opt.value); setSaved(false); setSaveError(null); }}
                 />
                 {opt.label}
               </label>
             ))}
           </div>
-          {mealBreak == null && (
+          {mealBreak == null && !readOnly && (
             <p className="muted" role="note" style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: "var(--warning)" }}>
               No preference selected yet.
             </p>
@@ -221,18 +255,21 @@ export function AvailabilityEditor() {
           <span className="chip" style={{ background: "color-mix(in srgb, var(--palo-alto) 22%, var(--surface))" }}>Preferred</span>
           <span className="chip" style={{ background: "color-mix(in srgb, var(--info) 15%, var(--surface))" }}>Available</span>
           <span className="chip">Unavailable</span>
+          {readOnly && <span className="badge warn">Read-only</span>}
         </div>
 
         <div style={{ overflowX: "auto" }}>
-          <div className="avail-grid" role="grid" aria-label="Weekly availability">
+          <div className="avail-grid" role="grid" aria-label="Weekly availability" aria-readonly={readOnly}>
             <div className="avail-head" role="columnheader">Time</div>
             {WEEKDAY_LABELS.map((d, i) => (
               <div className="avail-head" role="columnheader" key={d}>
                 {d}
-                <div>
-                  <button className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "available")} aria-label={`Mark all ${d} available`}>all</button>
-                  <button className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "unavailable")} aria-label={`Clear all ${d}`}>×</button>
-                </div>
+                {!readOnly && (
+                  <div>
+                    <button className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "available")} aria-label={`Mark all ${d} available`}>all</button>
+                    <button className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "unavailable")} aria-label={`Clear all ${d}`}>×</button>
+                  </div>
+                )}
               </div>
             ))}
             {SLOTS.map((slot) => {
@@ -248,7 +285,9 @@ export function AvailabilityEditor() {
                         role="gridcell"
                         className={`avail-cell ${kind}${onHour ? "" : " half"}`}
                         onClick={() => cycle(day, slot)}
-                        aria-label={`${WEEKDAY_LABELS[day]} ${formatTime(slot)}: ${KIND_LABEL[kind]}. Activate to change.`}
+                        disabled={readOnly}
+                        aria-disabled={readOnly}
+                        aria-label={`${WEEKDAY_LABELS[day]} ${formatTime(slot)}: ${KIND_LABEL[kind]}. ${readOnly ? "Read-only." : "Activate to change."}`}
                       >
                         {kind === "preferred" ? "★" : kind === "available" ? "✓" : ""}
                       </button>
@@ -262,16 +301,24 @@ export function AvailabilityEditor() {
 
         <div className="field mt">
           <label htmlFor="avail-note">Availability note (optional)</label>
-          <textarea id="avail-note" value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); }} placeholder="e.g. Prefer not to close on weekdays during finals." />
+          <textarea
+            id="avail-note"
+            value={note}
+            disabled={readOnly}
+            onChange={(e) => { setNote(e.target.value); setSaved(false); }}
+            placeholder="e.g. Prefer not to close on weekdays during finals."
+          />
         </div>
 
-        <div className="row">
-          <button className="button primary" onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : `Save ${forSelf ? "availability" : "employee availability"}`}
-          </button>
-          {saved && <span role="status" className="badge ok">Saved</span>}
-          {saveError && <span role="alert" className="badge err">{saveError}</span>}
-        </div>
+        {!readOnly && (
+          <div className="row">
+            <button className="button primary" onClick={() => void save()} disabled={saving}>
+              {saving ? "Saving…" : `Save ${forSelf ? "availability" : "employee availability"}`}
+            </button>
+            {saved && <span role="status" className="badge ok">Saved</span>}
+            {saveError && <span role="alert" className="badge err">{saveError}</span>}
+          </div>
+        )}
       </div>
     </div>
   );

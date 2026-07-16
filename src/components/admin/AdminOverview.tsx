@@ -17,6 +17,7 @@ export function AdminOverview() {
   const cards: { href: string; label: string; metric: string; hint: string }[] = [
     { href: "/admin/users", label: "Users", metric: String(db.users.length), hint: "Accounts and roles" },
     { href: "/admin/preview", label: "View previews", metric: "2", hint: "Student and staff experiences" },
+    { href: "/admin/student-availability", label: "Student availability", metric: String(db.studentAvailabilityWindows.length), hint: "Submission windows & freeze" },
     { href: "/admin/roles", label: "Roles", metric: "6", hint: "Access model reference" },
     {
       href: "/admin/organization",

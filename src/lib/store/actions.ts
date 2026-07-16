@@ -3,12 +3,15 @@ import type {
   ComplianceFinding,
   ComplianceOverride,
   DailyNote,
+  EmployeeProfile,
   FairnessSnapshot,
   LeaveRecord,
   Position,
   Shift,
+  StudentAvailabilityWindow,
   SwapRequest,
   Task,
+  UserAccount,
   WorkingHoursPattern,
 } from "@/domain/types";
 import { applySampleData, mondayOf } from "./sample";
@@ -23,6 +26,8 @@ import {
   type GenerationResult,
   type ScheduleWeights,
 } from "@/domain";
+import { canEditDeskAvailability, canSubmitAvailabilityException } from "@/domain/scope";
+import { activeStudentAvailabilityWindow as pickWindow } from "@/domain/student-availability";
 import { addDays } from "@/domain/time";
 import type { Database } from "./types";
 
@@ -152,7 +157,17 @@ export function saveAvailability(
   pattern: AvailabilityPattern,
   actorId: string,
   now: string,
+  actor?: UserAccount,
 ): Database {
+  const employee = db.employees.find((e) => e.id === pattern.employeeId);
+  const actorUser = actor ?? db.users.find((u) => u.id === actorId);
+  if (employee && actorUser) {
+    const window = activeStudentAvailabilityWindow(db);
+    const today = now.slice(0, 10);
+    if (!canEditDeskAvailability(actorUser, employee, window, today)) {
+      throw new Error("Student availability is locked. Contact a manager to make changes.");
+    }
+  }
   const next = clone(db);
   const idx = next.availability.findIndex((p) => p.id === pattern.id);
   const before = idx >= 0 ? next.availability[idx] : undefined;
@@ -179,11 +194,41 @@ export function saveWorkingHours(
   return next;
 }
 
+/** The active student submission window (first enabled window, or most recently updated). */
+export function activeStudentAvailabilityWindow(db: Database): StudentAvailabilityWindow | undefined {
+  return pickWindow(db.studentAvailabilityWindows);
+}
+
+export function saveStudentAvailabilityWindow(
+  db: Database,
+  window: StudentAvailabilityWindow,
+  actorId: string,
+  now: string,
+): Database {
+  const next = clone(db);
+  const idx = next.studentAvailabilityWindows.findIndex((w) => w.id === window.id);
+  const before = idx >= 0 ? next.studentAvailabilityWindows[idx] : undefined;
+  const updated = { ...window, updatedBy: actorId, updatedAt: now };
+  if (idx >= 0) next.studentAvailabilityWindows[idx] = updated;
+  else next.studentAvailabilityWindows.push(updated);
+  audit(next, actorId, "studentAvailabilityWindow.save", "studentAvailabilityWindow", window.id, {
+    before,
+    after: updated,
+    now,
+  });
+  return next;
+}
+
 // ---------------------------------------------------------------------------
 // Leave
 // ---------------------------------------------------------------------------
 
 export function submitLeave(db: Database, record: LeaveRecord, actorId: string, now: string): Database {
+  const target = db.employees.find((e) => e.id === record.employeeId);
+  const actor = db.users.find((u) => u.id === actorId);
+  if (target && actor && !canSubmitAvailabilityException(actor, target)) {
+    throw new Error("Only managers and admins may submit availability exceptions for student workers.");
+  }
   const next = clone(db);
   const rec = { ...record, status: "recorded" as const, enteredBy: actorId, createdAt: now, updatedAt: now };
   next.leave.push(rec);
@@ -426,11 +471,16 @@ export function requestSwap(
   if (!shift || !recipient || !position) {
     return { db, status: "manager_review", reasons: ["Shift, recipient, or position not found."] };
   }
+  const initiator = shift.employeeId ? db.employees.find((e) => e.id === shift.employeeId) : undefined;
+  if (!initiator) {
+    return { db, status: "manager_review", reasons: ["Shift owner not found."] };
+  }
   const weekMinutes = db.shifts
     .filter((s) => s.employeeId === recipient.id && s.status !== "cancelled")
     .reduce((m, s) => m + (s.end - s.start), 0);
   const evaluation = evaluateSwap({
     shift,
+    initiatorClassification: initiator.classification,
     recipient,
     position,
     recipientPatterns: db.availability.filter((p) => p.employeeId === recipient.id),

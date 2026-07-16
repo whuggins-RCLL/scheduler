@@ -7,6 +7,7 @@ export * from "./swaps";
 export * from "./scheduling";
 export * from "./scope";
 export * from "./working-hours";
+export * from "./student-availability";
 export * from "./employee-profile";
 export * from "./break-reminders";
 export * from "./note-interpreter";

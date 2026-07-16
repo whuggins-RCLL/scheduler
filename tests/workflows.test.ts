@@ -95,12 +95,12 @@ describe("end-to-end workflows on the data store", () => {
 
   it("auto-approves an eligible swap and routes an ineligible one to review", () => {
     const db = buildSeed();
-    // Maya's Mon 13:00-15:00 desk shift -> Sam (available, qualified) => auto.
-    const auto = requestSwap(db, { shiftId: "shift-maya-mon", toEmployeeId: "emp-sam", actorId: "emp-maya", now: NOW });
+    // Maya's Mon 13:00-15:00 desk shift -> Jordan (student, available, qualified) => auto.
+    const auto = requestSwap(db, { shiftId: "shift-maya-mon", toEmployeeId: "emp-jordan", actorId: "emp-maya", now: NOW });
     expect(auto.status).toBe("auto_approved");
-    expect(auto.db.shifts.find((s) => s.id === "shift-maya-mon")?.employeeId).toBe("emp-sam");
+    expect(auto.db.shifts.find((s) => s.id === "shift-maya-mon")?.employeeId).toBe("emp-jordan");
 
-    // Same shift -> Noah (not qualified for desk) => review.
+    // Same shift -> Noah (student but not qualified for desk) => review.
     const review = requestSwap(db, { shiftId: "shift-maya-mon", toEmployeeId: "emp-noah", actorId: "emp-maya", now: NOW });
     expect(review.status).toBe("manager_review");
     expect(review.reasons.length).toBeGreaterThan(0);

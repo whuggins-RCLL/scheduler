@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { humanDate, timeRange } from "@/lib/ui";
 import { eligibleRecipients } from "@/domain/swaps";
+import { isStudentWorker } from "@/domain/scope";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
 import type { AvailabilityPattern, LeaveRecord, Shift } from "@/domain/types";
 
@@ -21,6 +22,9 @@ export function SwapsView() {
   const empName = (id: string | null) => (id ? db.employees.find((e) => e.id === id)?.preferredName ?? id : "Open");
   const pos = (id: string) => db.positions.find((p) => p.id === id);
 
+  const myEmployee = db.employees.find((e) => e.id === currentUser.id);
+  const initiatorClassification = myEmployee?.classification ?? "other";
+
   // Eligible recipients for the selected shift (never lists unavailable staff).
   const eligible = useMemo(() => {
     const shift = db.shifts.find((s) => s.id === selectedShift);
@@ -36,11 +40,11 @@ export function SwapsView() {
       shiftsByEmployeeDay[`${e.id}:${shift.date}`] = db.shifts.filter((s) => s.employeeId === e.id && s.date === shift.date);
       weeklyMinutes[e.id] = db.shifts.filter((s) => s.employeeId === e.id && s.status !== "cancelled").reduce((m, s) => m + (s.end - s.start), 0);
     }
-    return eligibleRecipients(shift, position, db.employees.filter((e) => e.active), {
+    return eligibleRecipients(shift, position, initiatorClassification, db.employees.filter((e) => e.active), {
       patterns, leave, leaveTypes: db.leaveTypes, shiftsByEmployeeDay,
       policy: defaultCaliforniaPolicy("non_exempt_staff"), positions: db.positions, weeklyMinutes,
     });
-  }, [db, selectedShift]);
+  }, [db, selectedShift, initiatorClassification]);
 
   function offer(toEmployeeId: string) {
     const res = requestSwap({ shiftId: selectedShift, toEmployeeId });
@@ -54,6 +58,7 @@ export function SwapsView() {
         <p className="muted">
           Offer an eligible shift to a coworker. Swaps auto-approve only when the recipient is available,
           qualified, and every policy gate passes — otherwise they route to a manager for review.
+          {isStudentWorker(initiatorClassification) && " Student workers may only swap with other students."}
         </p>
       </div>
 

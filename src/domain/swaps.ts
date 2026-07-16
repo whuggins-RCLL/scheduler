@@ -2,16 +2,19 @@ import type {
   AvailabilityPattern,
   BreakPolicy,
   EmployeeProfile,
+  EmploymentClassification,
   LeaveRecord,
   LeaveType,
   Position,
   Shift,
 } from "./types";
 import { isAvailableForShift } from "./availability";
+import { canSwapBetween } from "./student-availability";
 import { validateWorkday, blocksPublication } from "./compliance";
 
 export interface SwapEvaluationInput {
   shift: Shift;
+  initiatorClassification: EmploymentClassification;
   recipient: EmployeeProfile;
   position: Position;
   recipientPatterns: AvailabilityPattern[];
@@ -40,6 +43,10 @@ export function evaluateSwap(input: SwapEvaluationInput): SwapEvaluation {
   const { shift, recipient, position } = input;
 
   if (!recipient.active) reasons.push("Recipient is not an active employee.");
+
+  if (!canSwapBetween(input.initiatorClassification, recipient.classification)) {
+    reasons.push("Student workers may only swap shifts with other student workers.");
+  }
 
   if (position.requiredQualification && !recipient.qualifiedPositionIds.includes(position.id)) {
     reasons.push(`Recipient is not qualified for ${position.name}.`);
@@ -111,6 +118,7 @@ export function evaluateSwap(input: SwapEvaluationInput): SwapEvaluation {
 export function eligibleRecipients(
   shift: Shift,
   position: Position,
+  initiatorClassification: EmploymentClassification,
   candidates: EmployeeProfile[],
   ctx: {
     patterns: Record<string, AvailabilityPattern[]>;
@@ -126,6 +134,7 @@ export function eligibleRecipients(
     if (c.id === shift.employeeId) return false;
     const ev = evaluateSwap({
       shift,
+      initiatorClassification,
       recipient: c,
       position,
       recipientPatterns: ctx.patterns[c.id] ?? [],

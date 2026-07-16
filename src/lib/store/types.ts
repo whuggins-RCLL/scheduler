@@ -16,6 +16,7 @@ import type {
   Position,
   Schedule,
   Shift,
+  StudentAvailabilityWindow,
   SwapRequest,
   Task,
   Team,
@@ -53,6 +54,7 @@ export interface Database {
   invitations: Invitation[];
   notifications: Notification[];
   audit: AuditEvent[];
+  studentAvailabilityWindows: StudentAvailabilityWindow[];
 }
 
 export function emptyDatabase(): Database {
@@ -80,5 +82,6 @@ export function emptyDatabase(): Database {
     invitations: [],
     notifications: [],
     audit: [],
+    studentAvailabilityWindows: [],
   };
 }
