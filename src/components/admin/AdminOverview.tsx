@@ -18,6 +18,7 @@ export function AdminOverview() {
     { href: "/admin/users", label: "Users", metric: String(db.users.length), hint: "Accounts and roles" },
     { href: "/admin/preview", label: "View previews", metric: "2", hint: "Student and staff experiences" },
     { href: "/admin/student-availability", label: "Student availability", metric: String(db.studentAvailabilityWindows.length), hint: "Submission windows & freeze" },
+    { href: "/admin/global-exceptions", label: "Global exceptions", metric: String(db.globalExceptions.length), hint: "University holidays & closures" },
     { href: "/admin/roles", label: "Roles", metric: "6", hint: "Access model reference" },
     {
       href: "/admin/organization",

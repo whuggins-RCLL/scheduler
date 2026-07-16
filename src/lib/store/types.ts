@@ -5,6 +5,7 @@ import type {
   ComplianceOverride,
   DailyNote,
   Department,
+  GlobalException,
   EmployeeProfile,
   Invitation,
   LeaveRecord,
@@ -55,6 +56,7 @@ export interface Database {
   notifications: Notification[];
   audit: AuditEvent[];
   studentAvailabilityWindows: StudentAvailabilityWindow[];
+  globalExceptions: GlobalException[];
 }
 
 export function emptyDatabase(): Database {
@@ -83,5 +85,6 @@ export function emptyDatabase(): Database {
     notifications: [],
     audit: [],
     studentAvailabilityWindows: [],
+    globalExceptions: [],
   };
 }
