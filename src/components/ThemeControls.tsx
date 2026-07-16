@@ -43,7 +43,7 @@ export function ThemeControls() {
   const cycle = () => setTheme((t) => (t === "system" ? "light" : t === "light" ? "dark" : "system"));
 
   return (
-    <div className="row" style={{ gap: "0.4rem" }}>
+    <div className="row theme-controls" style={{ gap: "0.4rem" }}>
       <button
         type="button"
         className="button sm ghost"
@@ -51,7 +51,8 @@ export function ThemeControls() {
         aria-label={`Theme: ${theme}. Activate to change.`}
         title={`Theme: ${theme}`}
       >
-        {theme === "system" ? "◐ System" : theme === "light" ? "☀ Light" : "☾ Dark"}
+        <span aria-hidden>{theme === "system" ? "◐" : theme === "light" ? "☀" : "☾"}</span>
+        <span className="theme-label">{theme === "system" ? "System" : theme === "light" ? "Light" : "Dark"}</span>
       </button>
       <button
         type="button"
@@ -59,8 +60,10 @@ export function ThemeControls() {
         aria-pressed={reduceTransparency}
         onClick={() => setReduceTransparency((v) => !v)}
         title="Reduce transparency and glass effects"
+        aria-label={reduceTransparency ? "Solid surfaces enabled" : "Reduce transparency and glass effects"}
       >
-        {reduceTransparency ? "Solid ✓" : "Reduce transparency"}
+        <span className="theme-label">{reduceTransparency ? "Solid ✓" : "Reduce transparency"}</span>
+        <span className="theme-label-short" aria-hidden>{reduceTransparency ? "Solid" : "Solid off"}</span>
       </button>
     </div>
   );

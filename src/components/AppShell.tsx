@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { PRODUCT_NAME, PRODUCT_MARK } from "@/lib/config";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin, primaryRole } from "@/domain/scope";
@@ -39,10 +39,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, realUser, isAuthenticated, hydrated, signOut, viewAs, setViewAs } = useStore();
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     if (hydrated && !isAuthenticated) router.replace("/login");
   }, [hydrated, isAuthenticated, router]);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.classList.toggle("nav-open", navOpen);
+    return () => document.body.classList.remove("nav-open");
+  }, [navOpen]);
 
   if (!hydrated) {
     return <main id="main" style={{ padding: "2rem" }} aria-busy="true"><p className="muted">Loading…</p></main>;
@@ -73,20 +83,39 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="shell">
-      <nav className="sidebar" aria-label="Primary">
-        <Link href="/dashboard" className="brand">
-          <span className="brand-mark" aria-hidden>{PRODUCT_MARK}</span>
-          {PRODUCT_NAME}
-        </Link>
-        <NavGroup label="Workspace" links={employeeLinks} />
-        {manager && <NavGroup label="Manager" links={managerLinks} />}
-        {(admin || manager) && <NavGroup label="Administration" links={adminLinks} />}
+    <div className={`shell${navOpen ? " nav-open" : ""}`}>
+      <button
+        type="button"
+        className="nav-backdrop"
+        aria-label="Close navigation menu"
+        onClick={() => setNavOpen(false)}
+        tabIndex={navOpen ? 0 : -1}
+      />
+      <nav id="primary-nav" className="sidebar" aria-label="Primary">
+        <div className="sidebar-head">
+          <Link href="/dashboard" className="brand">
+            <span className="brand-mark" aria-hidden>{PRODUCT_MARK}</span>
+            {PRODUCT_NAME}
+          </Link>
+          <button
+            type="button"
+            className="nav-close"
+            aria-label="Close navigation menu"
+            onClick={() => setNavOpen(false)}
+          >
+            ✕
+          </button>
+        </div>
+        <div className="sidebar-scroll">
+          <NavGroup label="Workspace" links={employeeLinks} />
+          {manager && <NavGroup label="Manager" links={managerLinks} />}
+          {(admin || manager) && <NavGroup label="Administration" links={adminLinks} />}
+        </div>
         <div className="sidebar-foot">
-          <div className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.4rem" }}>
+          <div className="muted sidebar-user">
             {firstName(currentUser.displayName)}
             <br />
-            <span style={{ fontSize: "0.72rem" }}>{primaryRole(currentUser)}</span>
+            <span className="sidebar-role">{primaryRole(currentUser)}</span>
           </div>
           <button className="button sm" style={{ width: "100%" }} onClick={signOut}>
             Sign out
@@ -95,13 +124,27 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
       <div className="content">
         <header className="topbar">
-          <strong style={{ color: "var(--muted)", fontWeight: 600, fontSize: "0.9rem" }}>
-            {primaryRole(currentUser) === "EMPLOYEE" ? "Employee workspace" : "Manager workspace"}
-          </strong>
-          <div className="row">
+          <div className="topbar-start">
+            <button
+              type="button"
+              className="nav-toggle"
+              aria-expanded={navOpen}
+              aria-controls="primary-nav"
+              aria-label={navOpen ? "Close navigation menu" : "Open navigation menu"}
+              onClick={() => setNavOpen((open) => !open)}
+            >
+              <span className="nav-toggle-bar" aria-hidden />
+              <span className="nav-toggle-bar" aria-hidden />
+              <span className="nav-toggle-bar" aria-hidden />
+            </button>
+            <strong className="topbar-title">
+              {primaryRole(currentUser) === "EMPLOYEE" ? "Employee workspace" : "Manager workspace"}
+            </strong>
+          </div>
+          <div className="topbar-actions">
             {realAdmin && (
               <label className="viewas-select" title="Sample the site as a student or staff member">
-                <span className="muted" style={{ fontSize: "0.78rem" }}>View as</span>
+                <span className="viewas-label muted">View as</span>
                 <select
                   value={viewAs}
                   onChange={(e) => setViewAs(e.target.value as typeof viewAs)}
@@ -114,7 +157,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </label>
             )}
             <ThemeControls />
-            <span className="badge info" aria-label={`Signed in as ${realUser.displayName}`}>
+            <span className="badge info topbar-user-badge" aria-label={`Signed in as ${realUser.displayName}`}>
               {firstName(realUser.displayName)}
             </span>
           </div>
