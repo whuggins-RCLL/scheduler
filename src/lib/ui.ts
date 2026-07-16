@@ -1,6 +1,13 @@
 import { formatTime12, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { Severity, ShiftStatus } from "@/domain/types";
 
+/** First token of a person's name for casual greetings and compact UI labels. */
+export function firstName(fullName: string): string {
+  const trimmed = fullName.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.split(/\s+/)[0] ?? trimmed;
+}
+
 export function timeRange(start: number, end: number): string {
   return `${formatTime12(start)} – ${formatTime12(end)}`;
 }

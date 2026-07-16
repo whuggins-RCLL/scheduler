@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin } from "@/domain/scope";
-import { humanDate, timeRange } from "@/lib/ui";
+import { firstName, humanDate, timeRange } from "@/lib/ui";
 import { TIMEKEEPING_URL } from "@/lib/config";
 import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
@@ -99,7 +99,7 @@ function EmployeeDashboard() {
     <div className="stack">
       <section className="dash-hero">
         <div className="eyebrow">{longDate()}</div>
-        <h1>{greeting()}, {profile?.preferredName ?? currentUser.displayName}</h1>
+        <h1>{greeting()}, {profile?.preferredName ?? firstName(currentUser.displayName)}</h1>
         <p className="muted" style={{ margin: 0 }}>Your schedule, exceptions, and team updates at a glance.</p>
         <div className="hero-actions">
           <Link href="/schedule" className="button primary glass-button">View my schedule</Link>
@@ -215,7 +215,7 @@ function ManagerDashboard() {
     <div className="stack">
       <section className="dash-hero">
         <div className="eyebrow">{longDate()}</div>
-        <h1>{greeting()}, {db.employees.find((e) => e.id === currentUser.id)?.preferredName ?? currentUser.displayName}</h1>
+        <h1>{greeting()}, {db.employees.find((e) => e.id === currentUser.id)?.preferredName ?? firstName(currentUser.displayName)}</h1>
         <p className="muted" style={{ margin: 0 }}>Operational status and team updates for today.</p>
         <div className="hero-actions">
           <Link href="/schedule" className="button primary glass-button">Scheduling workspace</Link>

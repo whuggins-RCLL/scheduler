@@ -6,6 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import { PRODUCT_NAME, PRODUCT_MARK } from "@/lib/config";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage, isAdmin, primaryRole } from "@/domain/scope";
+import { firstName } from "@/lib/ui";
 import { ThemeControls } from "./ThemeControls";
 
 const employeeLinks: [string, string][] = [
@@ -83,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {(admin || manager) && <NavGroup label="Administration" links={adminLinks} />}
         <div className="sidebar-foot">
           <div className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.4rem" }}>
-            {currentUser.displayName}
+            {firstName(currentUser.displayName)}
             <br />
             <span style={{ fontSize: "0.72rem" }}>{primaryRole(currentUser)}</span>
           </div>
@@ -114,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
             <ThemeControls />
             <span className="badge info" aria-label={`Signed in as ${realUser.displayName}`}>
-              {realUser.displayName}
+              {firstName(realUser.displayName)}
             </span>
           </div>
         </header>
