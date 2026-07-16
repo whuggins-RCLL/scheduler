@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inferClassificationForUser, resolveEmployeeProfile } from "../src/domain/employee-profile";
+import { canSubmitAvailabilityException, isStudentWorker } from "../src/domain/scope";
 import type { EmployeeProfile, UserAccount } from "../src/domain/types";
 
 function user(overrides: Partial<UserAccount> = {}): UserAccount {
@@ -52,5 +53,21 @@ describe("resolveEmployeeProfile", () => {
 
   it("infers classification from view-as mode", () => {
     expect(inferClassificationForUser({ id: "some-id" }, "staff")).toBe("non_exempt_staff");
+  });
+
+  it("defaults a real self-viewing account with no stored profile to staff, not student", () => {
+    // A signed-in staff member without an employeeProfiles document must not be
+    // treated as a student, or they get locked out of adding their own exceptions.
+    expect(inferClassificationForUser({ id: "user-42" })).toBe("non_exempt_staff");
+    expect(inferClassificationForUser({ id: "user-42" }, "self")).toBe("non_exempt_staff");
+
+    const profile = resolveEmployeeProfile([], user({ id: "user-42" }));
+    expect(isStudentWorker(profile.classification)).toBe(false);
+  });
+
+  it("lets a profile-less staff member add their own availability exception", () => {
+    const account = user({ id: "user-42" });
+    const profile = resolveEmployeeProfile([], account);
+    expect(canSubmitAvailabilityException(account, profile)).toBe(true);
   });
 });

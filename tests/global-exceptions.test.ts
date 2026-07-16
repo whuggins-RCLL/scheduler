@@ -186,9 +186,9 @@ describe("global exceptions", () => {
 
   it("dedupes the same holiday name across years for display", () => {
     const globals = [
-      { id: "ge-labor-2026", name: "Labor Day", startDate: "2026-09-07", endDate: "2026-09-07" },
-      { id: "ge-labor-2027", name: "Labor Day", startDate: "2027-09-06", endDate: "2027-09-06" },
-    ] as const;
+      { id: "ge-labor-2026", name: "Labor Day", startDate: "2026-09-07", endDate: "2026-09-07", createdBy: ACTOR, createdAt: NOW, updatedAt: NOW },
+      { id: "ge-labor-2027", name: "Labor Day", startDate: "2027-09-06", endDate: "2027-09-06", createdBy: ACTOR, createdAt: NOW, updatedAt: NOW },
+    ];
     const deduped = dedupeGlobalsByName([...globals], "2026-07-16");
     expect(deduped).toHaveLength(1);
     expect(deduped[0]?.id).toBe("ge-labor-2026");

@@ -7,7 +7,12 @@ export function inferClassificationForUser(
 ): EmploymentClassification {
   if (user.id.startsWith("view-student") || viewAs === "student") return "student_worker";
   if (user.id.startsWith("view-staff") || viewAs === "staff") return "non_exempt_staff";
-  return "student_worker";
+  // Default a real, self-viewing account with no stored profile to staff. Only
+  // administrators create student-worker profiles, so treating an unclassified
+  // signed-in user as a student would wrongly lock them out of adding their own
+  // availability exceptions and gate their grid behind the student window. This
+  // mirrors the store's own default (`defaultEmployeeProfile` → non-manager staff).
+  return "non_exempt_staff";
 }
 
 /**
