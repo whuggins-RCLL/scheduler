@@ -31,6 +31,13 @@ export function DeskScheduleBoard() {
   const empName = (id: string | null) => (id ? db.employees.find((e) => e.id === id)?.preferredName ?? "Unknown" : "Open shift");
   const pos = (id: string) => db.positions.find((p) => p.id === id);
 
+  const filterLocations = useMemo(() => {
+    const fromPositions = new Set(
+      db.positions.map((p) => p.locationId).filter((id): id is string => Boolean(id)),
+    );
+    return db.locations.filter((l) => fromPositions.has(l.id) || l.id === deskLocation?.id);
+  }, [db.locations, db.positions, deskLocation?.id]);
+
   const shifts = useMemo(
     () =>
       db.shifts.filter(
@@ -67,12 +74,12 @@ export function DeskScheduleBoard() {
           <p className="muted" style={{ margin: 0, fontSize: "0.86rem" }}>{rangeLabel}</p>
         </div>
         <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          {db.locations.length > 1 && (
+          {filterLocations.length >= 1 && (
             <label className="field" style={{ marginBottom: 0 }}>
               <span className="sr-only">Location</span>
               <select value={locationId} onChange={(e) => setLocationId(e.target.value)} aria-label="Filter schedule by location">
                 <option value="">All locations</option>
-                {db.locations.map((l) => (
+                {filterLocations.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
