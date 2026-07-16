@@ -8,6 +8,7 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import type { Task, TaskPriority } from "@/domain/types";
+import { normalizeFrequency } from "@/domain/frequency";
 import { ORGANIZATION_ID } from "@/lib/config";
 import { getDb } from "@/lib/firebase";
 
@@ -49,6 +50,7 @@ export function mapTask(id: string, data: DocumentData): Task {
     checklist: strings(data.checklist),
     openingDependency: data.openingDependency === true,
     closingDependency: data.closingDependency === true,
+    frequency: normalizeFrequency(data.frequency),
     order: numberValue(data.order, 0),
     active: data.active !== false,
   };
@@ -77,6 +79,7 @@ function taskPayload(task: Task): DocumentData {
   };
   if (task.description) payload.description = task.description;
   if (task.requiredQualification) payload.requiredQualification = task.requiredQualification;
+  if (task.frequency) payload.frequency = task.frequency;
   return payload;
 }
 

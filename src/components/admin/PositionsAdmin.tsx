@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
 import { positionColorVar } from "@/lib/ui";
+import { defaultFrequency, describeFrequency } from "@/domain/frequency";
+import { FrequencyEditor } from "./FrequencyEditor";
 import type { Position } from "@/domain/types";
 
 const COLOR_TOKENS = [
@@ -38,6 +40,7 @@ function blankPosition(order: number): Position {
     selfClaimable: false,
     swapsAllowed: true,
     eligibleClassifications: [],
+    frequency: defaultFrequency("per_operational_hour"),
     order,
     active: true,
   };
@@ -81,6 +84,7 @@ export function PositionsAdmin() {
                 <th scope="col">Position</th>
                 <th scope="col">Short</th>
                 <th scope="col">Min / Pref / Max</th>
+                <th scope="col">Frequency</th>
                 <th scope="col">Public service</th>
                 <th scope="col">Swaps</th>
                 <th scope="col">Status</th>
@@ -98,6 +102,7 @@ export function PositionsAdmin() {
                   </td>
                   <td>{p.shortLabel}</td>
                   <td>{p.minStaffing} / {p.preferredStaffing} / {p.unlimitedSeating ? "∞" : p.maxStaffing}</td>
+                  <td>{describeFrequency(p.frequency)}</td>
                   <td>{p.countsAsPublicService ? "Yes" : "No"}</td>
                   <td>{p.swapsAllowed ? "Yes" : "No"}</td>
                   <td><span className={`badge ${p.active ? "ok" : ""}`}>{p.active ? "Active" : "Archived"}</span></td>
@@ -233,6 +238,7 @@ function PositionDialog({
             <label htmlFor="p-cont">Max continuous minutes</label>
             <input id="p-cont" type="number" min={0} step={15} value={p.maxContinuousMinutes} onChange={(e) => set("maxContinuousMinutes", Number(e.target.value))} />
           </div>
+          <FrequencyEditor idPrefix="pos-freq" value={p.frequency} onChange={(f) => set("frequency", f)} />
           <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
             <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Options</legend>
             <label className="row" style={{ gap: "0.4rem" }}><input type="checkbox" style={{ width: "auto", minHeight: 0 }} checked={p.countsAsPublicService} onChange={(e) => set("countsAsPublicService", e.target.checked)} /> Counts as public service</label>

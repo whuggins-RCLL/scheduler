@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
 import { hoursLabel } from "@/lib/ui";
+import { defaultFrequency, describeFrequency } from "@/domain/frequency";
+import { FrequencyEditor } from "./FrequencyEditor";
 import type { Task, TaskPriority } from "@/domain/types";
 
 const PRIORITIES: TaskPriority[] = ["low", "normal", "high", "urgent"];
@@ -28,6 +30,7 @@ function blankTask(order: number): Task {
     checklist: [],
     openingDependency: false,
     closingDependency: false,
+    frequency: defaultFrequency("times_per_day"),
     order,
     active: true,
   };
@@ -70,6 +73,7 @@ export function TasksAdmin() {
                 <th scope="col">Priority</th>
                 <th scope="col">Est.</th>
                 <th scope="col">Assignees</th>
+                <th scope="col">Frequency</th>
                 <th scope="col">Positions</th>
                 <th scope="col">Checklist</th>
                 <th scope="col">Dependency</th>
@@ -85,6 +89,7 @@ export function TasksAdmin() {
                   <td>{t.priority}</td>
                   <td>{hoursLabel(t.estimatedMinutes)}</td>
                   <td>{t.minAssignees}–{t.maxAssignees}</td>
+                  <td>{describeFrequency(t.frequency)}</td>
                   <td>
                     {t.applicablePositionIds.length === 0 ? (
                       <span className="muted">Any</span>
@@ -248,6 +253,7 @@ function TaskDialog({
               </div>
             )}
           </fieldset>
+          <FrequencyEditor idPrefix="task-freq" value={t.frequency} onChange={(f) => set("frequency", f)} />
           <div className="field">
             <label htmlFor="t-check">Checklist steps (one per line)</label>
             <textarea id="t-check" value={checklistText} onChange={(e) => setChecklistText(e.target.value)} />
