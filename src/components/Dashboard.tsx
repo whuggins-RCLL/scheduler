@@ -263,17 +263,6 @@ function ManagerDashboard() {
             )}
             <Link href="/admin/compliance" className="button sm glass-button mt">Compliance center</Link>
           </section>
-
-          <section className="card glass" aria-labelledby="draft">
-            <h2 id="draft">Schedule status</h2>
-            {schedule && (
-              <p>
-                {schedule.name}:{" "}
-                <span className={`badge ${schedule.status === "published" ? "ok" : "draft"}`}>{schedule.status}</span>
-              </p>
-            )}
-            <Link href="/schedule" className="button sm glass-button">Open scheduling workspace</Link>
-          </section>
         </div>
 
         <SideRail />
