@@ -30,7 +30,7 @@ export const GOOGLE_CALENDAR_EMBED_SRC =
   "https://calendar.google.com/calendar/embed?src=law.stanford.edu_uebptk4kikenndgjq8lfdpbvjo%40group.calendar.google.com&ctz=America%2FLos_Angeles";
 
 /**
- * Stanford time-keeping system (Oracle Identity Cloud sign-in). Surfaced on the
+ * Stanford Sequoia time-keeping sign-in. Surfaced on the
  * dashboard so staff can jump straight to clocking in/out.
  */
 export const TIMEKEEPING_URL =
