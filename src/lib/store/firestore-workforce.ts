@@ -246,6 +246,24 @@ export async function writeEmployeeProfile(profile: EmployeeProfile): Promise<vo
   await setDoc(doc(db, collectionPath("employeeProfiles"), profile.id), profilePayload(profile), { merge: true });
 }
 
+/**
+ * Self-service preferences write. A non-manager may update ONLY these fields on
+ * their own profile (matching the employeeProfiles self-update rule), so we send
+ * a minimal payload rather than the full profile — a full write would change
+ * employment-term fields the rule forbids self-editing and would be rejected.
+ */
+export async function writeSelfProfilePreferences(
+  profile: Pick<EmployeeProfile, "id" | "preferredName" | "pronouns" | "notificationPrefs">,
+): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  const payload: DocumentData = { updatedAt: serverTimestamp() };
+  payload.preferredName = profile.preferredName ?? deleteField();
+  if (profile.pronouns !== undefined) payload.pronouns = profile.pronouns;
+  if (profile.notificationPrefs) payload.notificationPrefs = cleanNotificationPrefs(profile.notificationPrefs);
+  await setDoc(doc(db, collectionPath("employeeProfiles"), profile.id), payload, { merge: true });
+}
+
 export async function writeAvailabilityPattern(pattern: AvailabilityPattern): Promise<void> {
   const db = getDb();
   if (!db) return;

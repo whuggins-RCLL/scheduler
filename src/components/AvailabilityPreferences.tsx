@@ -6,7 +6,7 @@ import { firstName } from "@/lib/ui";
 import { getTimeFormat, setTimeFormat, type TimeFormat } from "@/lib/time-format";
 
 export function AvailabilityPreferences() {
-  const { db, currentUser, saveEmployeeProfile } = useStore();
+  const { db, currentUser, savePreferences } = useStore();
   const profile = db.employees.find((e) => e.id === currentUser.id);
   const defaultName = profile
     ? firstName(profile.preferredName ?? profile.legalName)
@@ -48,7 +48,7 @@ export function AvailabilityPreferences() {
     setSaving(true);
     setSaveError(null);
     try {
-      await saveEmployeeProfile({ ...profile, preferredName: trimmed });
+      await savePreferences({ preferredName: trimmed });
       setSaved(true);
     } catch (error) {
       setSaved(false);

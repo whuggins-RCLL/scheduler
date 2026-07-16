@@ -70,7 +70,14 @@ service cloud.firestore {
     }
     match /organizations/{orgId}/employeeProfiles/{userId} {
       allow read: if isStaff() || isSelf(userId);
-      allow create, update: if isAdmin() || isManager();
+      allow create: if isAdmin() || isManager();
+      // Admins/managers may edit any field. A person may self-serve only their
+      // own display preferences (preferred name, pronouns, notification prefs) —
+      // never employment terms like classification, hours, or qualifications.
+      allow update: if isAdmin() || isManager()
+        || (isSelf(userId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['preferredName', 'pronouns', 'notificationPrefs', 'updatedAt']));
       allow delete: if false;
     }
 

@@ -36,6 +36,7 @@ import {
   deleteWorkingHoursPattern,
   writeAvailabilityPattern,
   writeEmployeeProfile,
+  writeSelfProfilePreferences,
   writeWorkingHoursPattern,
 } from "./firestore-workforce";
 import {
@@ -114,6 +115,7 @@ export interface StoreContextValue {
   deleteWorkingHours: (patternId: string) => Promise<void>;
   saveStudentAvailabilityWindow: (window: StudentAvailabilityWindow) => void;
   saveEmployeeProfile: (profile: EmployeeProfile) => Promise<void>;
+  savePreferences: (fields: { preferredName?: string; pronouns?: string }) => Promise<void>;
   submitLeave: (record: LeaveRecord, options?: { onBehalf?: boolean }) => void;
   cancelLeave: (id: string) => void;
   upsertGlobalException: (exception: GlobalException) => void;
@@ -390,6 +392,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveEmployeeProfile: async (profile) => {
         if (isFirebaseConfigured) await writeEmployeeProfile(profile);
         setDb((d) => mergeEmployeeProfile(d, profile));
+      },
+      savePreferences: async (fields) => {
+        const profile = db.employees.find((e) => e.id === currentUser.id);
+        if (!profile) return;
+        const updated = { ...profile, ...fields };
+        // Self-service write: a non-manager may only touch their own preference
+        // fields, so send the minimal self payload (not the whole profile).
+        if (isFirebaseConfigured) await writeSelfProfilePreferences(updated);
+        setDb((d) => mergeEmployeeProfile(d, updated));
       },
       submitLeave: (record, options) => setDb((d) => actions.submitLeave(d, record, actorId, now(), currentUser, options)),
       cancelLeave: (id) => setDb((d) => actions.cancelLeave(d, id, actorId, now())),

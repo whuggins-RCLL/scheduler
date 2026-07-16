@@ -38,6 +38,20 @@ export function isActiveAccountHolder(db: Database, accountId: string): boolean 
   return employee?.active === true;
 }
 
+/**
+ * True only when the account is *known and inactive* (archived/suspended). An id
+ * with no user and no employee record (e.g. an admin's "view as" preview persona,
+ * or a client that has only loaded its own minimal roster) is NOT treated as
+ * inactive — university holidays still apply to it. This is intentionally more
+ * permissive than {@link isActiveAccountHolder}, which gates the persisted sync.
+ */
+export function isKnownInactiveAccount(db: Database, accountId: string): boolean {
+  const user = db.users.find((u) => u.id === accountId);
+  const employee = db.employees.find((e) => e.id === accountId);
+  if (!user && !employee) return false; // unknown to this client — show globals
+  return user?.state !== "active" && employee?.active !== true;
+}
+
 export function isGlobalSyncedLeave(record: LeaveRecord): boolean {
   return !!record.globalExceptionId || record.leaveTypeId === HOLIDAY_LEAVE_TYPE_ID;
 }
@@ -154,7 +168,10 @@ export function syncGlobalExceptionsToLeave(
 
 /** University-wide exceptions for one account — always derived from global config. */
 export function globalLeaveRecordsForEmployee(db: Database, accountId: string): LeaveRecord[] {
-  if (!isActiveAccountHolder(db, accountId)) return [];
+  // University holidays apply to everyone; only suppress them for accounts we
+  // know to be archived/inactive. Unknown ids (preview personas, minimal client
+  // rosters) still receive them so students always see the closure calendar.
+  if (isKnownInactiveAccount(db, accountId)) return [];
   const globals = activeGlobalExceptions(db);
   if (globals.length === 0) return [];
   return globals
