@@ -44,9 +44,9 @@ function samplePositions(): Position[] {
     active: true,
   };
   return [
-    { ...base, id: "pos-ref", name: "Reference Desk", shortLabel: "Ref", description: "Front-line research help.", colorToken: "position-desk", icon: "📚", minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, order: 1 },
-    { ...base, id: "pos-circ", name: "Circulation Desk", shortLabel: "Circ", description: "Checkouts, holds, and patron services.", colorToken: "position-admin", icon: "🛎️", minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, order: 2 },
-    { ...base, id: "pos-stacks", name: "Stacks & Shelving", shortLabel: "Stacks", description: "Reshelving and collection maintenance.", colorToken: "position-project", icon: "📦", countsAsPublicService: false, minStaffing: 1, preferredStaffing: 1, maxStaffing: 3, order: 3 },
+    { ...base, id: "pos-ref", name: "Reference Desk", shortLabel: "Ref", description: "Front-line research help.", colorToken: "position-desk", icon: "📚", applicableLocationIds: ["loc-main", "loc-desk"], minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, order: 1 },
+    { ...base, id: "pos-circ", name: "Circulation Desk", shortLabel: "Circ", description: "Checkouts, holds, and patron services.", colorToken: "position-admin", icon: "🛎️", applicableLocationIds: ["loc-desk"], minStaffing: 1, preferredStaffing: 1, maxStaffing: 2, order: 2 },
+    { ...base, id: "pos-stacks", name: "Stacks & Shelving", shortLabel: "Stacks", description: "Reshelving and collection maintenance.", colorToken: "position-project", icon: "📦", countsAsPublicService: false, applicableLocationIds: ["loc-stacks"], minStaffing: 1, preferredStaffing: 1, maxStaffing: 3, order: 3 },
   ];
 }
 
@@ -78,7 +78,7 @@ function sampleEmployee(p: SamplePerson): EmployeeProfile {
     preferredName: p.preferred,
     email: p.email.toLowerCase(),
     classification: p.classification,
-    departmentId: "dept-access",
+    departmentId: "dept-ler",
     primaryLocationId: "loc-main",
     eligibleLocationIds: ["loc-main", "loc-desk"],
     primaryManagerId: "admin-whuggins",

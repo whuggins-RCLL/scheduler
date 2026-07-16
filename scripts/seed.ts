@@ -3,6 +3,8 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { BOOTSTRAP_ADMINS, ORGANIZATION_ID } from "../src/lib/config";
 import { defaultTasks } from "../src/lib/store/default-tasks";
+import { DEPARTMENTS } from "../src/lib/store/departments";
+import { seedLocations } from "../src/lib/store/seed";
 
 const app = initializeApp(
   process.env.GOOGLE_APPLICATION_CREDENTIALS
@@ -46,7 +48,7 @@ async function main() {
         legalName: admin.name,
         email: admin.email,
         classification: "manager",
-        departmentId: "dept-access",
+        departmentId: "dept-admin",
         primaryLocationId: "loc-main",
         eligibleLocationIds: ["loc-main", "loc-desk"],
         additionalManagerIds: [],
@@ -104,6 +106,45 @@ async function main() {
     console.log(`  ✓ Seeded ${tasks.length} default tasks`);
   } else {
     console.log("  · Tasks collection already populated — skipping task seed");
+  }
+
+  const departmentsCol = db.collection(`organizations/${ORGANIZATION_ID}/departments`);
+  const existingDepartments = await departmentsCol.limit(1).get();
+  if (existingDepartments.empty) {
+    for (const department of DEPARTMENTS) {
+      await departmentsCol.doc(department.id).set(
+        { name: department.name, active: department.active, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
+    console.log(`  ✓ Seeded ${DEPARTMENTS.length} departments`);
+  } else {
+    console.log("  · Departments collection already populated — skipping department seed");
+  }
+
+  const locationsCol = db.collection(`organizations/${ORGANIZATION_ID}/locations`);
+  const existingLocations = await locationsCol.limit(1).get();
+  if (existingLocations.empty) {
+    for (const location of seedLocations()) {
+      await locationsCol.doc(location.id).set(
+        {
+          name: location.name,
+          shortName: location.shortName,
+          description: location.description ?? null,
+          timeZone: location.timeZone,
+          minStaffing: location.minStaffing,
+          openBufferMinutes: location.openBufferMinutes,
+          closeBufferMinutes: location.closeBufferMinutes,
+          libcalId: location.libcalId ?? null,
+          active: location.active,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+    console.log(`  ✓ Seeded ${seedLocations().length} schedule types`);
+  } else {
+    console.log("  · Locations collection already populated — skipping schedule type seed");
   }
 
   console.log(`Seeded ${BOOTSTRAP_ADMINS.length} bootstrap administrators to ${projectId}.`);

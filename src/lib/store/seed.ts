@@ -1,5 +1,6 @@
 import { BOOTSTRAP_ADMINS, ORGANIZATION_ID } from "@/lib/config";
 import type { EmployeeProfile, GlobalException, LeaveType, Location, OperatingHours, UserAccount } from "@/domain/types";
+import { DEFAULT_MANAGER_DEPARTMENT_ID, DEPARTMENTS } from "./departments";
 import { syncGlobalExceptionsToLeave } from "@/domain/global-exceptions";
 import { defaultCaliforniaPolicy } from "@/domain/compliance";
 import { addDays, parseTime } from "@/domain/time";
@@ -26,7 +27,7 @@ function adminProfile(id: string, name: string, email: string): EmployeeProfile 
     legalName: name,
     email: email.toLowerCase(),
     classification: "manager",
-    departmentId: "dept-access",
+    departmentId: DEFAULT_MANAGER_DEPARTMENT_ID,
     teamId: undefined,
     primaryLocationId: "loc-main",
     eligibleLocationIds: ["loc-main", "loc-desk"],
@@ -51,7 +52,7 @@ function adminProfile(id: string, name: string, email: string): EmployeeProfile 
   };
 }
 
-function locations(): Location[] {
+export function seedLocations(): Location[] {
   // Schedule types (formerly "locations"). Each is its own board. Only the
   // Borrowing Services Desk (and opening/closing duties) is must-cover; Stacks,
   // Breaks & Lunches, and any future types (e.g. special events) are not.
@@ -72,7 +73,7 @@ function operatingHours(): OperatingHours[] {
     3: [{ start: T("09:00"), end: T("17:00") }], 4: [{ start: T("09:00"), end: T("17:00") }],
     5: [{ start: T("09:00"), end: T("17:00") }], 6: [],
   };
-  return locations().map((l) => ({ locationId: l.id, weekly, exceptions: [] }));
+  return seedLocations().map((l) => ({ locationId: l.id, weekly, exceptions: [] }));
 }
 
 function leaveTypes(): LeaveType[] {
@@ -129,9 +130,9 @@ export function buildSeed(): Database {
     db.employees.push(adminProfile(id, admin.name, admin.email));
   });
 
-  db.departments.push({ id: "dept-access", name: "Access Services", active: true });
+  db.departments = DEPARTMENTS.map((d) => ({ ...d }));
 
-  db.locations = locations();
+  db.locations = seedLocations();
   db.operatingHours = operatingHours();
   db.leaveTypes = leaveTypes();
 

@@ -118,6 +118,7 @@ export function TasksAdmin() {
         <TaskDialog
           task={editing}
           positions={positions}
+          locations={db.locations.filter((l) => l.active)}
           onCancel={() => setEditing(null)}
           onSave={(t) => { upsertTask(t); setEditing(null); }}
         />
@@ -129,11 +130,13 @@ export function TasksAdmin() {
 function TaskDialog({
   task,
   positions,
+  locations,
   onCancel,
   onSave,
 }: {
   task: Task;
   positions: { id: string; name: string; shortLabel: string }[];
+  locations: { id: string; name: string }[];
   onCancel: () => void;
   onSave: (t: Task) => void;
 }) {
@@ -147,6 +150,13 @@ function TaskDialog({
       ? [...new Set([...t.applicablePositionIds, positionId])]
       : t.applicablePositionIds.filter((id) => id !== positionId);
     set("applicablePositionIds", next);
+  }
+
+  function toggleLocation(locationId: string, on: boolean) {
+    const next = on
+      ? [...new Set([...t.applicableLocationIds, locationId])]
+      : t.applicableLocationIds.filter((id) => id !== locationId);
+    set("applicableLocationIds", next);
   }
 
   function save() {
@@ -192,6 +202,29 @@ function TaskDialog({
               <input id="t-maxa" type="number" min={1} value={t.maxAssignees} onChange={(e) => set("maxAssignees", Number(e.target.value))} />
             </div>
           </div>
+          <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Schedule types</legend>
+            <p className="muted" style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.85rem" }}>
+              Select which schedule types this task applies to. Leave all unchecked to allow any type.
+            </p>
+            {locations.length === 0 ? (
+              <p className="muted">No active schedule types yet.</p>
+            ) : (
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+                {locations.map((l) => (
+                  <label key={l.id} className="row" style={{ gap: "0.4rem" }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: "auto", minHeight: 0 }}
+                      checked={t.applicableLocationIds.includes(l.id)}
+                      onChange={(e) => toggleLocation(l.id, e.target.checked)}
+                    />
+                    {l.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
           <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
             <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Applicable positions</legend>
             <p className="muted" style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.85rem" }}>

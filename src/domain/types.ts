@@ -171,7 +171,10 @@ export interface Position {
   description?: string;
   colorToken: string;
   icon: string;
+  /** Primary schedule type — kept for backward compatibility. */
   locationId?: string;
+  /** Schedule types this position may be staffed on (many-to-many). */
+  applicableLocationIds: string[];
   departmentId?: string;
   requiredQualification?: string;
   minStaffing: number;

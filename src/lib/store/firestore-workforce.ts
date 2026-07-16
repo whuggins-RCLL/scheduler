@@ -246,6 +246,20 @@ export async function writeEmployeeProfile(profile: EmployeeProfile): Promise<vo
   await setDoc(doc(db, collectionPath("employeeProfiles"), profile.id), profilePayload(profile), { merge: true });
 }
 
+/** Persist schedule-access or task-qualification toggles without a full profile write. */
+export async function writeEmployeeSchedulingLinks(
+  employeeId: string,
+  fields: Partial<Pick<EmployeeProfile, "eligibleLocationIds" | "qualifiedTaskIds" | "qualifiedPositionIds">>,
+): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  const payload: DocumentData = { updatedAt: serverTimestamp() };
+  if (fields.eligibleLocationIds) payload.eligibleLocationIds = fields.eligibleLocationIds;
+  if (fields.qualifiedTaskIds) payload.qualifiedTaskIds = fields.qualifiedTaskIds;
+  if (fields.qualifiedPositionIds) payload.qualifiedPositionIds = fields.qualifiedPositionIds;
+  await setDoc(doc(db, collectionPath("employeeProfiles"), employeeId), payload, { merge: true });
+}
+
 /**
  * Self-service preferences write. A non-manager may update ONLY these fields on
  * their own profile (matching the employeeProfiles self-update rule), so we send
