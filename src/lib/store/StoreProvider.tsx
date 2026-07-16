@@ -9,6 +9,7 @@ import type {
   EmployeeProfile,
   GlobalException,
   LeaveRecord,
+  Location,
   Position,
   Shift,
   StudentAvailabilityWindow,
@@ -20,6 +21,7 @@ import type { GenerationMode, GenerationResult, ScheduleWeights } from "@/domain
 import { canManage, canPublishSchedule, isAdmin } from "@/domain/scope";
 import { globalSyncFingerprint } from "@/domain/global-exceptions";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { todayISO } from "@/lib/schedule-view";
 import * as actions from "./actions";
 import {
   ensureUserAccount,
@@ -127,6 +129,8 @@ export interface StoreContextValue {
   upsertShift: (shift: Shift) => void;
   cancelShift: (id: string) => void;
   toggleLock: (id: string) => void;
+  upsertLocation: (location: Location) => void;
+  setScheduleTypeAccess: (employeeId: string, locationIds: string[]) => void;
   upsertPosition: (position: Position) => void;
   archivePosition: (id: string) => void;
   upsertTask: (task: Task) => void;
@@ -188,6 +192,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [viewAs, setViewAs] = useState<ViewAs>("self");
   const globalSyncKey = useRef("");
   const globalBootstrapDone = useRef(false);
+  const purgeDone = useRef(false);
+
+  // Retention sweep: once hydrated, purge schedules/shifts older than the
+  // retention window (15 days). Runs once per session load.
+  useEffect(() => {
+    if (!hydrated || purgeDone.current) return;
+    purgeDone.current = true;
+    const actorId = sessionUserId ?? "system";
+    setDb((d) => actions.purgeOldSchedules(d, todayISO(), actorId, new Date().toISOString()));
+  }, [hydrated, sessionUserId]);
 
   // Keep university-wide exceptions materialized for every active account whenever
   // the roster or global exception list changes (including Firestore profile loads).
@@ -423,6 +437,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertShift: (shift) => setDb((d) => actions.upsertShift(d, shift, actorId, now())),
       cancelShift: (id) => setDb((d) => actions.cancelShift(d, id, actorId, now())),
       toggleLock: (id) => setDb((d) => actions.toggleLock(d, id, actorId, now())),
+      upsertLocation: (location) => setDb((d) => actions.upsertLocation(d, location, actorId, now())),
+      setScheduleTypeAccess: (employeeId, locationIds) => setDb((d) => actions.setScheduleTypeAccess(d, employeeId, locationIds, actorId, now())),
       upsertPosition: (position) => setDb((d) => actions.upsertPosition(d, position, actorId, now())),
       archivePosition: (id) => setDb((d) => actions.archivePosition(d, id, actorId, now())),
       upsertTask: (task) => setDb((d) => actions.upsertTask(d, task, actorId, now())),

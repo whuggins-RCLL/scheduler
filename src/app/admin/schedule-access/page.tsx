@@ -1,12 +1,12 @@
 "use client";
 
 import { AppShell } from "@/components/AppShell";
-import { ScheduleTypesAdmin } from "@/components/admin/ScheduleTypesAdmin";
+import { ScheduleAccessAdmin } from "@/components/admin/ScheduleAccessAdmin";
 
 export default function Page() {
   return (
     <AppShell>
-      <ScheduleTypesAdmin />
+      <ScheduleAccessAdmin />
     </AppShell>
   );
 }

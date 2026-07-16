@@ -52,10 +52,16 @@ function adminProfile(id: string, name: string, email: string): EmployeeProfile 
 }
 
 function locations(): Location[] {
-  // Real library service points. LibCal location id 2457 maps the staffed desk.
+  // Schedule types (formerly "locations"). Each is its own board. Only the
+  // Borrowing Services Desk (and opening/closing duties) is must-cover; Stacks,
+  // Breaks & Lunches, and any future types (e.g. special events) are not.
+  // LibCal location id 2457 maps the staffed desk.
+  const tz = "America/Los_Angeles";
   return [
-    { id: "loc-main", name: "Main Library", shortName: "Main", timeZone: "America/Los_Angeles", minStaffing: 1, openBufferMinutes: 15, closeBufferMinutes: 15, libcalId: "2457", active: true },
-    { id: "loc-desk", name: "Borrowing Services Desk", shortName: "Desk", timeZone: "America/Los_Angeles", minStaffing: 1, openBufferMinutes: 15, closeBufferMinutes: 15, libcalId: "2457", active: true },
+    { id: "loc-main", name: "Main Library", shortName: "Main", timeZone: tz, minStaffing: 1, openBufferMinutes: 15, closeBufferMinutes: 15, libcalId: "2457", active: true },
+    { id: "loc-desk", name: "Borrowing Services Desk", shortName: "Desk", description: "Public service desk — minimum one person whenever open.", timeZone: tz, minStaffing: 1, openBufferMinutes: 15, closeBufferMinutes: 15, libcalId: "2457", active: true },
+    { id: "loc-stacks", name: "Stacks", shortName: "Stacks", description: "Shelving and stacks maintenance. Not required coverage.", timeZone: tz, minStaffing: 0, openBufferMinutes: 0, closeBufferMinutes: 0, active: true },
+    { id: "loc-breaks", name: "Breaks & Lunches", shortName: "Breaks", description: "Scheduled meal and rest breaks. Not required coverage.", timeZone: tz, minStaffing: 0, openBufferMinutes: 0, closeBufferMinutes: 0, active: true },
   ];
 }
 
