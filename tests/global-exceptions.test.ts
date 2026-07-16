@@ -11,6 +11,7 @@ import {
   dedupeGlobalsByName,
   globalLeaveId,
   globalLeaveRecordsForEmployee,
+  isKnownInactiveAccount,
   leaveRecordsForEmployee,
 } from "@/domain/global-exceptions";
 import { humanDateRange } from "@/lib/ui";
@@ -223,6 +224,26 @@ describe("global exceptions", () => {
     expect(humanDateRange("2026-07-03", "2026-07-03")).toBe("Fri 7/3/2026");
     expect(humanDateRange("2026-12-24", "2026-12-25")).toBe("Thu 12/24–Fri 12/25, 2026");
     expect(humanDateRange("2026-12-21", "2027-01-01")).toBe("Mon 12/21/2026–Fri 1/1/2027");
+  });
+
+  it("shows university holidays to students and preview personas, but not archived accounts", () => {
+    const db = buildSeed();
+    const globalsCount = activeGlobalExceptions(db).length;
+    expect(globalsCount).toBeGreaterThan(0);
+
+    // An account unknown to this client (e.g. an admin's "view as student"
+    // preview persona) still sees the full closure calendar.
+    expect(isKnownInactiveAccount(db, "view-student")).toBe(false);
+    expect(globalLeaveRecordsForEmployee(db, "view-student").length).toBe(globalsCount);
+
+    // A known, archived account is suppressed.
+    const archived = {
+      ...db,
+      users: db.users.map((u, i) => (i === 0 ? { ...u, state: "archived" as const } : u)),
+      employees: db.employees.map((e) => (e.id === db.users[0].id ? { ...e, active: false } : e)),
+    };
+    expect(isKnownInactiveAccount(archived, db.users[0].id)).toBe(true);
+    expect(globalLeaveRecordsForEmployee(archived, db.users[0].id).length).toBe(0);
   });
 
   it("shows a unified exceptions list with university-wide and personal entries", () => {

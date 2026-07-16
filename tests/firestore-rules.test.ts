@@ -51,10 +51,22 @@ describe("firestore rules source", () => {
     expect(rules).toContain("allow read: if isStaff() || resource.data.employeeId == request.auth.uid;");
   });
 
-  it("allows staff to maintain employee profiles without granting employees profile administration", () => {
+  it("keeps employee-profile creation staff-only", () => {
     expect(rules).toContain("match /organizations/{orgId}/employeeProfiles/{userId}");
     expect(rules).toMatch(
-      /employeeProfiles\/\{userId\}\s*\{[\s\S]*?allow create, update: if isAdmin\(\) \|\| isManager\(\);/,
+      /employeeProfiles\/\{userId\}\s*\{[\s\S]*?allow create: if isAdmin\(\) \|\| isManager\(\);/,
+    );
+  });
+
+  it("lets a person self-serve only their own preference fields, never employment terms", () => {
+    // Self-update is restricted to a display-preferences whitelist.
+    expect(rules).toContain(
+      "request.resource.data.diff(resource.data).affectedKeys()",
+    );
+    expect(rules).toContain("hasOnly(['preferredName', 'pronouns', 'notificationPrefs', 'updatedAt'])");
+    // Staff retain full update rights.
+    expect(rules).toMatch(
+      /employeeProfiles\/\{userId\}\s*\{[\s\S]*?allow update: if isAdmin\(\) \|\| isManager\(\)/,
     );
   });
 
