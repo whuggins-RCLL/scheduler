@@ -20,6 +20,7 @@ import type {
   Task,
   Team,
   UserAccount,
+  WorkingHoursPattern,
 } from "@/domain/types";
 import type { CoverageRequirement } from "@/domain/scheduling";
 
@@ -38,6 +39,7 @@ export interface Database {
   positions: Position[];
   tasks: Task[];
   availability: AvailabilityPattern[];
+  workingHours: WorkingHoursPattern[];
   leaveTypes: LeaveType[];
   leave: LeaveRecord[];
   schedules: Schedule[];
@@ -64,6 +66,7 @@ export function emptyDatabase(): Database {
     positions: [],
     tasks: [],
     availability: [],
+    workingHours: [],
     leaveTypes: [],
     leave: [],
     schedules: [],

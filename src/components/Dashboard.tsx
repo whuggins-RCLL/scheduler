@@ -10,6 +10,7 @@ import { DailyNotesFeed } from "./DailyNotesFeed";
 import { OperatingHoursCard } from "./OperatingHoursCard";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { ScheduleHubPanel } from "./dashboard/ScheduleHubPanel";
+import { RestBreaksReminders } from "./dashboard/RestBreaksReminders";
 import type { Shift } from "@/domain/types";
 
 function todayISO(): string {
@@ -107,6 +108,7 @@ function EmployeeDashboard() {
 
       <div className="dash-columns">
         <div className="stack">
+          <RestBreaksReminders />
           <ScheduleHubPanel />
 
           <section className="card glass pad-lg" aria-labelledby="upcoming-shifts">

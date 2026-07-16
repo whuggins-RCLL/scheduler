@@ -667,6 +667,69 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .link-tile strong { font-size: 0.95rem; }
 .link-tile span { color: var(--muted); font-size: 0.8rem; }
 
+/* Rest break reminders (employee dashboard) */
+.rest-breaks-card {
+  border: 1px solid color-mix(in srgb, var(--task-meal) 35%, var(--border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--task-meal) 10%, var(--surface)) 0%,
+    color-mix(in srgb, var(--task-rest) 8%, var(--surface)) 100%
+  );
+}
+.rest-breaks-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.75rem; }
+.rest-breaks-emoji { font-size: 2rem; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.08)); }
+.rest-breaks-headline { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.25rem; }
+.rest-breaks-subline { margin: 0 0 1rem; font-size: 0.9rem; }
+.rest-breaks-meter-wrap { margin-bottom: 1rem; }
+.rest-breaks-meter-label { font-size: 0.78rem; color: var(--muted); text-align: center; }
+.rest-breaks-meter {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 60%, var(--surface));
+  overflow: visible;
+  margin-bottom: 0.5rem;
+}
+.rest-breaks-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--palo-alto), color-mix(in srgb, var(--task-meal) 70%, var(--palo-alto)));
+  transition: width 0.4s ease;
+}
+.rest-breaks-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.95rem;
+  line-height: 1;
+  z-index: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+.rest-breaks-marker.overdue { animation: break-wiggle 0.8s ease-in-out infinite; }
+.rest-breaks-stats { flex-wrap: wrap; gap: 0.4rem; }
+.rest-breaks-list { display: grid; gap: 0.5rem; margin: 0 0 0.75rem; }
+.break-chip {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.break-chip.due-soon { border-color: color-mix(in srgb, var(--warning) 50%, var(--border)); background: var(--warning-bg); }
+.break-chip.overdue { border-color: color-mix(in srgb, var(--error) 50%, var(--border)); background: var(--error-bg); }
+.break-chip.taken { opacity: 0.72; }
+.break-chip-emoji { font-size: 1.35rem; }
+.break-chip-body { display: grid; gap: 0.1rem; }
+.break-chip-deadline { font-size: 0.8rem; color: var(--ink-2); }
+@keyframes break-wiggle {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  25% { transform: translate(-50%, -50%) rotate(-8deg); }
+  75% { transform: translate(-50%, -50%) rotate(8deg); }
+}
+
 /* View-as persona banner */
 .viewas-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;

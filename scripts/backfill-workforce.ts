@@ -107,7 +107,7 @@ async function moveReferences(
   canonicalId: string,
 ): Promise<number> {
   let changed = 0;
-  const employeeOwned = ["availabilityPatterns", "leaveRecords", "shifts"];
+  const employeeOwned = ["availabilityPatterns", "workingHoursPatterns", "leaveRecords", "shifts"];
   for (const collectionName of employeeOwned) {
     const snapshot = await db.collection(`${orgPath}/${collectionName}`).where("employeeId", "==", aliasId).get();
     for (const item of snapshot.docs) {

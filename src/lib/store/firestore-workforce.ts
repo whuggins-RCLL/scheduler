@@ -11,11 +11,11 @@ import {
   type DocumentData,
   type Query,
 } from "firebase/firestore";
-import type { AvailabilityPattern, EmployeeProfile, EmploymentClassification } from "@/domain/types";
+import type { AvailabilityPattern, EmployeeProfile, EmploymentClassification, WorkingHoursPattern } from "@/domain/types";
 import { ORGANIZATION_ID } from "@/lib/config";
 import { getDb } from "@/lib/firebase";
 
-function collectionPath(name: "employeeProfiles" | "availabilityPatterns") {
+function collectionPath(name: "employeeProfiles" | "availabilityPatterns" | "workingHoursPatterns") {
   return `organizations/${ORGANIZATION_ID}/${name}`;
 }
 
@@ -114,6 +114,19 @@ export function mapAvailabilityPattern(id: string, data: DocumentData): Availabi
   };
 }
 
+export function mapWorkingHoursPattern(id: string, data: DocumentData): WorkingHoursPattern {
+  return {
+    id,
+    employeeId: String(data.employeeId ?? ""),
+    label: typeof data.label === "string" ? data.label : undefined,
+    blocks: Array.isArray(data.blocks) ? data.blocks : [],
+    daysOff: Array.isArray(data.daysOff) ? data.daysOff : [],
+    note: typeof data.note === "string" ? data.note : undefined,
+    updatedBy: String(data.updatedBy ?? "system"),
+    updatedAt: toIso(data.updatedAt),
+  };
+}
+
 export function subscribeEmployeeProfiles(
   onChange: (profiles: EmployeeProfile[]) => void,
   onError?: (error: unknown) => void,
@@ -184,6 +197,22 @@ function profilePayload(profile: EmployeeProfile): DocumentData {
   return payload;
 }
 
+export function subscribeWorkingHoursPatterns(
+  onChange: (patterns: WorkingHoursPattern[]) => void,
+  onError?: (error: unknown) => void,
+  selfId?: string,
+): () => void {
+  const db = getDb();
+  if (!db) return () => {};
+  const base = collection(db, collectionPath("workingHoursPatterns"));
+  const target: Query<DocumentData> = selfId ? query(base, where("employeeId", "==", selfId)) : query(base);
+  return onSnapshot(
+    target,
+    (snapshot) => onChange(snapshot.docs.map((item) => mapWorkingHoursPattern(item.id, item.data()))),
+    (error) => onError?.(error),
+  );
+}
+
 export async function writeEmployeeProfile(profile: EmployeeProfile): Promise<void> {
   const db = getDb();
   if (!db) return;
@@ -205,4 +234,19 @@ export async function writeAvailabilityPattern(pattern: AvailabilityPattern): Pr
   if (pattern.note !== undefined) payload.note = pattern.note;
   if (pattern.mealBreakMinutes !== undefined) payload.mealBreakMinutes = pattern.mealBreakMinutes;
   await setDoc(doc(db, collectionPath("availabilityPatterns"), pattern.id), payload, { merge: true });
+}
+
+export async function writeWorkingHoursPattern(pattern: WorkingHoursPattern): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  const payload: DocumentData = {
+    employeeId: pattern.employeeId,
+    blocks: pattern.blocks,
+    daysOff: pattern.daysOff,
+    updatedBy: pattern.updatedBy,
+    updatedAt: serverTimestamp(),
+  };
+  if (pattern.label !== undefined) payload.label = pattern.label;
+  if (pattern.note !== undefined) payload.note = pattern.note;
+  await setDoc(doc(db, collectionPath("workingHoursPatterns"), pattern.id), payload, { merge: true });
 }
