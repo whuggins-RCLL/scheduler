@@ -45,7 +45,8 @@ import {
 import {
   bootstrapDepartments,
   bootstrapLocations,
-  bootstrapPositions,
+  mergeLocationsWithSeed,
+  missingSeedLocations,
   subscribeDepartments,
   subscribeLocations,
   subscribePositions,
@@ -209,6 +210,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const globalBootstrapDone = useRef(false);
   const tasksBootstrapDone = useRef(false);
   const configBootstrapDone = useRef(false);
+  const locationsBootstrapDone = useRef(false);
   const purgeDone = useRef(false);
 
   // Retention sweep: once hydrated, purge schedules/shifts older than the
@@ -377,7 +379,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         configBootstrapDone.current = true;
         setDb((d) => {
           if (d.departments.length === 0) void bootstrapDepartments(DEPARTMENTS);
-          if (d.locations.length === 0) void bootstrapLocations(seedLocations());
           return d;
         });
       };
@@ -389,14 +390,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         () => { /* keep seed */ },
       );
       unsubscribeLocations = subscribeLocations(
-        (locations) => {
-          setDb((d) => ({ ...d, locations: locations.length > 0 ? locations : d.locations }));
+        (firestoreLocations) => {
+          setDb((d) => ({
+            ...d,
+            locations: firestoreLocations.length > 0
+              ? mergeLocationsWithSeed(firestoreLocations)
+              : d.locations,
+          }));
+          if (
+            !locationsBootstrapDone.current
+            && firestoreLocations.length === 0
+            && account
+            && canManage(account)
+          ) {
+            locationsBootstrapDone.current = true;
+            const seed = seedLocations();
+            if (isAdmin(account)) void bootstrapLocations(seed);
+            setDb((d) => (d.locations.length > 0 ? d : { ...d, locations: seed }));
+          } else if (account && isAdmin(account) && firestoreLocations.length > 0) {
+            const missing = missingSeedLocations(firestoreLocations);
+            if (missing.length > 0) void bootstrapLocations(missing);
+          }
           maybeBootstrapConfig(account);
         },
         () => { /* keep seed */ },
       );
       unsubscribePositions = subscribePositions(
-        (positions) => setDb((d) => ({ ...d, positions })),
+        (positions) => setDb((d) => ({ ...d, positions: positions.length > 0 ? positions : d.positions })),
         () => { /* keep seed */ },
       );
       setHydrated(true);
@@ -517,7 +537,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelShift: (id) => setDb((d) => actions.cancelShift(d, id, actorId, now())),
       toggleLock: (id) => setDb((d) => actions.toggleLock(d, id, actorId, now())),
       upsertLocation: (location) => {
-        if (isFirebaseConfigured) void writeLocation(location);
+        if (isFirebaseConfigured) {
+          void writeLocation(location).catch((error) => {
+            console.error("Failed to persist schedule type to Firestore", error);
+          });
+        }
         setDb((d) => actions.upsertLocation(d, location, actorId, now()));
       },
       setScheduleTypeAccess: (employeeId, locationIds) => {
@@ -529,12 +553,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setDb((d) => actions.setTaskQualifications(d, employeeId, taskIds, actorId, now()));
       },
       upsertPosition: (position) => {
-        if (isFirebaseConfigured) void writePosition(position);
+        if (isFirebaseConfigured) {
+          void writePosition(position).catch((error) => {
+            console.error("Failed to persist position to Firestore", error);
+          });
+        }
         setDb((d) => actions.upsertPosition(d, position, actorId, now()));
       },
       archivePosition: (id) => {
         const position = db.positions.find((p) => p.id === id);
-        if (isFirebaseConfigured && position) void writePosition({ ...position, active: false });
+        if (isFirebaseConfigured && position) {
+          void writePosition({ ...position, active: false }).catch((error) => {
+            console.error("Failed to archive position in Firestore", error);
+          });
+        }
         setDb((d) => actions.archivePosition(d, id, actorId, now()));
       },
       upsertTask: (task) => {
