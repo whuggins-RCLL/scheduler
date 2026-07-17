@@ -52,6 +52,12 @@ end-to-end against a real (in-memory) data store.
 - [x] Fairness-aware scoring with adjustable weights
 - [x] Manager-note → structured-rule interpreter (rule-based; LLM optional)
 - [x] Explainable per-assignment + per-schedule output
+- [x] Automated weekly draft generation (`generateWeeklyDraft` Cloud Function) —
+  runs the deterministic engine on a schedule to seed a manager-reviewed draft
+  for the upcoming week; only ever produces a `draft`, preserves locked/published
+  and human-authored shifts, is seeded per-week for determinism, and is audited.
+  Pure logic in `functions/src/weekly-draft.ts` (server twin of `runGeneration`),
+  Firestore I/O in `functions/src/index.ts`.
 - [ ] LLM-assisted natural-language query interface (deterministic resolver first)
 
 ## Definition of done (per phase)
