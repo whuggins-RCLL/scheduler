@@ -44,9 +44,6 @@ import {
 } from "./firestore-workforce";
 import {
   bootstrapDepartments,
-  bootstrapLocations,
-  mergeLocationsWithSeed,
-  missingSeedLocations,
   subscribeDepartments,
   subscribeLocations,
   subscribePositions,
@@ -63,6 +60,7 @@ import { bootstrapTasks, subscribeTasks, writeTask } from "./firestore-tasks";
 import { defaultTasks } from "./default-tasks";
 import { buildSeed, seedLocations } from "./seed";
 import { DEPARTMENTS } from "./departments";
+import { unionById } from "./merge";
 import type { Database } from "./types";
 
 const SESSION_KEY = "rcll.session.userId";
@@ -390,34 +388,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         () => { /* keep seed */ },
       );
       unsubscribeLocations = subscribeLocations(
-        (firestoreLocations) => {
-          setDb((d) => ({
-            ...d,
-            locations: firestoreLocations.length > 0
-              ? mergeLocationsWithSeed(firestoreLocations)
-              : d.locations,
-          }));
-          if (
-            !locationsBootstrapDone.current
-            && firestoreLocations.length === 0
-            && account
-            && canManage(account)
-          ) {
-            locationsBootstrapDone.current = true;
-            const seed = seedLocations();
-            if (isAdmin(account)) void bootstrapLocations(seed);
-            setDb((d) => (d.locations.length > 0 ? d : { ...d, locations: seed }));
-          } else if (account && isAdmin(account) && firestoreLocations.length > 0) {
-            const missing = missingSeedLocations(firestoreLocations);
-            if (missing.length > 0) void bootstrapLocations(missing);
+        (locations) => {
+          // Always keep the built-in schedule types (main/desk/stacks/breaks);
+          // Firestore edits win by id, and Firestore-only types are included.
+          // A partial or empty snapshot can no longer wipe seeded types.
+          setDb((d) => ({ ...d, locations: unionById(seedLocations(), locations) }));
+          // Persist any seed schedule type missing from Firestore so it sticks
+          // across reloads (the previous bootstrap never ran because the seed
+          // pre-fills locations, so only some types were ever written).
+          if (account && canManage(account)) {
+            const present = new Set(locations.map((l) => l.id));
+            for (const loc of seedLocations()) {
+              if (!present.has(loc.id)) void writeLocation(loc);
+            }
           }
-          maybeBootstrapConfig(account);
         },
         () => { /* keep seed */ },
       );
       unsubscribePositions = subscribePositions(
-        (positions) => setDb((d) => ({ ...d, positions: positions.length > 0 ? positions : d.positions })),
-        () => { /* keep seed */ },
+        // Merge by id so a transient empty/partial snapshot (or the moment before
+        // a just-saved position round-trips) never wipes admin-created positions.
+        (positions) => setDb((d) => ({ ...d, positions: unionById(d.positions, positions) })),
+        () => { /* keep local */ },
       );
       setHydrated(true);
     });
