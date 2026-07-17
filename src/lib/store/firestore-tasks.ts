@@ -1,6 +1,7 @@
 /** Firestore bridge for the organization task catalog. */
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -100,6 +101,12 @@ export async function writeTask(task: Task): Promise<void> {
   const db = getDb();
   if (!db) return;
   await setDoc(doc(db, collectionPath(), task.id), taskPayload(task), { merge: true });
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await deleteDoc(doc(db, collectionPath(), taskId));
 }
 
 /** Seed defaults into Firestore when the collection is empty. */

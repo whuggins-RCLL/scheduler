@@ -861,6 +861,15 @@ export function archivePosition(db: Database, positionId: string, actorId: strin
   return next;
 }
 
+export function deletePosition(db: Database, positionId: string, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.positions.findIndex((x) => x.id === positionId);
+  if (idx < 0) return db;
+  const [removed] = next.positions.splice(idx, 1);
+  audit(next, actorId, "position.delete", "position", positionId, { before: removed, now });
+  return next;
+}
+
 export function upsertTask(db: Database, task: Task, actorId: string, now: string): Database {
   const next = clone(db);
   const idx = next.tasks.findIndex((t) => t.id === task.id);
@@ -877,6 +886,15 @@ export function archiveTask(db: Database, taskId: string, actorId: string, now: 
   if (!t) return db;
   t.active = false;
   audit(next, actorId, "task.archive", "task", taskId, { after: { active: false }, now });
+  return next;
+}
+
+export function deleteTask(db: Database, taskId: string, actorId: string, now: string): Database {
+  const next = clone(db);
+  const idx = next.tasks.findIndex((x) => x.id === taskId);
+  if (idx < 0) return db;
+  const [removed] = next.tasks.splice(idx, 1);
+  audit(next, actorId, "task.delete", "task", taskId, { before: removed, now });
   return next;
 }
 

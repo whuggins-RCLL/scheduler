@@ -44,6 +44,7 @@ import {
 } from "./firestore-workforce";
 import {
   bootstrapDepartments,
+  deletePosition as deletePositionDoc,
   subscribeDepartments,
   subscribeLocations,
   subscribePositions,
@@ -56,7 +57,7 @@ import {
   subscribeGlobalExceptions,
   writeGlobalException,
 } from "./firestore-global-exceptions";
-import { bootstrapTasks, subscribeTasks, writeTask } from "./firestore-tasks";
+import { bootstrapTasks, deleteTask as deleteTaskDoc, subscribeTasks, writeTask } from "./firestore-tasks";
 import { defaultTasks } from "./default-tasks";
 import { buildSeed, seedLocations } from "./seed";
 import { DEPARTMENTS } from "./departments";
@@ -147,8 +148,10 @@ export interface StoreContextValue {
   setTaskQualifications: (employeeId: string, taskIds: string[]) => void;
   upsertPosition: (position: Position) => void;
   archivePosition: (id: string) => void;
+  deletePosition: (id: string) => void;
   upsertTask: (task: Task) => void;
   archiveTask: (id: string) => void;
+  deleteTask: (id: string) => void;
   runGeneration: (scheduleId: string, opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode }) => GenerationResult;
   publishSchedule: (scheduleId: string) => actions.PublishResult;
   overrideCompliance: (o: Omit<ComplianceOverride, "id" | "createdAt">) => void;
@@ -561,6 +564,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         setDb((d) => actions.archivePosition(d, id, actorId, now()));
       },
+      deletePosition: (id) => {
+        if (isFirebaseConfigured) {
+          void deletePositionDoc(id).catch((error) => {
+            console.error("Failed to delete position in Firestore", error);
+          });
+        }
+        setDb((d) => actions.deletePosition(d, id, actorId, now()));
+      },
       upsertTask: (task) => {
         if (isFirebaseConfigured) void writeTask(task);
         setDb((d) => actions.upsertTask(d, task, actorId, now()));
@@ -569,6 +580,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const task = db.tasks.find((t) => t.id === id);
         if (isFirebaseConfigured && task) void writeTask({ ...task, active: false });
         setDb((d) => actions.archiveTask(d, id, actorId, now()));
+      },
+      deleteTask: (id) => {
+        if (isFirebaseConfigured) {
+          void deleteTaskDoc(id).catch((error) => {
+            console.error("Failed to delete task in Firestore", error);
+          });
+        }
+        setDb((d) => actions.deleteTask(d, id, actorId, now()));
       },
       runGeneration: (scheduleId, opts) => {
         if (!canManage(currentUser)) throw new Error("AI scheduler tools are restricted to managers, schedulers, and admins.");

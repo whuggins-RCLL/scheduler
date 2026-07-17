@@ -1,6 +1,7 @@
 /** Firestore bridge for org configuration: positions, schedule types (locations), departments. */
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -226,6 +227,12 @@ export async function writePosition(position: Position): Promise<void> {
   const db = getDb();
   if (!db) return;
   await setDoc(doc(db, orgPath("positions"), position.id), positionPayload(position), { merge: true });
+}
+
+export async function deletePosition(positionId: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  await deleteDoc(doc(db, orgPath("positions"), positionId));
 }
 
 export async function writeLocation(location: Location): Promise<void> {

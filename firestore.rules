@@ -159,12 +159,14 @@ service cloud.firestore {
     match /organizations/{orgId}/positions/{id} {
       allow read: if signedIn();
       allow create, update: if isStaff();
-      allow delete: if false; // archive via `active`
+      // Staff may archive (via `active`) or hard-delete a position outright.
+      allow delete: if isStaff();
     }
     match /organizations/{orgId}/tasks/{id} {
       allow read: if signedIn();
       allow create, update: if isStaff();
-      allow delete: if false;
+      // Staff may archive (via `active`) or hard-delete a task outright.
+      allow delete: if isStaff();
     }
     match /organizations/{orgId}/operatingHours/{id} {
       allow read: if signedIn();

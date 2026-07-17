@@ -37,8 +37,14 @@ function blankTask(order: number): Task {
 }
 
 export function TasksAdmin() {
-  const { db, currentUser, upsertTask, archiveTask } = useStore();
+  const { db, currentUser, upsertTask, archiveTask, deleteTask } = useStore();
   const [editing, setEditing] = useState<Task | null>(null);
+
+  function confirmDelete(t: Task) {
+    if (window.confirm(`Permanently delete “${t.name}”? This cannot be undone. To keep it for the record but hide it, archive it instead.`)) {
+      deleteTask(t.id);
+    }
+  }
 
   if (!canManage(currentUser)) {
     return <div className="empty-state">You do not have access to this section.</div>;
@@ -109,7 +115,8 @@ export function TasksAdmin() {
                   <td>
                     <div className="row">
                       <button className="button sm" onClick={() => setEditing({ ...t })}>Edit</button>
-                      {t.active && <button className="button sm danger" onClick={() => archiveTask(t.id)} aria-label={`Archive ${t.name}`}>Archive</button>}
+                      {t.active && <button className="button sm" onClick={() => archiveTask(t.id)} aria-label={`Archive ${t.name}`}>Archive</button>}
+                      <button className="button sm danger" onClick={() => confirmDelete(t)} aria-label={`Delete ${t.name}`}>Delete</button>
                     </div>
                   </td>
                 </tr>
