@@ -136,11 +136,11 @@ synchronization*.
 ```bash
 # Install + type-check the functions codebase
 npm --prefix functions install
-npm --prefix functions run build          # compiles functions/src → functions/lib
+npm --prefix functions run build          # compiles functions/src (+ shared src/domain) → functions/lib
 
-# Deploy ONLY the trigger (and rules) — requires the Firebase CLI + login
+# Deploy ONLY the triggers (and rules) — requires the Firebase CLI + login
 firebase deploy --project scheduler2-c5937 \
-  --only "firestore:rules,functions:syncUserClaims,functions:provisionMissingUsers"
+  --only "firestore:rules,functions:syncUserClaims,functions:provisionMissingUsers,functions:generateWeeklyDraft"
 
 # One-time backfill for users approved before the trigger existed (idempotent).
 # Uses the same reconciliation logic as the trigger.
@@ -149,6 +149,36 @@ GOOGLE_APPLICATION_CREDENTIALS=./service-account.json npm run backfill:claims
 
 > Local emulation: `npm --prefix functions run serve` runs the function against
 > the Auth + Firestore emulators configured in `firebase.json`.
+
+## Automated weekly draft (production)
+
+The `generateWeeklyDraft` Cloud Function (`functions/`) runs the **same
+deterministic engine** the app and tests use (`src/domain/scheduling.ts`) on a
+schedule, so managers arrive to a starting draft instead of a blank week. It
+fires **Mondays at 06:00 Pacific** and drafts the following Monday–Sunday.
+
+- Only ever produces a **`draft`** schedule for manager review — it never
+  publishes.
+- Never clobbers a week that already has a **published or archived** schedule,
+  nor any **locked or human-authored** shift; those are handed to the engine as
+  fixed context to fill around. A re-run only supersedes its *own* prior
+  automated draft (`source: ai_generated`, still `draft`, unlocked).
+- The seed is derived from the target week, so the same inputs always produce
+  the same draft (the engine's determinism guarantee).
+- Every run appends a `schedule.generate` event to the audit trail
+  (`source: scheduled_function`, `actorId: system:scheduled-generation`).
+
+The scheduling logic lives in `functions/src/weekly-draft.ts` as a pure,
+unit-tested function (`planWeeklyDraft`, the server twin of the app's
+`runGeneration`); `functions/src/index.ts` is the thin Firestore I/O shell.
+Because the functions codebase now compiles the shared `src/domain` engine, its
+build output is nested under `functions/lib/` (entry point
+`lib/functions/src/index.js`).
+
+> Scheduled functions require the **Cloud Scheduler API** enabled and a billing
+> account on the Firebase project. To change the cadence, edit the `schedule`
+> cron in `functions/src/index.ts`. Locally, trigger it against the emulator via
+> the Functions emulator shell (`npm --prefix functions run serve`).
 
 ## Documentation
 

@@ -27,6 +27,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { reconcileClaims } from "./claims";
 import { defaultEmployeeProfileData, shouldHaveEmployeeProfile } from "./employee-profile";
@@ -36,6 +37,29 @@ import {
   isBootstrapAdminEmail,
   normalizeEmail,
 } from "./provision";
+import {
+  SCHEDULER_ACTOR_ID,
+  nextWeekStart,
+  planWeeklyDraft,
+  seedForWeek,
+} from "./weekly-draft";
+import { DEFAULT_TIMEZONE } from "../../src/lib/config";
+import { addDays, todayInTimeZone } from "../../src/domain/time";
+import { emptyDatabase } from "../../src/lib/store/types";
+import type { CoverageRequirement } from "../../src/domain/scheduling";
+import type {
+  AvailabilityPattern,
+  BreakPolicy,
+  EmployeeProfile,
+  GlobalException,
+  LeaveRecord,
+  LeaveType,
+  ManagerNote,
+  Position,
+  Schedule,
+  Shift,
+  UserAccount,
+} from "../../src/domain/types";
 
 if (!getApps().length) initializeApp();
 setGlobalOptions({ region: "us-central1" });
@@ -188,5 +212,140 @@ export const provisionMissingUsers = onDocumentWritten(
         { merge: true },
       );
     }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Automated weekly draft generation
+// ---------------------------------------------------------------------------
+
+/** Read a whole org collection into plain records, forcing `id` from the doc id. */
+async function readCollection<T>(base: string, name: string): Promise<T[]> {
+  const snap = await getFirestore().collection(`${base}/${name}`).get();
+  return snap.docs.map((d) => ({ ...(d.data() as Record<string, unknown>), id: d.id }) as T);
+}
+
+/** Commit writes in ≤450-op batches (Firestore caps a batch at 500). */
+async function commitInChunks(
+  ops: Array<{ kind: "set" | "delete"; path: string; data?: Record<string, unknown> }>,
+): Promise<void> {
+  const db = getFirestore();
+  const CHUNK = 450;
+  for (let i = 0; i < ops.length; i += CHUNK) {
+    const batch = db.batch();
+    for (const op of ops.slice(i, i + CHUNK)) {
+      const ref = db.doc(op.path);
+      if (op.kind === "set") batch.set(ref, op.data ?? {});
+      else batch.delete(ref);
+    }
+    await batch.commit();
+  }
+}
+
+/**
+ * Generate a **draft** schedule for the upcoming week using the same
+ * deterministic engine the app uses, so managers arrive to a starting draft
+ * instead of a blank week. Runs weekly (Mondays 06:00 Pacific), drafting the
+ * following Monday–Sunday. It never publishes and never overwrites a week that
+ * already has a published or archived schedule, or any locked / human-authored
+ * shift; a re-run only supersedes its own previous automated draft. Every run
+ * is recorded in the audit trail.
+ *
+ * The Admin SDK bypasses Firestore rules, which is what lets this trusted
+ * server code append to the append-only `auditEvents` collection and manage
+ * draft `shifts`.
+ */
+export const generateWeeklyDraft = onSchedule(
+  {
+    schedule: "0 6 * * 1", // 06:00 every Monday
+    timeZone: DEFAULT_TIMEZONE,
+    region: "us-central1",
+  },
+  async () => {
+    const orgId = ORGANIZATION_ID;
+    const base = `organizations/${orgId}`;
+    const now = new Date();
+    const nowISO = now.toISOString();
+    const todayISO = todayInTimeZone(DEFAULT_TIMEZONE, now);
+    const weekStart = nextWeekStart(todayISO);
+    const weekEnd = addDays(weekStart, 6);
+
+    // A published or archived schedule for the week is a human decision we never
+    // clobber; only an existing draft is regenerated in place.
+    const weekSchedules = (await readCollection<Schedule>(base, "schedules")).filter(
+      (s) => s.startDate === weekStart,
+    );
+    const locked = weekSchedules.find((s) => s.status === "published" || s.status === "archived");
+    if (locked) {
+      logger.info(
+        `generateWeeklyDraft: week ${weekStart} already has a ${locked.status} schedule (${locked.id}); skipping`,
+      );
+      return;
+    }
+    const existing = weekSchedules.find((s) => s.status === "draft") ?? null;
+    const scheduleId = existing?.id ?? `sched-auto-${weekStart}`;
+
+    // Load the tenant slices the engine + leave resolver need.
+    const snapshot = emptyDatabase();
+    const [users, employees, availability, leave, leaveTypes, positions, breakPolicies, notes, globalExceptions, coverage, shifts] =
+      await Promise.all([
+        readCollection<UserAccount>(base, "users"),
+        readCollection<EmployeeProfile>(base, "employeeProfiles"),
+        readCollection<AvailabilityPattern>(base, "availabilityPatterns"),
+        readCollection<LeaveRecord>(base, "leaveRecords"),
+        readCollection<LeaveType>(base, "leaveTypes"),
+        readCollection<Position>(base, "positions"),
+        readCollection<BreakPolicy>(base, "breakPolicies"),
+        readCollection<ManagerNote>(base, "managerNotes"),
+        readCollection<GlobalException>(base, "globalExceptions"),
+        readCollection<CoverageRequirement>(base, "coverageRequirements"),
+        getFirestore().collection(`${base}/shifts`).where("scheduleId", "==", scheduleId).get(),
+      ]);
+    snapshot.users = users;
+    snapshot.employees = employees;
+    snapshot.availability = availability;
+    snapshot.leave = leave;
+    snapshot.leaveTypes = leaveTypes;
+    snapshot.positions = positions;
+    snapshot.breakPolicies = breakPolicies;
+    snapshot.notes = notes;
+    snapshot.globalExceptions = globalExceptions;
+    snapshot.coverage = coverage;
+    snapshot.shifts = shifts.docs.map((d) => ({ ...d.data(), id: d.id }) as Shift);
+
+    const weekCoverage = snapshot.coverage.filter((c) => c.date >= weekStart && c.date <= weekEnd);
+    if (weekCoverage.length === 0) {
+      logger.info(`generateWeeklyDraft: no coverage requirements for ${weekStart}–${weekEnd}; nothing to draft`);
+      return;
+    }
+    if (snapshot.employees.filter((e) => e.active).length === 0) {
+      logger.info("generateWeeklyDraft: no active employees; nothing to draft");
+      return;
+    }
+
+    const plan = planWeeklyDraft(snapshot, existing, {
+      scheduleId,
+      weekStart,
+      weekEnd,
+      seed: seedForWeek(weekStart),
+      now: nowISO,
+    });
+
+    const ops: Array<{ kind: "set" | "delete"; path: string; data?: Record<string, unknown> }> = [];
+    ops.push({ kind: "set", path: `${base}/schedules/${plan.schedule.id}`, data: { ...plan.schedule } });
+    for (const id of plan.shiftIdsToDelete) ops.push({ kind: "delete", path: `${base}/shifts/${id}` });
+    for (const s of plan.shiftsToWrite) ops.push({ kind: "set", path: `${base}/shifts/${s.id}`, data: { ...s } });
+    ops.push({ kind: "set", path: `${base}/auditEvents/${plan.audit.id}`, data: { ...plan.audit } });
+
+    await commitInChunks(ops);
+
+    logger.info(`generateWeeklyDraft: drafted ${scheduleId} for ${weekStart}–${weekEnd}`, {
+      actor: SCHEDULER_ACTOR_ID,
+      generated: plan.shiftsToWrite.length,
+      replaced: plan.shiftIdsToDelete.length,
+      coverageScore: plan.result.coverageScore,
+      unfilled: plan.result.unfilled.length,
+      hardFindings: plan.result.findings.filter((f) => f.severity === "hard").length,
+    });
   },
 );
