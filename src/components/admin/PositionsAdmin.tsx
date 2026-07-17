@@ -47,8 +47,14 @@ function blankPosition(order: number): Position {
 }
 
 export function PositionsAdmin() {
-  const { db, currentUser, upsertPosition, archivePosition } = useStore();
+  const { db, currentUser, upsertPosition, archivePosition, deletePosition } = useStore();
   const [editing, setEditing] = useState<Position | null>(null);
+
+  function confirmDelete(p: Position) {
+    if (window.confirm(`Permanently delete “${p.name}”? This cannot be undone. To keep it for the record but hide it, archive it instead.`)) {
+      deletePosition(p.id);
+    }
+  }
 
   if (!canManage(currentUser)) {
     return <div className="empty-state">You do not have access to this section.</div>;
@@ -110,8 +116,9 @@ export function PositionsAdmin() {
                     <div className="row">
                       <button className="button sm" onClick={() => setEditing({ ...p })}>Edit</button>
                       {p.active && (
-                        <button className="button sm danger" onClick={() => archivePosition(p.id)} aria-label={`Archive ${p.name}`}>Archive</button>
+                        <button className="button sm" onClick={() => archivePosition(p.id)} aria-label={`Archive ${p.name}`}>Archive</button>
                       )}
+                      <button className="button sm danger" onClick={() => confirmDelete(p)} aria-label={`Delete ${p.name}`}>Delete</button>
                     </div>
                   </td>
                 </tr>

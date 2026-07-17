@@ -56,6 +56,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const admin = isAdmin(currentUser);
   const realAdmin = isAdmin(realUser);
   const viewingAs = viewAs !== "self";
+  // Admin sub-pages (cards opened from the dashboard) get an in-content link
+  // back to the dashboard — the sidebar is collapsed on mobile.
+  const inAdminSubPage = pathname.startsWith("/admin/");
 
   const NavGroup = ({ label, links }: { label: string; links: [string, string][] }) => (
     <>
@@ -166,6 +169,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main id="main">
           <TimeFormatSync>
+            {inAdminSubPage && (
+              <Link href="/admin" className="admin-back">
+                <span aria-hidden>←</span> Admin dashboard
+              </Link>
+            )}
             {viewingAs && (
               <div className="viewas-banner" role="status">
                 <span>
