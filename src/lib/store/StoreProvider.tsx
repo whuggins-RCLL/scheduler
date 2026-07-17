@@ -44,8 +44,6 @@ import {
 } from "./firestore-workforce";
 import {
   bootstrapDepartments,
-  bootstrapLocations,
-  bootstrapPositions,
   subscribeDepartments,
   subscribeLocations,
   subscribePositions,
@@ -62,6 +60,7 @@ import { bootstrapTasks, subscribeTasks, writeTask } from "./firestore-tasks";
 import { defaultTasks } from "./default-tasks";
 import { buildSeed, seedLocations } from "./seed";
 import { DEPARTMENTS } from "./departments";
+import { unionById } from "./merge";
 import type { Database } from "./types";
 
 const SESSION_KEY = "rcll.session.userId";
@@ -377,7 +376,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         configBootstrapDone.current = true;
         setDb((d) => {
           if (d.departments.length === 0) void bootstrapDepartments(DEPARTMENTS);
-          if (d.locations.length === 0) void bootstrapLocations(seedLocations());
           return d;
         });
       };
@@ -390,14 +388,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       unsubscribeLocations = subscribeLocations(
         (locations) => {
-          setDb((d) => ({ ...d, locations: locations.length > 0 ? locations : d.locations }));
-          maybeBootstrapConfig(account);
+          // Always keep the built-in schedule types (main/desk/stacks/breaks);
+          // Firestore edits win by id, and Firestore-only types are included.
+          // A partial or empty snapshot can no longer wipe seeded types.
+          setDb((d) => ({ ...d, locations: unionById(seedLocations(), locations) }));
+          // Persist any seed schedule type missing from Firestore so it sticks
+          // across reloads (the previous bootstrap never ran because the seed
+          // pre-fills locations, so only some types were ever written).
+          if (account && canManage(account)) {
+            const present = new Set(locations.map((l) => l.id));
+            for (const loc of seedLocations()) {
+              if (!present.has(loc.id)) void writeLocation(loc);
+            }
+          }
         },
         () => { /* keep seed */ },
       );
       unsubscribePositions = subscribePositions(
-        (positions) => setDb((d) => ({ ...d, positions })),
-        () => { /* keep seed */ },
+        // Merge by id so a transient empty/partial snapshot (or the moment before
+        // a just-saved position round-trips) never wipes admin-created positions.
+        (positions) => setDb((d) => ({ ...d, positions: unionById(d.positions, positions) })),
+        () => { /* keep local */ },
       );
       setHydrated(true);
     });
