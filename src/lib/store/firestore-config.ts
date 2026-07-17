@@ -11,6 +11,7 @@ import type { Department, EmploymentClassification, Location, Position } from "@
 import { normalizeFrequency } from "@/domain/frequency";
 import { DEFAULT_TIMEZONE, ORGANIZATION_ID } from "@/lib/config";
 import { getDb } from "@/lib/firebase";
+import { seedLocations } from "./seed";
 
 const CLASSIFICATIONS = new Set<EmploymentClassification>([
   "student_worker",
@@ -97,6 +98,30 @@ export function mapDepartment(id: string, data: DocumentData): Department {
     name: String(data.name ?? ""),
     active: data.active !== false,
   };
+}
+
+/**
+ * Merge Firestore schedule types with the built-in seed set. Firestore is
+ * authoritative for any doc it returns; missing seed ids are filled from seed
+ * so partial collections (e.g. only `loc-main`) do not wipe Desk/Stacks/Breaks.
+ */
+export function mergeLocationsWithSeed(firestoreLocations: Location[]): Location[] {
+  const byId = new Map(firestoreLocations.map((location) => [location.id, location]));
+  const seed = seedLocations();
+  const seedIds = new Set(seed.map((location) => location.id));
+  for (const location of seed) {
+    if (!byId.has(location.id)) byId.set(location.id, location);
+  }
+  return [
+    ...seed.map((location) => byId.get(location.id)!),
+    ...firestoreLocations.filter((location) => !seedIds.has(location.id)),
+  ];
+}
+
+/** Seed schedule types absent from the Firestore snapshot (for admin bootstrap). */
+export function missingSeedLocations(firestoreLocations: Location[]): Location[] {
+  const existing = new Set(firestoreLocations.map((location) => location.id));
+  return seedLocations().filter((location) => !existing.has(location.id));
 }
 
 function positionPayload(position: Position): DocumentData {
