@@ -208,6 +208,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const globalBootstrapDone = useRef(false);
   const tasksBootstrapDone = useRef(false);
   const configBootstrapDone = useRef(false);
+  const locationsBootstrapDone = useRef(false);
   const purgeDone = useRef(false);
 
   // Retention sweep: once hydrated, purge schedules/shifts older than the
@@ -528,7 +529,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelShift: (id) => setDb((d) => actions.cancelShift(d, id, actorId, now())),
       toggleLock: (id) => setDb((d) => actions.toggleLock(d, id, actorId, now())),
       upsertLocation: (location) => {
-        if (isFirebaseConfigured) void writeLocation(location);
+        if (isFirebaseConfigured) {
+          void writeLocation(location).catch((error) => {
+            console.error("Failed to persist schedule type to Firestore", error);
+          });
+        }
         setDb((d) => actions.upsertLocation(d, location, actorId, now()));
       },
       setScheduleTypeAccess: (employeeId, locationIds) => {
@@ -540,12 +545,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setDb((d) => actions.setTaskQualifications(d, employeeId, taskIds, actorId, now()));
       },
       upsertPosition: (position) => {
-        if (isFirebaseConfigured) void writePosition(position);
+        if (isFirebaseConfigured) {
+          void writePosition(position).catch((error) => {
+            console.error("Failed to persist position to Firestore", error);
+          });
+        }
         setDb((d) => actions.upsertPosition(d, position, actorId, now()));
       },
       archivePosition: (id) => {
         const position = db.positions.find((p) => p.id === id);
-        if (isFirebaseConfigured && position) void writePosition({ ...position, active: false });
+        if (isFirebaseConfigured && position) {
+          void writePosition({ ...position, active: false }).catch((error) => {
+            console.error("Failed to archive position in Firestore", error);
+          });
+        }
         setDb((d) => actions.archivePosition(d, id, actorId, now()));
       },
       upsertTask: (task) => {
