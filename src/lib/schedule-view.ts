@@ -65,6 +65,32 @@ export function fullDayLabel(iso: ISODate): string {
   });
 }
 
+/** Deterministic accent palette so each schedule type reads as its own color. */
+const SCHEDULE_TYPE_PALETTE = [
+  "--position-desk",
+  "--position-admin",
+  "--position-project",
+  "--position-meetings",
+  "--position-learning",
+  "--task-collections",
+  "--task-operations",
+  "--task-meal",
+] as const;
+
+/**
+ * A stable CSS color variable for a schedule type, assigned by its position in
+ * the active-locations list so the same type is always the same color across
+ * the tabs, the "my schedule" timeline, and the boards.
+ */
+export function scheduleTypeColorVar(
+  locationId: string,
+  activeLocations: { id: string }[],
+): string {
+  const idx = activeLocations.findIndex((l) => l.id === locationId);
+  const token = SCHEDULE_TYPE_PALETTE[(idx < 0 ? 0 : idx) % SCHEDULE_TYPE_PALETTE.length];
+  return `var(${token})`;
+}
+
 export interface LanePlacement<T> {
   item: T;
   start: number;
