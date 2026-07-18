@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSchedule, planDayBreaks, type GenerationInput } from "../src/domain/scheduling";
 import { defaultCaliforniaPolicy, validateWorkday } from "../src/domain/compliance";
-import type { AvailabilityPattern, EmployeeProfile, Position, Shift } from "../src/domain/types";
+import type { AvailabilityPattern, Break, EmployeeProfile, Position, Shift } from "../src/domain/types";
 
 const policy = defaultCaliforniaPolicy("non_exempt_staff");
 
@@ -49,6 +49,24 @@ describe("planDayBreaks (whole-day break planning)", () => {
     });
     expect(findings.some((f) => f.ruleId === "meal_required")).toBe(false);
     expect(findings.some((f) => f.ruleId === "rest_periods")).toBe(false);
+  });
+
+  it("breaks up a long public-service shift to stay within the continuous guideline", () => {
+    const desk: Position = { ...position, id: "pos-desk", countsAsPublicService: true };
+    const s = mkShift({ id: "d1", positionId: "pos-desk", start: 480, end: 960 }); // 8 h at a public-service post
+    const hasContinuous = (breaks: Break[]) =>
+      validateWorkday({
+        employeeId: "e", classification: "non_exempt_staff", date: "2026-07-20",
+        shifts: [{ ...s, breaks }], policy, positions: [desk],
+      }).some((f) => f.ruleId === "continuous_public_service");
+
+    // Without the public-service hint, a meal alone leaves >2 h runs -> finding.
+    const noRelief = planDayBreaks([s], new Set(["d1"]), policy);
+    expect(hasContinuous(noRelief.get("d1")!)).toBe(true);
+
+    // With it, relief rests keep every run within the guideline -> no finding.
+    const relief = planDayBreaks([s], new Set(["d1"]), policy, undefined, new Set(["pos-desk"]));
+    expect(hasContinuous(relief.get("d1")!)).toBe(false);
   });
 
   it("never modifies locked shifts", () => {

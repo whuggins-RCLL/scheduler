@@ -384,7 +384,8 @@ function projectedDayFindingCost(
   };
   const projected = [...allShifts.filter((s) => s.employeeId === e.id && s.date === req.date), prospective];
   const editableIds = new Set(projected.filter((s) => !input.lockedShifts.some((l) => l.id === s.id)).map((s) => s.id));
-  const planned = planDayBreaks(projected, editableIds, policy, effectivePattern(input.patterns[e.id] ?? [], req.date)?.mealBreakMinutes);
+  const publicServiceIds = new Set(input.positions.filter((p) => p.countsAsPublicService).map((p) => p.id));
+  const planned = planDayBreaks(projected, editableIds, policy, effectivePattern(input.patterns[e.id] ?? [], req.date)?.mealBreakMinutes, publicServiceIds);
   const withBreaks = projected.map((s) => (planned.has(s.id) ? { ...s, breaks: planned.get(s.id)! } : s));
   const findings = validateWorkday({
     employeeId: e.id,
@@ -458,6 +459,7 @@ export function planDayBreaks(
   editableIds: Set<string>,
   policy: BreakPolicy,
   mealMinutesPref?: number,
+  publicServicePositionIds?: Set<string>,
 ): Map<string, Break[]> {
   const sorted = [...dayShifts].sort((a, b) => a.start - b.start);
   const result = new Map<string, Break[]>();
@@ -506,6 +508,33 @@ export function planDayBreaks(
     insertMeal(dayStart + policy.secondMealAfterMinutes + mealMinutes);
   }
 
+  // Relief breaks for public-service posts: keep any continuous stretch (between
+  // breaks) within the guideline by inserting paid rests. Mirrors the per-shift
+  // continuous-service compliance check, which counts any break as relief.
+  const maxCont = policy.maxContinuousPublicServiceMinutes;
+  if (publicServicePositionIds && maxCont > 0) {
+    for (const s of sorted) {
+      if (!editableIds.has(s.id) || !publicServicePositionIds.has(s.positionId)) continue;
+      const br = result.get(s.id)!;
+      let guard = 0;
+      while (guard++ < 24) {
+        // Find the first continuous run (between breaks) that exceeds the limit.
+        let cursor = s.start;
+        let cut: number | null = null;
+        for (const b of [...br].sort((a, b2) => a.start - b2.start)) {
+          if (b.start - cursor > maxCont) { cut = cursor + maxCont; break; }
+          cursor = Math.max(cursor, b.end);
+        }
+        if (cut === null && s.end - cursor > maxCont) cut = cursor + maxCont;
+        if (cut === null) break; // every run is within the guideline
+        const win = { start: cut, end: cut + 10 };
+        if (win.end > s.end || overlapsBreak(br, win) || overlapsOther(win, s.id)) break; // can't relieve cleanly
+        br.push({ kind: "rest", start: win.start, end: win.end, paid: true });
+        br.sort((a, b) => a.start - b.start);
+      }
+    }
+  }
+
   // One paid rest per exceeded rest threshold, placed duty-free and non-overlapping.
   const requiredRests = policy.restPerHoursWorked.filter((r) => workMinutes() > r.thresholdMinutes).length;
   let guard = 0;
@@ -533,6 +562,7 @@ export function planDayBreaks(
 /** Re-plan breaks for every employee-day of the generated shifts (in place). */
 function applyDayBreaks(allShifts: Shift[], input: GenerationInput): void {
   const lockedIds = new Set(input.lockedShifts.map((s) => s.id));
+  const publicServiceIds = new Set(input.positions.filter((p) => p.countsAsPublicService).map((p) => p.id));
   const byEmpDay = new Map<string, Shift[]>();
   for (const s of allShifts) {
     if (!s.employeeId) continue;
@@ -548,7 +578,7 @@ function applyDayBreaks(allShifts: Shift[], input: GenerationInput): void {
     const editableIds = new Set(dayShifts.filter((s) => !lockedIds.has(s.id)).map((s) => s.id));
     if (editableIds.size === 0) continue;
     const mealPref = effectivePattern(input.patterns[empId] ?? [], dayShifts[0]!.date)?.mealBreakMinutes;
-    const planned = planDayBreaks(dayShifts, editableIds, policy, mealPref);
+    const planned = planDayBreaks(dayShifts, editableIds, policy, mealPref, publicServiceIds);
     for (const s of dayShifts) {
       const nb = planned.get(s.id);
       if (nb) s.breaks = nb;
