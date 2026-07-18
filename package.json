@@ -10,7 +10,8 @@
     "seed": "tsx scripts/seed.ts",
     "backfill:claims": "tsx scripts/backfill-claims.ts",
     "backfill:users": "tsx scripts/backfill-users.ts",
-    "backfill:workforce": "tsx scripts/backfill-workforce.ts"
+    "backfill:workforce": "tsx scripts/backfill-workforce.ts",
+    "backfill:task-schedule-types": "tsx scripts/backfill-task-schedule-types.ts"
   },
   "dependencies": {
     "firebase": "^12.0.0",

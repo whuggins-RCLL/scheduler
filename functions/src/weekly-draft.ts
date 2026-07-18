@@ -24,6 +24,7 @@ import {
   type GenerationResult,
 } from "../../src/domain/scheduling";
 import { leaveRecordsForEmployee } from "../../src/domain/global-exceptions";
+import { buildCoverageRequirements } from "../../src/domain/coverage-generation";
 import { addDays, hashString, weekdayOf } from "../../src/domain/time";
 import type {
   AvailabilityPattern,
@@ -101,7 +102,19 @@ export function planWeeklyDraft(
 ): WeeklyDraftPlan {
   const { scheduleId, weekStart, weekEnd, seed, now } = params;
 
-  const requirements = db.coverage.filter((c) => c.date >= weekStart && c.date <= weekEnd);
+  let requirements = db.coverage.filter((c) => c.date >= weekStart && c.date <= weekEnd);
+  // Fall back to cadence-derived requirements when no coverage was hand-authored
+  // for the week, so the automated draft has templates to fill.
+  if (requirements.length === 0) {
+    const dates: string[] = [];
+    for (let d = weekStart; d <= weekEnd; d = addDays(d, 1)) dates.push(d);
+    requirements = buildCoverageRequirements({
+      positions: db.positions,
+      tasks: db.tasks,
+      operatingHours: db.operatingHours,
+      dates,
+    }).requirements;
+  }
 
   const patterns: Record<string, AvailabilityPattern[]> = {};
   const leave: Record<string, LeaveRecord[]> = {};
