@@ -10,10 +10,15 @@ import {
   MAP_LAYOUT,
   buildScheduleMap,
   edgePath,
+  mapCoverageMetrics,
   nodeLeftAnchor,
   nodeRightAnchor,
+  type MapCoverage,
   type MapNode,
+  type NodeCoverage,
 } from "@/lib/schedule-map";
+import { buildCoverageRequirements } from "@/domain/coverage-generation";
+import { addDays } from "@/domain/time";
 import type { Location, Position, Task } from "@/domain/types";
 import { FrequencyEditor } from "./FrequencyEditor";
 
@@ -102,13 +107,33 @@ export function ScheduleMapAdmin() {
   const [selected, setSelected] = useState<{ kind: MapNode["kind"]; id: string } | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [showCoverage, setShowCoverage] = useState(true);
+  const [layout, setLayout] = useState<Record<string, { x: number; y: number }>>({});
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const nodeDrag = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+  const movedRef = useRef(false);
+
+  const layoutKey = `rcll-schedule-map-layout:${currentUser.id}`;
+  // Load this admin's saved node positions once mounted (client only).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(layoutKey);
+      setLayout(raw ? (JSON.parse(raw) as Record<string, { x: number; y: number }>) : {});
+    } catch {
+      setLayout({});
+    }
+  }, [layoutKey]);
 
   const map = useMemo(
     () => buildScheduleMap({ locations: db.locations, positions: db.positions, tasks: db.tasks }),
     [db.locations, db.positions, db.tasks],
   );
-  const nodeById = useMemo(() => new Map(map.nodes.map((n) => [n.id, n])), [map.nodes]);
+  // Effective positions = computed layout with any saved/dragged overrides.
+  const nodes = useMemo(
+    () => map.nodes.map((n) => (layout[n.id] ? { ...n, x: layout[n.id]!.x, y: layout[n.id]!.y } : n)),
+    [map.nodes, layout],
+  );
+  const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   const selectedNodeId = selected ? `${selected.kind}:${selected.id}` : null;
   const connectedNodeIds = useMemo(() => {
@@ -121,19 +146,87 @@ export function ScheduleMapAdmin() {
     return set;
   }, [map.edges, selectedNodeId]);
 
+  // Coverage this configuration generates over the active schedule's week.
+  const coverage = useMemo<{ metrics: MapCoverage; skipped: string[] }>(() => {
+    const schedule = db.schedules[0];
+    if (!showCoverage || !schedule) {
+      return { metrics: { byScheduleType: {}, byPosition: {}, byTask: {}, totalWindows: 0, totalSlots: 0 }, skipped: [] };
+    }
+    const dates: string[] = [];
+    for (let d = schedule.startDate; d <= schedule.endDate; d = addDays(d, 1)) dates.push(d);
+    const { requirements, skipped } = buildCoverageRequirements({
+      positions: db.positions,
+      tasks: db.tasks,
+      operatingHours: db.operatingHours,
+      dates,
+    });
+    return { metrics: mapCoverageMetrics(requirements), skipped };
+  }, [showCoverage, db.schedules, db.positions, db.tasks, db.operatingHours]);
+
   if (!canManage(currentUser)) {
     return <div className="empty-state">You do not have access to this section.</div>;
+  }
+
+  function coverageFor(node: MapNode): NodeCoverage | undefined {
+    if (node.kind === "scheduleType") return coverage.metrics.byScheduleType[node.entityId];
+    if (node.kind === "position") return coverage.metrics.byPosition[node.entityId];
+    return coverage.metrics.byTask[node.entityId];
   }
 
   function onStageMouseDown(e: React.MouseEvent) {
     drag.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
   }
   function onStageMouseMove(e: React.MouseEvent) {
+    if (nodeDrag.current) {
+      const nd = nodeDrag.current;
+      const dx = (e.clientX - nd.startX) / zoom;
+      const dy = (e.clientY - nd.startY) / zoom;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) nd.moved = true;
+      setLayout((l) => ({ ...l, [nd.id]: { x: nd.origX + dx, y: nd.origY + dy } }));
+      return;
+    }
     if (!drag.current) return;
     setPan({ x: drag.current.panX + (e.clientX - drag.current.x), y: drag.current.panY + (e.clientY - drag.current.y) });
   }
   function endDrag() {
+    if (nodeDrag.current) {
+      const moved = nodeDrag.current.moved;
+      nodeDrag.current = null;
+      movedRef.current = moved;
+      if (moved) {
+        setLayout((l) => {
+          try {
+            window.localStorage.setItem(layoutKey, JSON.stringify(l));
+          } catch {
+            /* ignore quota */
+          }
+          return l;
+        });
+      }
+    }
     drag.current = null;
+  }
+  function onNodeMouseDown(e: React.MouseEvent, node: MapNode) {
+    e.stopPropagation();
+    const eff = nodeById.get(node.id);
+    if (!eff) return;
+    nodeDrag.current = { id: node.id, startX: e.clientX, startY: e.clientY, origX: eff.x, origY: eff.y, moved: false };
+  }
+  function onNodeClick(node: MapNode) {
+    // A completed drag suppresses the trailing click so it doesn't also select.
+    if (movedRef.current) {
+      movedRef.current = false;
+      return;
+    }
+    setSelected({ kind: node.kind, id: node.entityId });
+  }
+  function resetLayout() {
+    setLayout({});
+    try {
+      window.localStorage.removeItem(layoutKey);
+    } catch {
+      /* ignore */
+    }
   }
   function onWheel(e: React.WheelEvent) {
     setZoom((z) => Math.min(1.8, Math.max(0.4, z - Math.sign(e.deltaY) * 0.1)));
@@ -160,8 +253,9 @@ export function ScheduleMapAdmin() {
       <div className="page-head">
         <h1>Schedule map</h1>
         <p className="muted">
-          A live view of the scheduling logic — how schedule types, positions, and tasks connect. Changes
-          here write straight to the catalog, so the Positions, Tasks, and Schedule types screens stay in sync.
+          A live view of the scheduling logic — how schedule types, positions, and tasks connect. Drag nodes to
+          arrange them (saved per admin); changes here write straight to the catalog, so the Positions, Tasks, and
+          Schedule types screens stay in sync.
         </p>
       </div>
 
@@ -176,12 +270,31 @@ export function ScheduleMapAdmin() {
           <span className="smap-legend"><i className="smap-swatch is-position" /> Position</span>
           <span className="smap-legend"><i className="smap-swatch is-task" /> Task</span>
         </div>
-        <div className="row" style={{ gap: "0.3rem" }}>
+        <div className="row" style={{ gap: "0.3rem", flexWrap: "wrap" }}>
+          <button type="button" className={`button sm${showCoverage ? " primary" : ""}`} aria-pressed={showCoverage} onClick={() => setShowCoverage((c) => !c)}>
+            Coverage
+          </button>
+          <button type="button" className="button sm" onClick={resetLayout}>Reset layout</button>
           <button type="button" className="button sm" onClick={() => setZoom((z) => Math.max(0.4, z - 0.1))} aria-label="Zoom out">−</button>
-          <button type="button" className="button sm" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Reset</button>
+          <button type="button" className="button sm" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Reset view</button>
           <button type="button" className="button sm" onClick={() => setZoom((z) => Math.min(1.8, z + 0.1))} aria-label="Zoom in">+</button>
         </div>
       </div>
+
+      {showCoverage && (
+        <p className="muted" style={{ margin: "-0.25rem 0 0", fontSize: "0.84rem" }}>
+          {coverage.metrics.totalWindows > 0 ? (
+            <>
+              Generates <strong>{coverage.metrics.totalWindows}</strong> coverage window{coverage.metrics.totalWindows === 1 ? "" : "s"} ·{" "}
+              <strong>{coverage.metrics.totalSlots}</strong> staffing slot{coverage.metrics.totalSlots === 1 ? "" : "s"} per week.
+              {" "}Numbers on nodes are windows/week.
+            </>
+          ) : (
+            <>No coverage generated yet — set a frequency on positions or tasks (click a node) to see what they generate.</>
+          )}
+          {coverage.skipped.length > 0 && <> · <span className="badge warn">{coverage.skipped.length} not placeable</span></>}
+        </p>
+      )}
 
       <div className={`smap-layout${selected ? " has-panel" : ""}`}>
         <div
@@ -227,18 +340,24 @@ export function ScheduleMapAdmin() {
               })}
             </svg>
 
-            {map.nodes.map((node) => {
+            {nodes.map((node) => {
               const isSelected = node.id === selectedNodeId;
               const dim = selectedNodeId ? !connectedNodeIds.has(node.id) : false;
+              const cov = showCoverage ? coverageFor(node) : undefined;
               return (
                 <button
                   key={node.id}
                   type="button"
                   className={`smap-node is-${node.kind}${isSelected ? " is-selected" : ""}${dim ? " is-dim" : ""}${node.active ? "" : " is-inactive"}`}
                   style={{ left: node.x, top: node.y, width: MAP_LAYOUT.nodeWidth, height: MAP_LAYOUT.nodeHeight }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => setSelected({ kind: node.kind, id: node.entityId })}
+                  onMouseDown={(e) => onNodeMouseDown(e, node)}
+                  onClick={() => onNodeClick(node)}
                 >
+                  {cov && cov.windows > 0 && (
+                    <span className="smap-node-cov" title={`${cov.windows} coverage window${cov.windows === 1 ? "" : "s"} · ${cov.slots} staffing slot${cov.slots === 1 ? "" : "s"} per week`}>
+                      {cov.windows}/wk
+                    </span>
+                  )}
                   <span className="smap-node-label">{node.label}</span>
                   <span className="smap-node-sub">
                     {node.sublabel}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildScheduleMap, nodeId } from "../src/lib/schedule-map";
+import { buildScheduleMap, mapCoverageMetrics, nodeId } from "../src/lib/schedule-map";
 import { buildFixture } from "./fixtures";
+import type { CoverageRequirement } from "../src/domain/scheduling";
 
 describe("buildScheduleMap", () => {
   const db = buildFixture();
@@ -41,6 +42,22 @@ describe("buildScheduleMap", () => {
         (e) => e.kind === "position-task" && e.from === nodeId("position", "pos-desk") && e.to === nodeId("task", "task-opening"),
       ),
     ).toBe(true);
+  });
+
+  it("attributes coverage to schedule type, host position, and task", () => {
+    const reqs: CoverageRequirement[] = [
+      // desk post coverage: 2 windows for pos-desk on loc-desk
+      { id: "a", date: "2026-07-20", positionId: "pos-desk", locationId: "loc-desk", start: 480, end: 1020, count: 1 },
+      { id: "b", date: "2026-07-21", positionId: "pos-desk", locationId: "loc-desk", start: 480, end: 1020, count: 1 },
+      // a task window hosted at pos-desk on loc-desk, needing 2 people
+      { id: "c", date: "2026-07-20", positionId: "pos-desk", locationId: "loc-desk", start: 480, end: 510, count: 2, taskIds: ["task-opening"] },
+    ];
+    const m = mapCoverageMetrics(reqs);
+    expect(m.byScheduleType["loc-desk"]).toEqual({ windows: 3, slots: 4 });
+    expect(m.byPosition["pos-desk"]).toEqual({ windows: 2, slots: 2 }); // only post coverage
+    expect(m.byTask["task-opening"]).toEqual({ windows: 1, slots: 2 });
+    expect(m.totalWindows).toBe(3);
+    expect(m.totalSlots).toBe(4);
   });
 
   it("badges a task with no explicit schedule types as universal", () => {
