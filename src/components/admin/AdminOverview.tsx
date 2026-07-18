@@ -97,6 +97,14 @@ const SECTIONS: AdminSection[] = [
         access: "manage",
       },
       {
+        href: "/admin/map",
+        icon: "🗺️",
+        label: "Schedule map",
+        metric: (db) => `${db.locations.filter((l) => l.active).length + db.positions.filter((p) => p.active).length + db.tasks.filter((t) => t.active).length}`,
+        caption: "Visualize and edit how schedule types, positions, and tasks connect — one interactive map.",
+        access: "manage",
+      },
+      {
         href: "/admin/positions",
         icon: "🪑",
         label: "Positions",

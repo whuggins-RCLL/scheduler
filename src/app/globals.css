@@ -1009,3 +1009,67 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
   .personal-schedule-hero h1 { font-size: 1.45rem; }
   .personal-week-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* ---- Schedule map (admin mind map) ---- */
+.smap-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--surface);
+}
+.smap-legend { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--muted); }
+.smap-swatch { width: 0.7rem; height: 0.7rem; border-radius: 3px; display: inline-block; }
+.smap-swatch.is-scheduleType { background: var(--cardinal); }
+.smap-swatch.is-position { background: var(--position-admin); }
+.smap-swatch.is-task { background: var(--task-collections); }
+
+.smap-layout { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+.smap-layout.has-panel { grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 820px) { .smap-layout.has-panel { grid-template-columns: 1fr; } }
+
+.smap-stage {
+  position: relative; overflow: hidden; cursor: grab;
+  height: 620px; border: 1px solid var(--border); border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--border) 60%, transparent) 1px, transparent 0)
+    0 0 / 22px 22px, var(--surface-2);
+}
+.smap-stage:active { cursor: grabbing; }
+.smap-viewport { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+.smap-colhead {
+  position: absolute; top: 0; text-align: center; font-size: 0.72rem;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.smap-edges { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.smap-edge { stroke: var(--border-strong); stroke-width: 1.5; transition: stroke 0.15s, opacity 0.15s; }
+.smap-edge.is-type-position { stroke: color-mix(in srgb, var(--position-admin) 55%, var(--border-strong)); }
+.smap-edge.is-type-task { stroke: color-mix(in srgb, var(--cardinal) 45%, var(--border-strong)); stroke-dasharray: 5 4; }
+.smap-edge.is-position-task { stroke: color-mix(in srgb, var(--task-collections) 55%, var(--border-strong)); }
+.smap-edge.is-hot { stroke-width: 2.5; opacity: 1; }
+.smap-edge.is-dim { opacity: 0.18; }
+
+.smap-node {
+  position: absolute; text-align: left; display: flex; flex-direction: column; justify-content: center;
+  gap: 0.1rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); border-left-width: 4px; background: var(--surface);
+  box-shadow: var(--shadow-sm); cursor: pointer; overflow: hidden; transition: box-shadow 0.15s, opacity 0.15s, transform 0.1s;
+}
+.smap-node:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.smap-node.is-scheduleType { border-left-color: var(--cardinal); }
+.smap-node.is-position { border-left-color: var(--position-admin); }
+.smap-node.is-task { border-left-color: var(--task-collections); }
+.smap-node.is-selected { outline: 2px solid var(--accent, var(--cardinal)); outline-offset: 1px; }
+.smap-node.is-dim { opacity: 0.35; }
+.smap-node.is-inactive { opacity: 0.55; border-style: dashed; }
+.smap-node-label { font-weight: 650; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smap-node-sub { font-size: 0.72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.smap-panel {
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  padding: 1rem; align-self: start; max-height: 620px; overflow-y: auto;
+}
+.smap-panel .field { margin-bottom: 0.6rem; }
+.smap-panel .field > span { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.2rem; }
+.smap-links { border: none; padding: 0; margin: 0.6rem 0 0; }
+.smap-links > legend { font-weight: 600; font-size: 0.82rem; padding: 0; margin-bottom: 0.3rem; }
