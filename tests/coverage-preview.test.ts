@@ -100,4 +100,36 @@ describe("resolveScheduleCoverage", () => {
     expect(resolved.requirements).toEqual(authored);
     expect(resolved.skipped).toEqual([]);
   });
+
+  it("merges cadence-derived demand with partially-authored coverage", () => {
+    const db = buildFixture();
+    // pos-desk gets a per-operational-hour cadence so cadence generates desk demand.
+    db.positions = db.positions.map((p) =>
+      p.id === "pos-desk" ? { ...p, frequency: { mode: "per_operational_hour" as const, count: 1, weekdays: [] } } : p,
+    );
+    // Manager authors a single row for a *different* position.
+    const day = db.schedules[0]!.startDate;
+    db.coverage = [
+      { id: "auth-1", date: day, positionId: "pos-project", locationId: "loc-workroom", start: 600, end: 660, count: 1 },
+    ];
+    const resolved = resolveScheduleCoverage(db, "sched-week");
+    expect(resolved.source).toBe("merged");
+    expect(resolved.requirements.some((r) => r.id === "auth-1")).toBe(true); // authored kept
+    expect(resolved.requirements.some((r) => r.positionId === "pos-desk")).toBe(true); // cadence added
+  });
+
+  it("does not double a window the manager already authored for the same slot", () => {
+    const db = buildFixture();
+    db.positions = db.positions.map((p) =>
+      p.id === "pos-desk" ? { ...p, frequency: { mode: "per_operational_hour" as const, count: 1, weekdays: [] } } : p,
+    );
+    const day = db.schedules[0]!.startDate;
+    db.coverage = [
+      { id: "auth-desk", date: day, positionId: "pos-desk", locationId: "loc-desk", start: 480, end: 1020, count: 1 },
+    ];
+    const resolved = resolveScheduleCoverage(db, "sched-week");
+    const deskThatDay = resolved.requirements.filter((r) => r.positionId === "pos-desk" && r.date === day);
+    expect(deskThatDay).toHaveLength(1); // cadence for that day/desk deduped against the authored row
+    expect(deskThatDay[0]!.id).toBe("auth-desk");
+  });
 });

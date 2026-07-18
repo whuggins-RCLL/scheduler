@@ -291,8 +291,11 @@ function scoreCandidate(
   const l = load[e.id];
   const minutes = req.end - req.start;
 
-  // Fairness: favour employees below their target load. Target scaled by %FTE.
-  const targetMinutes = e.targetWeeklyHours * 60 * Math.max(0.1, e.employmentPercentage);
+  // Fairness: favour employees below their target load. `targetWeeklyHours` is
+  // already the employee's actual weekly target (part-time included), so it is
+  // used directly — employmentPercentage is a separate fairness normalizer and
+  // must not be multiplied in here (that double-scaled part-time targets).
+  const targetMinutes = e.targetWeeklyHours * 60;
   const loadRatio = targetMinutes > 0 ? l.minutes / targetMinutes : 1;
   let score = weights.fairness * (1 - loadRatio);
 

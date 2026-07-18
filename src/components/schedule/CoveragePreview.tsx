@@ -46,11 +46,15 @@ export function CoveragePreview({ scheduleId }: { scheduleId: string }) {
         <h2 style={{ margin: 0 }}>Coverage templates</h2>
         <span
           className="badge info"
-          title={source === "derived"
-            ? "Derived from position/task frequency and operating hours"
-            : "Coverage was authored by hand for this schedule"}
+          title={
+            source === "derived"
+              ? "Derived from position/task frequency and operating hours"
+              : source === "merged"
+                ? "Hand-authored coverage, with cadence-derived demand merged in for everything not authored"
+                : "Coverage was authored by hand for this schedule"
+          }
         >
-          {source === "derived" ? "Derived from cadence + hours" : "Hand-authored"}
+          {source === "derived" ? "Derived from cadence + hours" : source === "merged" ? "Authored + cadence" : "Hand-authored"}
         </span>
       </div>
 
