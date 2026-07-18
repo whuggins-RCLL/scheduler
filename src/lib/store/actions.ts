@@ -42,6 +42,7 @@ import {
   weeklySignUpMinutes,
 } from "@/domain/student-availability";
 import { addDays } from "@/domain/time";
+import { buildCoverageRequirements } from "@/domain/coverage-generation";
 import type { Database } from "./types";
 
 /** Deep clone a snapshot so actions stay immutable and React re-renders. */
@@ -472,10 +473,23 @@ export function runGeneration(
   opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode; actorId: string; now: string },
 ): { db: Database; result: GenerationResult } {
   const next = clone(db);
-  const coverage = next.coverage.filter((c) => {
-    const sched = next.schedules.find((s) => s.id === scheduleId);
-    return sched ? c.date >= sched.startDate && c.date <= sched.endDate : true;
-  });
+  const sched = next.schedules.find((s) => s.id === scheduleId);
+  let coverage = next.coverage.filter((c) =>
+    sched ? c.date >= sched.startDate && c.date <= sched.endDate : true,
+  );
+  // No hand-authored coverage for this range: derive requirements from the
+  // configured position/task cadences and operating hours so generation has
+  // templates to fill. Stored coverage, when present, still takes precedence.
+  if (coverage.length === 0 && sched) {
+    const dates: string[] = [];
+    for (let d = sched.startDate; d <= sched.endDate; d = addDays(d, 1)) dates.push(d);
+    coverage = buildCoverageRequirements({
+      positions: next.positions,
+      tasks: next.tasks,
+      operatingHours: next.operatingHours,
+      dates,
+    }).requirements;
+  }
   const patterns: Record<string, AvailabilityPattern[]> = {};
   const leave: Record<string, LeaveRecord[]> = {};
   for (const e of next.employees) {
