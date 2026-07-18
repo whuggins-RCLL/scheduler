@@ -97,14 +97,6 @@ const SECTIONS: AdminSection[] = [
         access: "manage",
       },
       {
-        href: "/admin/map",
-        icon: "🗺️",
-        label: "Schedule map",
-        metric: (db) => `${db.locations.filter((l) => l.active).length + db.positions.filter((p) => p.active).length + db.tasks.filter((t) => t.active).length}`,
-        caption: "Visualize and edit how schedule types, positions, and tasks connect — one interactive map.",
-        access: "manage",
-      },
-      {
         href: "/admin/positions",
         icon: "🪑",
         label: "Positions",
@@ -223,6 +215,22 @@ export function AdminOverview() {
           each card explains what you can do there.
         </p>
       </div>
+
+      <Link href="/admin/map" className="card card-link admin-feature" aria-label="Open the schedule map">
+        <span className="admin-feature-icon" aria-hidden>🗺️</span>
+        <div className="admin-feature-body">
+          <div className="admin-feature-title">
+            Schedule map
+            <span className="badge info">{db.locations.filter((l) => l.active).length + db.positions.filter((p) => p.active).length + db.tasks.filter((t) => t.active).length} items</span>
+          </div>
+          <p className="muted admin-feature-caption">
+            An interactive map of the whole scheduling setup — see and edit how schedule types, positions, and
+            tasks connect, how much coverage each generates, and where staffing gaps are. Changes sync with every
+            settings screen.
+          </p>
+        </div>
+        <span className="admin-feature-cta" aria-hidden>Open map →</span>
+      </Link>
 
       <section className="card glass admin-sample" aria-labelledby="sample-data">
         <div>

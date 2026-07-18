@@ -1057,11 +1057,18 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 }
 .smap-node:active { cursor: grabbing; }
 .smap-node:hover { box-shadow: var(--shadow); }
-.smap-node-cov {
-  position: absolute; top: 4px; right: 5px; font-size: 0.6rem; font-weight: 800; line-height: 1;
-  padding: 0.12rem 0.32rem; border-radius: 999px; letter-spacing: 0.01em;
+.smap-node-pills { position: absolute; top: 4px; right: 5px; display: flex; gap: 3px; z-index: 1; }
+.smap-pill {
+  font-size: 0.6rem; font-weight: 800; line-height: 1; padding: 0.12rem 0.32rem;
+  border-radius: 999px; letter-spacing: 0.01em; white-space: nowrap;
+}
+.smap-pill.is-cov {
   background: color-mix(in srgb, var(--cardinal) 14%, var(--surface));
   color: var(--cardinal-dark); border: 1px solid color-mix(in srgb, var(--cardinal) 32%, var(--border));
+}
+.smap-pill.is-gap {
+  background: color-mix(in srgb, var(--error) 15%, var(--surface));
+  color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 38%, var(--border));
 }
 .smap-node.is-scheduleType { border-left-color: var(--cardinal); }
 .smap-node.is-position { border-left-color: var(--position-admin); }
@@ -1080,3 +1087,32 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .smap-panel .field > span { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.2rem; }
 .smap-links { border: none; padding: 0; margin: 0.6rem 0 0; }
 .smap-links > legend { font-weight: 600; font-size: 0.82rem; padding: 0; margin-bottom: 0.3rem; }
+
+/* Featured admin card (schedule map) */
+.admin-feature {
+  display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.25rem; text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--cardinal) 32%, var(--border));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--cardinal) 9%, var(--surface)), var(--surface) 65%);
+}
+.admin-feature:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.admin-feature-icon { font-size: 2.1rem; line-height: 1; flex: 0 0 auto; }
+.admin-feature-body { flex: 1 1 auto; min-width: 0; }
+.admin-feature-title { display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+.admin-feature-caption { margin: 0.3rem 0 0; font-size: 0.9rem; }
+.admin-feature-cta { color: var(--cardinal); font-weight: 650; white-space: nowrap; flex: 0 0 auto; }
+@media (max-width: 640px) {
+  .admin-feature { flex-wrap: wrap; }
+  .admin-feature-cta { width: 100%; }
+}
+
+/* Connect handle + temporary link line */
+.smap-stage.is-linking { cursor: crosshair; }
+.smap-node-handle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 13px; height: 13px; border-radius: 50%; padding: 0; cursor: crosshair; z-index: 2;
+  background: var(--surface); border: 2px solid var(--cardinal); opacity: 0; transition: opacity 0.12s;
+}
+.smap-node:hover .smap-node-handle, .smap-node.is-selected .smap-node-handle { opacity: 1; }
+.smap-node-handle:hover { background: color-mix(in srgb, var(--cardinal) 30%, var(--surface)); }
+.smap-node.is-linktarget { outline: 2px dashed var(--cardinal); outline-offset: 1px; }
+.smap-edge.is-temp { stroke: var(--cardinal); stroke-width: 2; stroke-dasharray: 6 4; }

@@ -24,11 +24,16 @@ import { FrequencyEditor } from "./FrequencyEditor";
 
 type Draft = Location | Position | Task;
 
-const COLUMN_HEADERS: { kind: MapNode["kind"]; label: string }[] = [
-  { kind: "scheduleType", label: "Schedule types" },
-  { kind: "position", label: "Positions" },
-  { kind: "task", label: "Tasks" },
+const COLUMN_HEADERS: { kind: MapNode["kind"]; label: string; index: number }[] = [
+  { kind: "scheduleType", label: "Schedule types", index: 0 },
+  { kind: "position", label: "Positions", index: 1 },
+  { kind: "task", label: "Tasks", index: 2 },
 ];
+
+/** Fixed x for a column header, independent of whether that column has nodes. */
+function columnHeaderX(index: number): number {
+  return MAP_LAYOUT.pad + index * (MAP_LAYOUT.nodeWidth + MAP_LAYOUT.colGap);
+}
 
 function blankLocation(): Location {
   return {
@@ -108,10 +113,16 @@ export function ScheduleMapAdmin() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [showCoverage, setShowCoverage] = useState(true);
+  const [showGaps, setShowGaps] = useState(false);
   const [layout, setLayout] = useState<Record<string, { x: number; y: number }>>({});
+  // Drag-to-connect: active link being drawn from a node's connect handle.
+  const [link, setLink] = useState<{ fromId: string; fromKind: MapNode["kind"]; fromEntityId: string } | null>(null);
+  const [linkCursor, setLinkCursor] = useState<{ x: number; y: number } | null>(null);
+  const [linkTarget, setLinkTarget] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const nodeDrag = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
   const movedRef = useRef(false);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const layoutKey = `rcll-schedule-map-layout:${currentUser.id}`;
   // Load this admin's saved node positions once mounted (client only).
@@ -163,6 +174,14 @@ export function ScheduleMapAdmin() {
     return { metrics: mapCoverageMetrics(requirements), skipped };
   }, [showCoverage, db.schedules, db.positions, db.tasks, db.operatingHours]);
 
+  // Staffing gaps: which generated windows the current staff cannot cover.
+  const gaps = useMemo(() => {
+    const schedule = db.schedules[0];
+    if (!showGaps || !schedule) return null;
+    return store.analyzeCoverageGaps(schedule.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGaps, db.schedules, db.positions, db.tasks, db.operatingHours, db.employees, db.availability, db.shifts, db.coverage]);
+
   if (!canManage(currentUser)) {
     return <div className="empty-state">You do not have access to this section.</div>;
   }
@@ -172,11 +191,63 @@ export function ScheduleMapAdmin() {
     if (node.kind === "position") return coverage.metrics.byPosition[node.entityId];
     return coverage.metrics.byTask[node.entityId];
   }
+  function gapFor(node: MapNode): number {
+    if (!gaps) return 0;
+    if (node.kind === "scheduleType") return gaps.byScheduleType[node.entityId] ?? 0;
+    if (node.kind === "position") return gaps.byPosition[node.entityId] ?? 0;
+    return gaps.byTask[node.entityId] ?? 0;
+  }
+
+  function toMapCoords(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return { x: (clientX - rect.left - pan.x) / zoom, y: (clientY - rect.top - pan.y) / zoom };
+  }
+  function nodeAt(mx: number, my: number): MapNode | undefined {
+    return nodes.find(
+      (n) => mx >= n.x && mx <= n.x + MAP_LAYOUT.nodeWidth && my >= n.y && my <= n.y + MAP_LAYOUT.nodeHeight,
+    );
+  }
+  // Left-to-right flow: schedule types feed positions and tasks; positions feed tasks.
+  function canLink(fromKind: MapNode["kind"], toKind: MapNode["kind"]): boolean {
+    if (fromKind === "scheduleType") return toKind === "position" || toKind === "task";
+    if (fromKind === "position") return toKind === "task";
+    return false;
+  }
+  function createLink(from: { kind: MapNode["kind"]; entityId: string }, to: MapNode) {
+    if (from.kind === "scheduleType" && to.kind === "position") {
+      const pos = db.positions.find((p) => p.id === to.entityId);
+      if (!pos) return;
+      const next = [...new Set([...positionScheduleTypeIds(pos), from.entityId])];
+      store.upsertPosition({ ...pos, applicableLocationIds: next, locationId: next[0] });
+    } else if (from.kind === "scheduleType" && to.kind === "task") {
+      const task = db.tasks.find((t) => t.id === to.entityId);
+      if (!task) return;
+      store.upsertTask({ ...task, applicableLocationIds: [...new Set([...task.applicableLocationIds, from.entityId])] });
+    } else if (from.kind === "position" && to.kind === "task") {
+      const task = db.tasks.find((t) => t.id === to.entityId);
+      if (!task) return;
+      store.upsertTask({ ...task, applicablePositionIds: [...new Set([...task.applicablePositionIds, from.entityId])] });
+    }
+  }
+  function onHandleMouseDown(e: React.MouseEvent, node: MapNode) {
+    e.stopPropagation();
+    setLink({ fromId: node.id, fromKind: node.kind, fromEntityId: node.entityId });
+    setLinkCursor(toMapCoords(e.clientX, e.clientY));
+    setLinkTarget(null);
+  }
 
   function onStageMouseDown(e: React.MouseEvent) {
     drag.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
   }
   function onStageMouseMove(e: React.MouseEvent) {
+    if (link) {
+      const c = toMapCoords(e.clientX, e.clientY);
+      setLinkCursor(c);
+      const target = nodeAt(c.x, c.y);
+      setLinkTarget(target && target.id !== link.fromId && canLink(link.fromKind, target.kind) ? target.id : null);
+      return;
+    }
     if (nodeDrag.current) {
       const nd = nodeDrag.current;
       const dx = (e.clientX - nd.startX) / zoom;
@@ -188,7 +259,21 @@ export function ScheduleMapAdmin() {
     if (!drag.current) return;
     setPan({ x: drag.current.panX + (e.clientX - drag.current.x), y: drag.current.panY + (e.clientY - drag.current.y) });
   }
-  function endDrag() {
+  function endDrag(e?: React.MouseEvent) {
+    if (link) {
+      if (e) {
+        const c = toMapCoords(e.clientX, e.clientY);
+        const target = nodeAt(c.x, c.y);
+        if (target && target.id !== link.fromId && canLink(link.fromKind, target.kind)) {
+          createLink({ kind: link.fromKind, entityId: link.fromEntityId }, target);
+        }
+      }
+      setLink(null);
+      setLinkCursor(null);
+      setLinkTarget(null);
+      drag.current = null;
+      return;
+    }
     if (nodeDrag.current) {
       const moved = nodeDrag.current.moved;
       nodeDrag.current = null;
@@ -254,8 +339,8 @@ export function ScheduleMapAdmin() {
         <h1>Schedule map</h1>
         <p className="muted">
           A live view of the scheduling logic — how schedule types, positions, and tasks connect. Drag nodes to
-          arrange them (saved per admin); changes here write straight to the catalog, so the Positions, Tasks, and
-          Schedule types screens stay in sync.
+          arrange them (saved per admin), or drag a node&rsquo;s handle onto another to link them. Changes here write
+          straight to the catalog, so the Positions, Tasks, and Schedule types screens stay in sync.
         </p>
       </div>
 
@@ -273,6 +358,9 @@ export function ScheduleMapAdmin() {
         <div className="row" style={{ gap: "0.3rem", flexWrap: "wrap" }}>
           <button type="button" className={`button sm${showCoverage ? " primary" : ""}`} aria-pressed={showCoverage} onClick={() => setShowCoverage((c) => !c)}>
             Coverage
+          </button>
+          <button type="button" className={`button sm${showGaps ? " primary" : ""}`} aria-pressed={showGaps} onClick={() => setShowGaps((g) => !g)}>
+            Gaps
           </button>
           <button type="button" className="button sm" onClick={resetLayout}>Reset layout</button>
           <button type="button" className="button sm" onClick={() => setZoom((z) => Math.max(0.4, z - 0.1))} aria-label="Zoom out">−</button>
@@ -296,30 +384,40 @@ export function ScheduleMapAdmin() {
         </p>
       )}
 
+      {showGaps && gaps && (
+        <p className="muted" style={{ margin: "-0.15rem 0 0", fontSize: "0.84rem" }}>
+          {gaps.total > 0 ? (
+            <>
+              <span className="badge err">{gaps.total}</span> staffing slot{gaps.total === 1 ? "" : "s"} per week can&rsquo;t be
+              covered by the current staff &amp; availability. Red numbers on nodes are unstaffable slots.
+            </>
+          ) : (
+            <>Current staff can cover every generated window. 🎉</>
+          )}
+        </p>
+      )}
+
       <div className={`smap-layout${selected ? " has-panel" : ""}`}>
         <div
-          className="smap-stage"
+          ref={stageRef}
+          className={`smap-stage${link ? " is-linking" : ""}`}
           onMouseDown={onStageMouseDown}
           onMouseMove={onStageMouseMove}
-          onMouseUp={endDrag}
-          onMouseLeave={endDrag}
+          onMouseUp={(e) => endDrag(e)}
+          onMouseLeave={() => endDrag()}
           onWheel={onWheel}
           role="application"
-          aria-label="Schedule map canvas — drag to pan, scroll to zoom"
+          aria-label="Schedule map canvas — drag to pan, scroll to zoom, drag a node's handle onto another to link them"
         >
           <div
             className="smap-viewport"
             style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, width: map.width, height: map.height }}
           >
-            {COLUMN_HEADERS.map(({ kind, label }) => {
-              const first = map.nodes.find((n) => n.kind === kind);
-              const x = first?.x ?? MAP_LAYOUT.pad;
-              return (
-                <div key={kind} className="smap-colhead" style={{ left: x, width: MAP_LAYOUT.nodeWidth }}>
-                  {label}
-                </div>
-              );
-            })}
+            {COLUMN_HEADERS.map(({ kind, label, index }) => (
+              <div key={kind} className="smap-colhead" style={{ left: columnHeaderX(index), width: MAP_LAYOUT.nodeWidth }}>
+                {label}
+              </div>
+            ))}
 
             <svg className="smap-edges" width={map.width} height={map.height} aria-hidden>
               {map.edges.map((edge) => {
@@ -338,24 +436,43 @@ export function ScheduleMapAdmin() {
                   />
                 );
               })}
+              {link && linkCursor && nodeById.get(link.fromId) && (
+                <path
+                  className="smap-edge is-temp"
+                  d={edgePath(nodeRightAnchor(nodeById.get(link.fromId)!), linkCursor)}
+                  fill="none"
+                />
+              )}
             </svg>
 
             {nodes.map((node) => {
               const isSelected = node.id === selectedNodeId;
               const dim = selectedNodeId ? !connectedNodeIds.has(node.id) : false;
               const cov = showCoverage ? coverageFor(node) : undefined;
+              const gap = showGaps ? gapFor(node) : 0;
+              const isTarget = linkTarget === node.id;
+              const canConnect = node.kind === "scheduleType" || node.kind === "position";
               return (
                 <button
                   key={node.id}
                   type="button"
-                  className={`smap-node is-${node.kind}${isSelected ? " is-selected" : ""}${dim ? " is-dim" : ""}${node.active ? "" : " is-inactive"}`}
+                  className={`smap-node is-${node.kind}${isSelected ? " is-selected" : ""}${dim ? " is-dim" : ""}${node.active ? "" : " is-inactive"}${isTarget ? " is-linktarget" : ""}`}
                   style={{ left: node.x, top: node.y, width: MAP_LAYOUT.nodeWidth, height: MAP_LAYOUT.nodeHeight }}
                   onMouseDown={(e) => onNodeMouseDown(e, node)}
                   onClick={() => onNodeClick(node)}
                 >
-                  {cov && cov.windows > 0 && (
-                    <span className="smap-node-cov" title={`${cov.windows} coverage window${cov.windows === 1 ? "" : "s"} · ${cov.slots} staffing slot${cov.slots === 1 ? "" : "s"} per week`}>
-                      {cov.windows}/wk
+                  {(gap > 0 || (cov && cov.windows > 0)) && (
+                    <span className="smap-node-pills">
+                      {gap > 0 && (
+                        <span className="smap-pill is-gap" title={`${gap} staffing slot${gap === 1 ? "" : "s"} per week the current staff can't cover`}>
+                          {gap} gap
+                        </span>
+                      )}
+                      {cov && cov.windows > 0 && (
+                        <span className="smap-pill is-cov" title={`${cov.windows} coverage window${cov.windows === 1 ? "" : "s"} · ${cov.slots} staffing slot${cov.slots === 1 ? "" : "s"} per week`}>
+                          {cov.windows}/wk
+                        </span>
+                      )}
                     </span>
                   )}
                   <span className="smap-node-label">{node.label}</span>
@@ -364,6 +481,14 @@ export function ScheduleMapAdmin() {
                     {node.universal && <span className="badge info" style={{ marginLeft: "0.3rem" }}>all types</span>}
                     {!node.active && <span className="badge" style={{ marginLeft: "0.3rem" }}>inactive</span>}
                   </span>
+                  {canConnect && (
+                    <span
+                      className="smap-node-handle"
+                      aria-hidden
+                      title="Drag onto another node to link them"
+                      onMouseDown={(e) => onHandleMouseDown(e, node)}
+                    />
+                  )}
                 </button>
               );
             })}

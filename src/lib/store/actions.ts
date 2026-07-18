@@ -502,33 +502,33 @@ export function resolveScheduleCoverage(db: Database, scheduleId: string): Resol
   return { requirements, skipped, source: "derived" };
 }
 
-export function runGeneration(
+/** Assemble the deterministic engine's input from a snapshot (read-only). */
+function buildGenerationInput(
   db: Database,
   scheduleId: string,
-  opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode; actorId: string; now: string },
-): { db: Database; result: GenerationResult } {
-  const next = clone(db);
-  const coverage = resolveScheduleCoverage(next, scheduleId).requirements;
+  requirements: CoverageRequirement[],
+  opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode; now: string },
+): Parameters<typeof generateSchedule>[0] {
   const patterns: Record<string, AvailabilityPattern[]> = {};
   const leave: Record<string, LeaveRecord[]> = {};
-  for (const e of next.employees) {
-    patterns[e.id] = next.availability.filter((p) => p.employeeId === e.id);
-    leave[e.id] = leaveRecordsForEmployee(next, e.id);
+  for (const e of db.employees) {
+    patterns[e.id] = db.availability.filter((p) => p.employeeId === e.id);
+    leave[e.id] = leaveRecordsForEmployee(db, e.id);
   }
   const policyByClassification: Record<string, ReturnType<typeof policyFor>> = {};
-  for (const e of next.employees) policyByClassification[e.classification] = policyFor(next, e.classification);
+  for (const e of db.employees) policyByClassification[e.classification] = policyFor(db, e.classification);
 
-  const locked = next.shifts.filter((s) => s.scheduleId === scheduleId && (s.locked || s.status === "published"));
-  const rules = next.notes.filter((n) => n.usableByEngine && n.structuredRule?.confirmed).map((n) => n.structuredRule!);
+  const locked = db.shifts.filter((s) => s.scheduleId === scheduleId && (s.locked || s.status === "published"));
+  const rules = db.notes.filter((n) => n.usableByEngine && n.structuredRule?.confirmed).map((n) => n.structuredRule!);
 
-  const result = generateSchedule({
+  return {
     seed: opts.seed,
-    requirements: coverage,
-    employees: next.employees.filter((e) => e.active),
-    positions: next.positions,
+    requirements,
+    employees: db.employees.filter((e) => e.active),
+    positions: db.positions,
     patterns,
     leave,
-    leaveTypes: next.leaveTypes,
+    leaveTypes: db.leaveTypes,
     policyByClassification,
     lockedShifts: locked,
     rules,
@@ -536,7 +536,49 @@ export function runGeneration(
     mode: opts.mode,
     scheduleId,
     now: opts.now,
-  });
+  };
+}
+
+/** How many required staffing slots the current staff cannot cover, per node. */
+export interface ScheduleGapAnalysis {
+  byScheduleType: Record<string, number>;
+  byPosition: Record<string, number>;
+  byTask: Record<string, number>;
+  total: number;
+}
+
+/**
+ * Read-only gap analysis: fill the schedule's coverage requirements against the
+ * current staff and availability, then report the slots that cannot be filled,
+ * attributed to their schedule type, host position, or task. Does not mutate.
+ */
+export function analyzeScheduleGaps(db: Database, scheduleId: string, now: string): ScheduleGapAnalysis {
+  const empty: ScheduleGapAnalysis = { byScheduleType: {}, byPosition: {}, byTask: {}, total: 0 };
+  const requirements = resolveScheduleCoverage(db, scheduleId).requirements;
+  if (requirements.length === 0) return empty;
+  const result = generateSchedule(buildGenerationInput(db, scheduleId, requirements, { seed: 1, mode: "full", now }));
+  const inc = (bucket: Record<string, number>, key: string) => { bucket[key] = (bucket[key] ?? 0) + 1; };
+  for (const u of result.unfilled) {
+    const r = u.requirement;
+    empty.total += 1;
+    inc(empty.byScheduleType, r.locationId);
+    const taskId = r.taskIds && r.taskIds.length > 0 ? r.taskIds[0]! : undefined;
+    if (taskId) inc(empty.byTask, taskId);
+    else inc(empty.byPosition, r.positionId);
+  }
+  return empty;
+}
+
+export function runGeneration(
+  db: Database,
+  scheduleId: string,
+  opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode; actorId: string; now: string },
+): { db: Database; result: GenerationResult } {
+  const next = clone(db);
+  const coverage = resolveScheduleCoverage(next, scheduleId).requirements;
+  const result = generateSchedule(
+    buildGenerationInput(next, scheduleId, coverage, { seed: opts.seed, weights: opts.weights, mode: opts.mode, now: opts.now }),
+  );
 
   // Replace generated (non-locked) shifts with the new draft.
   next.shifts = next.shifts.filter((s) => s.scheduleId !== scheduleId || s.locked || s.status === "published");
