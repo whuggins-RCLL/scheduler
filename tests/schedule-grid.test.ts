@@ -4,9 +4,13 @@ import { entriesForCell, slotOverlaps, deskSlotUncovered } from "../src/lib/sche
 import {
   defaultGridColumns,
   DESK_COLUMN_ID,
+  MEAL_COLUMN_ID,
+  REST_COLUMN_ID,
   mergeGridColumns,
   visibleColumns,
 } from "../src/lib/schedule-grid-preferences";
+import { defaultTasks } from "../src/lib/store/default-tasks";
+import { tasksForScheduleType } from "../src/lib/schedule-type-links";
 import { GRID_SLOT_MINUTES } from "../src/lib/schedule-view";
 
 describe("slotOverlaps", () => {
@@ -27,6 +31,48 @@ describe("defaultGridColumns", () => {
     expect(cols[cols.length - 1]?.kind).toBe("meal");
     const taskCols = cols.filter((c) => c.kind === "task");
     expect(taskCols.length).toBe(db.tasks.filter((t) => t.active).length);
+  });
+});
+
+describe("columns scoped by schedule type", () => {
+  it("desk schedule type shows only desk coverage and opening/closing tasks", () => {
+    const tasks = defaultTasks();
+    const scoped = tasksForScheduleType(tasks, "loc-desk");
+    // No desk positions in the default catalog, so coverage is task-based and
+    // break columns belong to the Breaks & Lunches schedule type.
+    const cols = defaultGridColumns(scoped, "Borrowing Desk", {
+      includeDeskColumn: false,
+      includeBreakColumns: false,
+    });
+    const labels = cols.map((c) => c.label);
+    expect(labels).toEqual([
+      "Desk 1 (Staff)",
+      "Desk 2 (Staff)",
+      "Desk 1 (Student)",
+      "Desk 2 (Student)",
+      "Open the Library",
+      "Close the Library",
+    ]);
+    // Tasks that belong to other schedule types are absent.
+    expect(labels).not.toContain("Shelving");
+    expect(labels).not.toContain("Dusting");
+    expect(labels).not.toContain("15 minute break (paid)");
+    expect(cols.some((c) => c.kind === "rest" || c.kind === "meal")).toBe(false);
+  });
+
+  it("each default task is assigned to exactly one schedule type (nothing global)", () => {
+    for (const t of defaultTasks()) {
+      expect(t.applicableLocationIds.length).toBe(1);
+    }
+  });
+
+  it("unscoped view still includes every active task plus desk and break columns", () => {
+    const tasks = defaultTasks();
+    const cols = defaultGridColumns(tasks);
+    expect(cols[0]?.id).toBe(DESK_COLUMN_ID);
+    expect(cols.some((c) => c.id === REST_COLUMN_ID)).toBe(true);
+    expect(cols.some((c) => c.id === MEAL_COLUMN_ID)).toBe(true);
+    expect(cols.filter((c) => c.kind === "task").length).toBe(tasks.filter((t) => t.active).length);
   });
 });
 
