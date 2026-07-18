@@ -25,6 +25,7 @@ import {
   validateBreakCoverage,
   validateTurnaround,
   validateWorkday,
+  type CoverageRequirement,
   type GenerationMode,
   type GenerationResult,
   type ScheduleWeights,
@@ -467,29 +468,47 @@ export function toggleLock(db: Database, shiftId: string, actorId: string, now: 
 // Generation + publication
 // ---------------------------------------------------------------------------
 
+/** How a schedule's coverage requirements were obtained. */
+export type CoverageSource = "authored" | "derived";
+
+export interface ResolvedCoverage {
+  requirements: CoverageRequirement[];
+  /** Cadence notes that could not be expanded (only for derived coverage). */
+  skipped: string[];
+  source: CoverageSource;
+}
+
+/**
+ * The coverage requirements generation will fill for a schedule. Hand-authored
+ * coverage in the schedule's date range takes precedence; otherwise it is
+ * derived from position/task cadence and operating hours. Shared by
+ * `runGeneration` and the manager-facing coverage preview so they never drift.
+ */
+export function resolveScheduleCoverage(db: Database, scheduleId: string): ResolvedCoverage {
+  const sched = db.schedules.find((s) => s.id === scheduleId);
+  const authored = db.coverage.filter((c) =>
+    sched ? c.date >= sched.startDate && c.date <= sched.endDate : true,
+  );
+  if (authored.length > 0) return { requirements: authored, skipped: [], source: "authored" };
+  if (!sched) return { requirements: [], skipped: [], source: "derived" };
+  const dates: string[] = [];
+  for (let d = sched.startDate; d <= sched.endDate; d = addDays(d, 1)) dates.push(d);
+  const { requirements, skipped } = buildCoverageRequirements({
+    positions: db.positions,
+    tasks: db.tasks,
+    operatingHours: db.operatingHours,
+    dates,
+  });
+  return { requirements, skipped, source: "derived" };
+}
+
 export function runGeneration(
   db: Database,
   scheduleId: string,
   opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode; actorId: string; now: string },
 ): { db: Database; result: GenerationResult } {
   const next = clone(db);
-  const sched = next.schedules.find((s) => s.id === scheduleId);
-  let coverage = next.coverage.filter((c) =>
-    sched ? c.date >= sched.startDate && c.date <= sched.endDate : true,
-  );
-  // No hand-authored coverage for this range: derive requirements from the
-  // configured position/task cadences and operating hours so generation has
-  // templates to fill. Stored coverage, when present, still takes precedence.
-  if (coverage.length === 0 && sched) {
-    const dates: string[] = [];
-    for (let d = sched.startDate; d <= sched.endDate; d = addDays(d, 1)) dates.push(d);
-    coverage = buildCoverageRequirements({
-      positions: next.positions,
-      tasks: next.tasks,
-      operatingHours: next.operatingHours,
-      dates,
-    }).requirements;
-  }
+  const coverage = resolveScheduleCoverage(next, scheduleId).requirements;
   const patterns: Record<string, AvailabilityPattern[]> = {};
   const leave: Record<string, LeaveRecord[]> = {};
   for (const e of next.employees) {

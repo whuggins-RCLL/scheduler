@@ -10,6 +10,7 @@ import { humanDate, positionColorVar, statusBadge, timeRange } from "@/lib/ui";
 import { fullDayLabel, todayISO } from "@/lib/schedule-view";
 import { ShiftDialog } from "./ShiftDialog";
 import { CombinedTaskScheduleGrid } from "./CombinedTaskScheduleGrid";
+import { CoveragePreview } from "./CoveragePreview";
 import { PersonalScheduleView } from "./PersonalScheduleView";
 
 type View = "board" | "list" | "grid";
@@ -105,6 +106,12 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
                 Publish
               </button>
             </div>
+          </div>
+
+          <CoveragePreview scheduleId={schedule.id} />
+
+          <div className="spread mt">
+            <div className="row"></div>
             <div className="row">
               <span className="badge info">Coverage {shifts.filter((s) => s.employeeId).length} assigned</span>
               <span className={`badge ${hardCount > 0 ? "err" : "ok"}`}>
