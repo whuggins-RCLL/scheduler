@@ -43,7 +43,7 @@ import {
   weeklySignUpMinutes,
 } from "@/domain/student-availability";
 import { addDays } from "@/domain/time";
-import { buildCoverageRequirements } from "@/domain/coverage-generation";
+import { buildCoverageRequirements, mergeCoverageRequirements } from "@/domain/coverage-generation";
 import type { Database } from "./types";
 
 /** Deep clone a snapshot so actions stay immutable and React re-renders. */
@@ -469,7 +469,7 @@ export function toggleLock(db: Database, shiftId: string, actorId: string, now: 
 // ---------------------------------------------------------------------------
 
 /** How a schedule's coverage requirements were obtained. */
-export type CoverageSource = "authored" | "derived";
+export type CoverageSource = "authored" | "derived" | "merged";
 
 export interface ResolvedCoverage {
   requirements: CoverageRequirement[];
@@ -480,26 +480,31 @@ export interface ResolvedCoverage {
 
 /**
  * The coverage requirements generation will fill for a schedule. Hand-authored
- * coverage in the schedule's date range takes precedence; otherwise it is
- * derived from position/task cadence and operating hours. Shared by
- * `runGeneration` and the manager-facing coverage preview so they never drift.
+ * coverage is always honored, and cadence-derived coverage is merged in for
+ * everything the manager didn't author (deduped per date/location/position/task)
+ * so a partially-authored week still picks up configured task/position
+ * frequencies. Shared by `runGeneration` and the coverage preview so they never
+ * drift. `source` reports whether the result is purely authored, purely derived,
+ * or a merge of the two.
  */
 export function resolveScheduleCoverage(db: Database, scheduleId: string): ResolvedCoverage {
   const sched = db.schedules.find((s) => s.id === scheduleId);
   const authored = db.coverage.filter((c) =>
     sched ? c.date >= sched.startDate && c.date <= sched.endDate : true,
   );
-  if (authored.length > 0) return { requirements: authored, skipped: [], source: "authored" };
-  if (!sched) return { requirements: [], skipped: [], source: "derived" };
+  if (!sched) return { requirements: authored, skipped: [], source: authored.length > 0 ? "authored" : "derived" };
   const dates: string[] = [];
   for (let d = sched.startDate; d <= sched.endDate; d = addDays(d, 1)) dates.push(d);
-  const { requirements, skipped } = buildCoverageRequirements({
+  const { requirements: derived, skipped } = buildCoverageRequirements({
     positions: db.positions,
     tasks: db.tasks,
     operatingHours: db.operatingHours,
     dates,
   });
-  return { requirements, skipped, source: "derived" };
+  const merged = mergeCoverageRequirements(authored, derived);
+  const source: CoverageSource =
+    authored.length === 0 ? "derived" : merged.length > authored.length ? "merged" : "authored";
+  return { requirements: merged, skipped, source };
 }
 
 export function runGeneration(

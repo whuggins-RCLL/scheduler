@@ -125,6 +125,23 @@ function distributeAcrossDays(count: number, dayCount: number): number[] {
   return per;
 }
 
+/**
+ * Merge hand-authored coverage with cadence-derived coverage. The manager's
+ * authored rows take precedence: for any (date, location, position, task) they
+ * authored, cadence-derived requirements are dropped, so authored windows are
+ * never doubled. Cadence fills everything else — so a partially-authored week
+ * no longer suppresses configured task/position frequencies.
+ */
+export function mergeCoverageRequirements(
+  authored: CoverageRequirement[],
+  derived: CoverageRequirement[],
+): CoverageRequirement[] {
+  const key = (r: CoverageRequirement) =>
+    `${r.date}|${r.locationId}|${r.positionId}|${r.taskIds && r.taskIds.length > 0 ? r.taskIds[0] : ""}`;
+  const owned = new Set(authored.map(key));
+  return [...authored, ...derived.filter((r) => !owned.has(key(r)))];
+}
+
 export function buildCoverageRequirements(input: CoverageGenerationInput): CoverageGenerationResult {
   const blockDefault = input.defaultBlockMinutes ?? DEFAULT_BLOCK_MINUTES;
   const hoursByLocation = new Map(input.operatingHours.map((h) => [h.locationId, h]));
