@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { summarizeCoverage } from "../src/lib/coverage-preview";
-import { resolveScheduleCoverage } from "../src/lib/store/actions";
+import { analyzeScheduleGaps, resolveScheduleCoverage } from "../src/lib/store/actions";
 import { buildCoverageRequirements } from "../src/domain/coverage-generation";
 import { buildFixture } from "./fixtures";
 import type { CoverageRequirement } from "../src/domain/scheduling";
@@ -48,6 +48,29 @@ describe("summarizeCoverage", () => {
     const task = summary.rows.find((r) => r.kind === "task");
     expect(task).toMatchObject({ label: "Open the Library", count: 2 });
     expect(summary.totalSlots).toBe(3);
+  });
+});
+
+describe("analyzeScheduleGaps", () => {
+  const NOW = "2026-07-20T00:00:00.000Z";
+
+  it("reports every required slot as a gap when there is no staff", () => {
+    const db = buildFixture();
+    db.employees = []; // nobody to cover anything
+    db.shifts = []; // and no pre-committed shifts
+    const gaps = analyzeScheduleGaps(db, "sched-week", NOW);
+    expect(gaps.total).toBeGreaterThan(0);
+    const summed = Object.values(gaps.byScheduleType).reduce((a, b) => a + b, 0);
+    expect(summed).toBe(gaps.total); // attribution sums to the total
+  });
+
+  it("returns an empty analysis when there are no requirements", () => {
+    const db = buildFixture();
+    db.coverage = [];
+    db.positions = db.positions.map((p) => ({ ...p, frequency: undefined }));
+    db.tasks = db.tasks.map((t) => ({ ...t, frequency: undefined }));
+    const gaps = analyzeScheduleGaps(db, "sched-week", NOW);
+    expect(gaps.total).toBe(0);
   });
 });
 

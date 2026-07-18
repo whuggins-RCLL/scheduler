@@ -154,6 +154,7 @@ export interface StoreContextValue {
   deleteTask: (id: string) => void;
   runGeneration: (scheduleId: string, opts: { seed: number; weights?: ScheduleWeights; mode?: GenerationMode }) => GenerationResult;
   previewCoverage: (scheduleId: string) => actions.ResolvedCoverage;
+  analyzeCoverageGaps: (scheduleId: string) => actions.ScheduleGapAnalysis;
   publishSchedule: (scheduleId: string) => actions.PublishResult;
   overrideCompliance: (o: Omit<ComplianceOverride, "id" | "createdAt">) => void;
   requestSwap: (input: { shiftId: string; toEmployeeId: string; reason?: string }) => actions.SwapOutcome;
@@ -597,6 +598,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return res.result;
       },
       previewCoverage: (scheduleId) => actions.resolveScheduleCoverage(db, scheduleId),
+      analyzeCoverageGaps: (scheduleId) => actions.analyzeScheduleGaps(db, scheduleId, now()),
       publishSchedule: (scheduleId) => {
         if (!canPublishSchedule(currentUser)) throw new Error("Publishing is restricted to managers and admins.");
         const res = actions.publishSchedule(db, scheduleId, actorId, now());
