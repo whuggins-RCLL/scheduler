@@ -49,6 +49,7 @@ export interface ScheduleWeights {
   avoidWeekend: number; // spread weekend load
   continuity: number; // prefer same person across the week for continuity
   minimizeFragmentation: number; // avoid isolated short shifts
+  compliance: number; // penalize assignments that would leave day-compliance findings
 }
 
 export const DEFAULT_WEIGHTS: ScheduleWeights = {
@@ -59,6 +60,7 @@ export const DEFAULT_WEIGHTS: ScheduleWeights = {
   avoidWeekend: 0.3,
   continuity: 0.25,
   minimizeFragmentation: 0.2,
+  compliance: 0.6,
 };
 
 export interface GenerationInput {
@@ -190,6 +192,10 @@ export function generateSchedule(input: GenerationInput): GenerationResult {
     }
   }
 
+  // Re-plan breaks across each employee's whole day before validating, so meal
+  // and rest periods reflect total daily work rather than any single shift.
+  if (mode !== "coverage_only") applyDayBreaks(allShifts, input);
+
   // Compliance validation of the resulting draft, per employee per day.
   const findings = validateAll(allShifts, input);
 
@@ -269,7 +275,7 @@ function pickCandidate(
   }
 
   // Score each eligible candidate (higher = better).
-  const scored = eligible.map((e) => ({ e, score: scoreCandidate(e, req, pos, input, load, weights) }));
+  const scored = eligible.map((e) => ({ e, score: scoreCandidate(e, req, pos, input, load, weights, allShifts) }));
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     // Deterministic tie-break blended with seeded RNG so equal scores rotate.
@@ -287,6 +293,7 @@ function scoreCandidate(
   input: GenerationInput,
   load: Record<string, RunningLoad>,
   weights: ScheduleWeights,
+  allShifts: Shift[],
 ): number {
   const l = load[e.id];
   const minutes = req.end - req.start;
@@ -336,7 +343,65 @@ function scoreCandidate(
     }
   }
 
+  // Compliance-aware: penalize an assignment that would leave the candidate's day
+  // with meal/rest/other findings even after whole-day break planning. Because
+  // breaks are planned in the projection, this fires only for findings that can't
+  // be broken away (e.g. a day too fragmented to seat a duty-free meal).
+  if (weights.compliance > 0) {
+    const penalty = projectedDayFindingCost(e, req, input, allShifts);
+    score -= weights.compliance * penalty;
+  }
+
   return score;
+}
+
+/** Severity-weighted count of compliance findings if `e` also worked `req` today. */
+function projectedDayFindingCost(
+  e: EmployeeProfile,
+  req: CoverageRequirement,
+  input: GenerationInput,
+  allShifts: Shift[],
+): number {
+  const policy = input.policyByClassification[e.classification];
+  if (!policy) return 0;
+  const prospective: Shift = {
+    id: `__probe-${e.id}-${req.id}`,
+    scheduleId: input.scheduleId,
+    employeeId: e.id,
+    positionId: req.positionId,
+    locationId: req.locationId,
+    date: req.date,
+    start: req.start,
+    end: req.end,
+    breaks: [],
+    taskIds: req.taskIds ?? [],
+    status: "draft",
+    source: "ai_generated",
+    locked: false,
+    scheduleVersion: 0,
+    createdAt: input.now,
+    updatedAt: input.now,
+  };
+  const projected = [...allShifts.filter((s) => s.employeeId === e.id && s.date === req.date), prospective];
+  const editableIds = new Set(projected.filter((s) => !input.lockedShifts.some((l) => l.id === s.id)).map((s) => s.id));
+  const planned = planDayBreaks(projected, editableIds, policy, effectivePattern(input.patterns[e.id] ?? [], req.date)?.mealBreakMinutes);
+  const withBreaks = projected.map((s) => (planned.has(s.id) ? { ...s, breaks: planned.get(s.id)! } : s));
+  const findings = validateWorkday({
+    employeeId: e.id,
+    classification: e.classification,
+    date: req.date,
+    shifts: withBreaks,
+    policy,
+    positions: input.positions,
+    patterns: input.patterns[e.id],
+    leave: input.leave[e.id],
+    leaveTypes: input.leaveTypes,
+  });
+  let cost = 0;
+  for (const f of findings) {
+    cost += f.severity === "hard" ? 3 : f.severity === "overrideable" ? 1.5 : f.severity === "warning" ? 0.5 : 0;
+  }
+  return cost;
 }
 
 function planBreaks(
@@ -376,6 +441,119 @@ function planBreaks(
   }
 
   return breaks.sort((a, b) => a.start - b.start);
+}
+
+/**
+ * Plan breaks across an employee's whole day rather than per shift. Meal and
+ * rest requirements are evaluated against total worked minutes for the day (the
+ * same basis `validateWorkday` uses), so several short shifts that together
+ * cross the meal threshold still get a meal — fixing the per-shift blind spot.
+ *
+ * Only `editableIds` shifts receive breaks (their break list is recomputed from
+ * scratch); locked/human shifts are read for context but never modified. Returns
+ * a map of shiftId -> new breaks for the editable shifts. Deterministic.
+ */
+export function planDayBreaks(
+  dayShifts: Shift[],
+  editableIds: Set<string>,
+  policy: BreakPolicy,
+  mealMinutesPref?: number,
+): Map<string, Break[]> {
+  const sorted = [...dayShifts].sort((a, b) => a.start - b.start);
+  const result = new Map<string, Break[]>();
+  for (const s of sorted) if (editableIds.has(s.id)) result.set(s.id, []);
+  if (result.size === 0) return result;
+
+  const breaksOf = (s: Shift): Break[] => (editableIds.has(s.id) ? result.get(s.id)! : s.breaks);
+  const dayStart = sorted[0]!.start;
+  const mealMinutes = Math.max(policy.mealMinDurationMinutes, mealMinutesPref ?? policy.mealMinDurationMinutes);
+
+  const workMinutes = () =>
+    sorted.reduce((sum, s) => {
+      const unpaid = breaksOf(s).filter((b) => !b.paid).reduce((m, b) => m + (b.end - b.start), 0);
+      return sum + (s.end - s.start) - unpaid;
+    }, 0);
+  const mealCount = () => sorted.reduce((n, s) => n + breaksOf(s).filter((b) => b.kind === "meal").length, 0);
+  const restCount = () => sorted.reduce((n, s) => n + breaksOf(s).filter((b) => b.kind === "rest").length, 0);
+  const overlapsOther = (win: { start: number; end: number }, hostId: string) =>
+    sorted.some((o) => o.id !== hostId && o.start < win.end && win.start < o.end);
+  const overlapsBreak = (br: Break[], win: { start: number; end: number }) =>
+    br.some((b) => b.start < win.end && win.start < b.end);
+
+  // Insert an unpaid meal that begins no later than `deadline` and is duty-free.
+  const insertMeal = (deadline: number): boolean => {
+    for (const s of sorted) {
+      if (!editableIds.has(s.id)) continue;
+      const br = result.get(s.id)!;
+      const earliest = s.start + 60; // work at least an hour before a meal
+      const latest = Math.min(deadline, s.end - mealMinutes - 15); // leave a little work after
+      if (latest < earliest) continue;
+      const centered = s.start + Math.floor((s.end - s.start) / 2) - Math.floor(mealMinutes / 2);
+      const start = Math.max(earliest, Math.min(centered, latest));
+      const win = { start, end: start + mealMinutes };
+      if (win.end > s.end || overlapsBreak(br, win) || overlapsOther(win, s.id)) continue;
+      br.push({ kind: "meal", start: win.start, end: win.end, paid: false });
+      br.sort((a, b) => a.start - b.start);
+      return true;
+    }
+    return false;
+  };
+
+  if (workMinutes() > policy.mealRequiredAfterMinutes && mealCount() === 0) {
+    insertMeal(dayStart + policy.mealMustStartByMinutesWorked);
+  }
+  if (workMinutes() > policy.secondMealAfterMinutes && mealCount() < 2) {
+    insertMeal(dayStart + policy.secondMealAfterMinutes + mealMinutes);
+  }
+
+  // One paid rest per exceeded rest threshold, placed duty-free and non-overlapping.
+  const requiredRests = policy.restPerHoursWorked.filter((r) => workMinutes() > r.thresholdMinutes).length;
+  let guard = 0;
+  while (restCount() < requiredRests && guard++ < 12) {
+    let placed = false;
+    for (const s of sorted) {
+      if (!editableIds.has(s.id)) continue;
+      const br = result.get(s.id)!;
+      for (let start = s.start + 45; start + 10 <= s.end - 30; start += 30) {
+        const win = { start, end: start + 10 };
+        if (overlapsBreak(br, win) || overlapsOther(win, s.id)) continue;
+        br.push({ kind: "rest", start: win.start, end: win.end, paid: true });
+        br.sort((a, b) => a.start - b.start);
+        placed = true;
+        break;
+      }
+      if (placed) break;
+    }
+    if (!placed) break;
+  }
+
+  return result;
+}
+
+/** Re-plan breaks for every employee-day of the generated shifts (in place). */
+function applyDayBreaks(allShifts: Shift[], input: GenerationInput): void {
+  const lockedIds = new Set(input.lockedShifts.map((s) => s.id));
+  const byEmpDay = new Map<string, Shift[]>();
+  for (const s of allShifts) {
+    if (!s.employeeId) continue;
+    const key = `${s.employeeId}:${s.date}`;
+    (byEmpDay.get(key) ?? byEmpDay.set(key, []).get(key)!).push(s);
+  }
+  for (const [key, dayShifts] of byEmpDay) {
+    const empId = key.slice(0, key.lastIndexOf(":"));
+    const emp = input.employees.find((e) => e.id === empId);
+    if (!emp) continue;
+    const policy = input.policyByClassification[emp.classification];
+    if (!policy) continue;
+    const editableIds = new Set(dayShifts.filter((s) => !lockedIds.has(s.id)).map((s) => s.id));
+    if (editableIds.size === 0) continue;
+    const mealPref = effectivePattern(input.patterns[empId] ?? [], dayShifts[0]!.date)?.mealBreakMinutes;
+    const planned = planDayBreaks(dayShifts, editableIds, policy, mealPref);
+    for (const s of dayShifts) {
+      const nb = planned.get(s.id);
+      if (nb) s.breaks = nb;
+    }
+  }
 }
 
 function validateAll(allShifts: Shift[], input: GenerationInput): ComplianceFinding[] {
