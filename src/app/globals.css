@@ -1116,3 +1116,48 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .smap-node-handle:hover { background: color-mix(in srgb, var(--cardinal) 30%, var(--surface)); }
 .smap-node.is-linktarget { outline: 2px dashed var(--cardinal); outline-offset: 1px; }
 .smap-edge.is-temp { stroke: var(--cardinal); stroke-width: 2; stroke-dasharray: 6 4; }
+
+/* ---- Schedule hub: dynamic per-type tabs, timeline, pop-out ---- */
+.schedule-tabs {
+  display: flex; gap: 0.35rem; margin-top: 0.85rem; padding-bottom: 0.35rem;
+  overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+}
+.schedule-tab {
+  display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-2);
+  border-radius: 999px; padding: 0.4rem 0.85rem; font: inherit; font-size: 0.86rem; font-weight: 550;
+  cursor: pointer; min-height: 36px; transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.schedule-tab:hover { background: var(--surface-2); }
+.schedule-tab-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--type, var(--brand-solid)); flex: 0 0 auto; }
+.schedule-tab.is-active {
+  color: var(--ink); font-weight: 650;
+  border-color: color-mix(in srgb, var(--type, var(--brand-solid)) 55%, var(--border-strong));
+  background: color-mix(in srgb, var(--type, var(--brand-solid)) 12%, var(--surface));
+}
+
+.schedule-popout { max-width: min(1180px, 96vw); width: 100%; max-height: 92vh; }
+.schedule-popout-body { overflow: auto; }
+
+/* Consolidated "my schedule" timeline */
+.my-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.my-entry {
+  display: grid; grid-template-columns: 92px 4px 1fr; align-items: stretch; gap: 0.7rem;
+  padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.my-entry-time { font-size: 0.8rem; font-weight: 650; color: var(--ink); align-self: center; font-variant-numeric: tabular-nums; }
+.my-entry-rail { border-radius: 999px; background: var(--type, var(--brand-solid)); }
+.my-entry-body { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.15rem; }
+.my-entry-title { font-weight: 600; font-size: 0.92rem; }
+.my-entry-meta { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.my-type-badge {
+  font-size: 0.72rem; font-weight: 650; padding: 0.1rem 0.45rem; border-radius: 999px; white-space: nowrap;
+  color: color-mix(in srgb, var(--type, var(--brand-solid)) 78%, var(--ink));
+  background: color-mix(in srgb, var(--type, var(--brand-solid)) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--type, var(--brand-solid)) 30%, var(--border));
+}
+.my-entry-tasks { font-size: 0.8rem; }
+.my-entry.is-break { background: var(--surface-2); border-style: dashed; }
+.my-entry.is-break .my-entry-title { font-weight: 550; color: var(--ink-2); font-style: italic; }
+.my-empty { padding: 1.25rem 0; text-align: center; }
