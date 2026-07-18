@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store/StoreProvider";
 import { canManage } from "@/domain/scope";
 import { DEFAULT_TIMEZONE } from "@/lib/config";
 import { defaultFrequency } from "@/domain/frequency";
-import { positionScheduleTypeIds } from "@/lib/schedule-type-links";
+import { positionScheduleTypeIds, taskAppliesToScheduleType } from "@/lib/schedule-type-links";
 import {
   MAP_LAYOUT,
   buildScheduleMap,
@@ -114,6 +114,7 @@ export function ScheduleMapAdmin() {
   const [zoom, setZoom] = useState(1);
   const [showCoverage, setShowCoverage] = useState(true);
   const [showGaps, setShowGaps] = useState(false);
+  const [filterType, setFilterType] = useState<string>(""); // "" = all schedule types
   const [layout, setLayout] = useState<Record<string, { x: number; y: number }>>({});
   // Drag-to-connect: active link being drawn from a node's connect handle.
   const [link, setLink] = useState<{ fromId: string; fromKind: MapNode["kind"]; fromEntityId: string } | null>(null);
@@ -135,10 +136,21 @@ export function ScheduleMapAdmin() {
     }
   }, [layoutKey]);
 
-  const map = useMemo(
-    () => buildScheduleMap({ locations: db.locations, positions: db.positions, tasks: db.tasks }),
-    [db.locations, db.positions, db.tasks],
-  );
+  // When focused on one schedule type, the map shows only that board: the type,
+  // the positions staffed on it, and the tasks that run on it (assigned to it or
+  // hosted by one of its positions). Re-laid-out compactly by buildScheduleMap.
+  const filterEntities = useMemo(() => {
+    if (!filterType) return { locations: db.locations, positions: db.positions, tasks: db.tasks };
+    const locations = db.locations.filter((l) => l.id === filterType);
+    const positions = db.positions.filter((p) => positionScheduleTypeIds(p).includes(filterType));
+    const posIds = new Set(positions.map((p) => p.id));
+    const tasks = db.tasks.filter(
+      (t) => taskAppliesToScheduleType(t, filterType) || t.applicablePositionIds.some((id) => posIds.has(id)),
+    );
+    return { locations, positions, tasks };
+  }, [filterType, db.locations, db.positions, db.tasks]);
+
+  const map = useMemo(() => buildScheduleMap(filterEntities), [filterEntities]);
   // Effective positions = computed layout with any saved/dragged overrides.
   const nodes = useMemo(
     () => map.nodes.map((n) => (layout[n.id] ? { ...n, x: layout[n.id]!.x, y: layout[n.id]!.y } : n)),
@@ -320,17 +332,25 @@ export function ScheduleMapAdmin() {
   function addLocation() {
     const loc = blankLocation();
     store.upsertLocation(loc);
+    setFilterType(""); // a new type wouldn't show under another board's focus
     setSelected({ kind: "scheduleType", id: loc.id });
   }
   function addPosition() {
     const pos = blankPosition(db.positions.length);
+    // When focused on a board, new items land on it.
+    if (filterType) { pos.applicableLocationIds = [filterType]; pos.locationId = filterType; }
     store.upsertPosition(pos);
     setSelected({ kind: "position", id: pos.id });
   }
   function addTask() {
     const task = blankTask(db.tasks.length);
+    if (filterType) task.applicableLocationIds = [filterType];
     store.upsertTask(task);
     setSelected({ kind: "task", id: task.id });
+  }
+  function onFilterChange(next: string) {
+    setFilterType(next);
+    setSelected(null); // avoid an editor open for a node hidden by the new focus
   }
 
   return (
@@ -345,10 +365,24 @@ export function ScheduleMapAdmin() {
       </div>
 
       <div className="smap-toolbar">
-        <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+        <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" className="button sm" onClick={addLocation}>+ Schedule type</button>
           <button type="button" className="button sm" onClick={addPosition}>+ Position</button>
           <button type="button" className="button sm" onClick={addTask}>+ Task</button>
+          <label className="row" style={{ gap: "0.3rem", marginLeft: "0.25rem" }}>
+            <span className="sr-only">Focus on a schedule type</span>
+            <select
+              className={`button sm${filterType ? " primary" : ""}`}
+              value={filterType}
+              onChange={(e) => onFilterChange(e.target.value)}
+              aria-label="Focus the map on one schedule type"
+            >
+              <option value="">All schedule types</option>
+              {[...db.locations].filter((l) => l.active).sort((a, b) => a.name.localeCompare(b.name)).map((l) => (
+                <option key={l.id} value={l.id}>Focus: {l.name}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="row" style={{ gap: "0.35rem" }}>
           <span className="smap-legend"><i className="smap-swatch is-scheduleType" /> Schedule type</span>
