@@ -15,6 +15,7 @@ import {
   saveGridPreferences,
   visibleColumns,
 } from "@/lib/schedule-grid-preferences";
+import { positionsForScheduleType, tasksForScheduleType } from "@/lib/schedule-type-links";
 import { taskColorVar, timeRange } from "@/lib/ui";
 import type { Shift } from "@/domain/types";
 import { ShiftDialog } from "@/components/schedule/ShiftDialog";
@@ -25,6 +26,13 @@ export interface CombinedTaskScheduleGridProps {
   deskLocationId?: string;
   deskPositionId?: string;
   deskLabel?: string;
+  /**
+   * When set, the grid shows only the columns that belong to this schedule
+   * type: its assigned tasks (via `applicableLocationIds`) plus a desk-coverage
+   * column when the type has desk positions. Break columns are shown only in
+   * the unscoped ("all schedule types") view. Omit to show every active task.
+   */
+  scheduleTypeId?: string;
   onSelectShift?: (shift: Shift) => void;
   embedded?: boolean;
 }
@@ -35,6 +43,7 @@ export function CombinedTaskScheduleGrid({
   deskLocationId = "loc-desk",
   deskPositionId,
   deskLabel = "Borrowing Desk",
+  scheduleTypeId,
   onSelectShift,
   embedded = false,
 }: CombinedTaskScheduleGridProps) {
@@ -50,14 +59,32 @@ export function CombinedTaskScheduleGrid({
       ?? db.positions.find((p) => /desk/i.test(p.name))?.id;
   }, [db.positions, deskLocationId, deskPositionId]);
 
+  // Columns are scoped to the schedule type when one is given: only its
+  // assigned tasks, a desk-coverage column when it has desk positions, and no
+  // break columns (breaks belong to the Breaks & Lunches schedule type).
+  const scopedTasks = useMemo(
+    () => (scheduleTypeId ? tasksForScheduleType(db.tasks, scheduleTypeId) : db.tasks),
+    [db.tasks, scheduleTypeId],
+  );
+  const columnOpts = useMemo(() => {
+    if (!scheduleTypeId) return {};
+    // Show the desk-coverage column only when this schedule type has a desk
+    // position assigned; otherwise coverage is represented by task columns.
+    const includeDeskColumn = Boolean(
+      deskPos && positionsForScheduleType(db.positions, scheduleTypeId).some((p) => p.id === deskPos),
+    );
+    return { includeDeskColumn, includeBreakColumns: false };
+  }, [db.positions, scheduleTypeId, deskPos]);
+  const scopeKey = scheduleTypeId || "all";
+
   useEffect(() => {
-    setPrefs(loadGridPreferences(db.tasks, deskLabel));
-  }, [db.tasks, deskLabel]);
+    setPrefs(loadGridPreferences(scopedTasks, deskLabel, columnOpts, scopeKey));
+  }, [scopedTasks, deskLabel, columnOpts, scopeKey]);
 
   const persist = useCallback((next: ScheduleGridPreferences) => {
     setPrefs(next);
-    saveGridPreferences(next);
-  }, []);
+    saveGridPreferences(next, scopeKey);
+  }, [scopeKey]);
 
   const dayShifts = useMemo(
     () => shifts.filter((s) => s.date === date && s.status !== "cancelled"),

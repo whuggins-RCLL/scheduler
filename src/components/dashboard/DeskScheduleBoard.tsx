@@ -92,6 +92,7 @@ export function DeskScheduleBoard({ embedded = false }: { embedded?: boolean }) 
             shifts={shifts}
             deskLocationId={deskLocation?.id ?? "loc-desk"}
             deskLabel={deskLocation?.shortName ? `${deskLocation.shortName} desk` : "Borrowing Desk"}
+            scheduleTypeId={locationId || undefined}
             onSelectShift={onSelect}
           />
         ) : (

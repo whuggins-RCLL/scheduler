@@ -35,20 +35,39 @@ export const COLOR_SCHEME_LABELS: Record<ScheduleGridColorScheme, string> = {
   sunset: "Sunset Operations",
 };
 
+/**
+ * Which structural (non-task) columns to include. Task columns always come from
+ * the `tasks` array the caller passes — scope those by schedule type upstream.
+ * The defaults reproduce the original "show everything" grid so existing
+ * callers and tests are unaffected.
+ */
+export interface GridColumnOptions {
+  /** Include the desk-coverage column (position-based staffing). */
+  includeDeskColumn?: boolean;
+  /** Include the Rest breaks / Lunch & meal columns (break markers on shifts). */
+  includeBreakColumns?: boolean;
+}
+
 /** Build default columns: desk first, then active tasks, then breaks & lunch. */
-export function defaultGridColumns(tasks: Task[], deskLabel = "Borrowing Desk"): ScheduleGridColumn[] {
+export function defaultGridColumns(
+  tasks: Task[],
+  deskLabel = "Borrowing Desk",
+  opts: GridColumnOptions = {},
+): ScheduleGridColumn[] {
+  const { includeDeskColumn = true, includeBreakColumns = true } = opts;
   const sorted = [...tasks].filter((t) => t.active).sort((a, b) => a.order - b.order);
-  const cols: ScheduleGridColumn[] = [
-    {
+  const cols: ScheduleGridColumn[] = [];
+  if (includeDeskColumn) {
+    cols.push({
       id: DESK_COLUMN_ID,
       kind: "desk",
       label: deskLabel,
       colorToken: "position-desk",
       visible: true,
       order: 0,
-    },
-  ];
-  sorted.forEach((t, i) => {
+    });
+  }
+  sorted.forEach((t) => {
     cols.push({
       id: `col-task-${t.id}`,
       kind: "task",
@@ -56,27 +75,29 @@ export function defaultGridColumns(tasks: Task[], deskLabel = "Borrowing Desk"):
       label: t.name,
       colorToken: t.colorToken || categoryTaskColor(t.category),
       visible: true,
-      order: i + 1,
+      order: cols.length,
     });
   });
-  cols.push(
-    {
-      id: REST_COLUMN_ID,
-      kind: "rest",
-      label: "Rest breaks",
-      colorToken: "task-rest",
-      visible: true,
-      order: cols.length,
-    },
-    {
-      id: MEAL_COLUMN_ID,
-      kind: "meal",
-      label: "Lunch / meal",
-      colorToken: "task-meal",
-      visible: true,
-      order: cols.length + 1,
-    },
-  );
+  if (includeBreakColumns) {
+    cols.push(
+      {
+        id: REST_COLUMN_ID,
+        kind: "rest",
+        label: "Rest breaks",
+        colorToken: "task-rest",
+        visible: true,
+        order: cols.length,
+      },
+      {
+        id: MEAL_COLUMN_ID,
+        kind: "meal",
+        label: "Lunch / meal",
+        colorToken: "task-meal",
+        visible: true,
+        order: cols.length + 1,
+      },
+    );
+  }
   return cols;
 }
 
@@ -88,18 +109,27 @@ function categoryTaskColor(category: string): string {
   return "task-neutral";
 }
 
-export function defaultGridPreferences(tasks: Task[], deskLabel?: string): ScheduleGridPreferences {
+export function defaultGridPreferences(
+  tasks: Task[],
+  deskLabel?: string,
+  opts: GridColumnOptions = {},
+): ScheduleGridPreferences {
   return {
     colorScheme: "cardinal",
-    columns: defaultGridColumns(tasks, deskLabel),
+    columns: defaultGridColumns(tasks, deskLabel, opts),
     showHalfHourLines: true,
     compactCells: false,
   };
 }
 
 /** Merge saved columns with current tasks (add new tasks, drop removed). */
-export function mergeGridColumns(saved: ScheduleGridColumn[], tasks: Task[], deskLabel?: string): ScheduleGridColumn[] {
-  const fresh = defaultGridColumns(tasks, deskLabel);
+export function mergeGridColumns(
+  saved: ScheduleGridColumn[],
+  tasks: Task[],
+  deskLabel?: string,
+  opts: GridColumnOptions = {},
+): ScheduleGridColumn[] {
+  const fresh = defaultGridColumns(tasks, deskLabel, opts);
   const byId = new Map(saved.map((c) => [c.id, c]));
   return fresh.map((col) => {
     const prev = byId.get(col.id);
@@ -113,14 +143,28 @@ export function mergeGridColumns(saved: ScheduleGridColumn[], tasks: Task[], des
   }).sort((a, b) => a.order - b.order);
 }
 
-export function loadGridPreferences(tasks: Task[], deskLabel?: string): ScheduleGridPreferences {
-  if (typeof window === "undefined") return defaultGridPreferences(tasks, deskLabel);
+/**
+ * Saved column visibility/order is scoped per board so customizing one schedule
+ * type doesn't reshuffle another. `scopeKey` is typically the schedule-type id
+ * (or "all" for the unscoped view).
+ */
+function storageKeyFor(scopeKey?: string): string {
+  return scopeKey ? `${STORAGE_KEY}:${scopeKey}` : STORAGE_KEY;
+}
+
+export function loadGridPreferences(
+  tasks: Task[],
+  deskLabel?: string,
+  opts: GridColumnOptions = {},
+  scopeKey?: string,
+): ScheduleGridPreferences {
+  if (typeof window === "undefined") return defaultGridPreferences(tasks, deskLabel, opts);
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultGridPreferences(tasks, deskLabel);
+    const raw = window.localStorage.getItem(storageKeyFor(scopeKey));
+    if (!raw) return defaultGridPreferences(tasks, deskLabel, opts);
     const parsed = JSON.parse(raw) as Partial<ScheduleGridPreferences>;
     const colorScheme = parsed.colorScheme ?? "cardinal";
-    const columns = mergeGridColumns(parsed.columns ?? [], tasks, deskLabel);
+    const columns = mergeGridColumns(parsed.columns ?? [], tasks, deskLabel, opts);
     return {
       colorScheme,
       columns,
@@ -128,14 +172,14 @@ export function loadGridPreferences(tasks: Task[], deskLabel?: string): Schedule
       compactCells: parsed.compactCells ?? false,
     };
   } catch {
-    return defaultGridPreferences(tasks, deskLabel);
+    return defaultGridPreferences(tasks, deskLabel, opts);
   }
 }
 
-export function saveGridPreferences(prefs: ScheduleGridPreferences): void {
+export function saveGridPreferences(prefs: ScheduleGridPreferences, scopeKey?: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    window.localStorage.setItem(storageKeyFor(scopeKey), JSON.stringify(prefs));
   } catch { /* ignore quota */ }
 }
 
