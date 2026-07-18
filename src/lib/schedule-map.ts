@@ -10,6 +10,7 @@
  *   - a task is hosted by a position (`applicablePositionIds`)
  */
 import type { Location, Position, Task } from "@/domain/types";
+import type { CoverageRequirement } from "@/domain/scheduling";
 import { describeFrequency } from "@/domain/frequency";
 import { positionScheduleTypeIds } from "@/lib/schedule-type-links";
 
@@ -179,4 +180,49 @@ export function nodeLeftAnchor(node: MapNode): { x: number; y: number } {
 export function edgePath(from: { x: number; y: number }, to: { x: number; y: number }): string {
   const dx = Math.max(40, Math.abs(to.x - from.x) * 0.4);
   return `M ${from.x} ${from.y} C ${from.x + dx} ${from.y}, ${to.x - dx} ${to.y}, ${to.x} ${to.y}`;
+}
+
+export interface NodeCoverage {
+  windows: number; // number of coverage windows generated
+  slots: number; // total headcount across those windows
+}
+
+export interface MapCoverage {
+  byScheduleType: Record<string, NodeCoverage>;
+  byPosition: Record<string, NodeCoverage>;
+  byTask: Record<string, NodeCoverage>;
+  totalWindows: number;
+  totalSlots: number;
+}
+
+/**
+ * Attribute derived coverage requirements to the map's nodes. Every requirement
+ * counts toward its schedule type; task requirements (those carrying a task id)
+ * count toward that task, and post-coverage requirements (no task) count toward
+ * their host position. This is what each node "generates" over the range.
+ */
+export function mapCoverageMetrics(requirements: CoverageRequirement[]): MapCoverage {
+  const byScheduleType: Record<string, NodeCoverage> = {};
+  const byPosition: Record<string, NodeCoverage> = {};
+  const byTask: Record<string, NodeCoverage> = {};
+  let totalWindows = 0;
+  let totalSlots = 0;
+
+  const bump = (bucket: Record<string, NodeCoverage>, key: string, slots: number) => {
+    const entry = bucket[key] ?? { windows: 0, slots: 0 };
+    entry.windows += 1;
+    entry.slots += slots;
+    bucket[key] = entry;
+  };
+
+  for (const req of requirements) {
+    totalWindows += 1;
+    totalSlots += req.count;
+    bump(byScheduleType, req.locationId, req.count);
+    const taskId = req.taskIds && req.taskIds.length > 0 ? req.taskIds[0]! : undefined;
+    if (taskId) bump(byTask, taskId, req.count);
+    else bump(byPosition, req.positionId, req.count);
+  }
+
+  return { byScheduleType, byPosition, byTask, totalWindows, totalSlots };
 }

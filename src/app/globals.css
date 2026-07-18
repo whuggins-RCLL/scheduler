@@ -1053,9 +1053,16 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
   position: absolute; text-align: left; display: flex; flex-direction: column; justify-content: center;
   gap: 0.1rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong); border-left-width: 4px; background: var(--surface);
-  box-shadow: var(--shadow-sm); cursor: pointer; overflow: hidden; transition: box-shadow 0.15s, opacity 0.15s, transform 0.1s;
+  box-shadow: var(--shadow-sm); cursor: grab; overflow: hidden; transition: box-shadow 0.15s, opacity 0.15s;
 }
-.smap-node:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.smap-node:active { cursor: grabbing; }
+.smap-node:hover { box-shadow: var(--shadow); }
+.smap-node-cov {
+  position: absolute; top: 4px; right: 5px; font-size: 0.6rem; font-weight: 800; line-height: 1;
+  padding: 0.12rem 0.32rem; border-radius: 999px; letter-spacing: 0.01em;
+  background: color-mix(in srgb, var(--cardinal) 14%, var(--surface));
+  color: var(--cardinal-dark); border: 1px solid color-mix(in srgb, var(--cardinal) 32%, var(--border));
+}
 .smap-node.is-scheduleType { border-left-color: var(--cardinal); }
 .smap-node.is-position { border-left-color: var(--position-admin); }
 .smap-node.is-task { border-left-color: var(--task-collections); }
