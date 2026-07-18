@@ -51,7 +51,7 @@ export function appliesOnDate(freq: SchedulingFrequency | undefined, date: ISODa
  * Occurrences required on a specific date. `per_operational_hour` scales with
  * the day's open-hours; `times_per_day` is a flat count. `times_per_week` is a
  * weekly total (not a per-day count) so it returns 0 here — the weekly
- * distributor that spreads it across the week is future automation work.
+ * distributor that spreads it across the week lives in `coverage-generation`.
  */
 export function occurrencesOnDate(
   freq: SchedulingFrequency | undefined,

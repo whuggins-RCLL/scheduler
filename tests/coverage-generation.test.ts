@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildCoverageRequirements } from "../src/domain/coverage-generation";
 import { runGeneration } from "../src/lib/store/actions";
+import { addDays as addDaysStr } from "../src/domain/time";
 import { buildFixture } from "./fixtures";
 import type { OperatingHours, Position, SchedulingFrequency, Task } from "../src/domain/types";
 
@@ -128,15 +129,43 @@ describe("buildCoverageRequirements — positions", () => {
     expect(requirements).toHaveLength(0);
   });
 
-  it("defers times_per_week and records a skip note", () => {
-    const { requirements, skipped } = buildCoverageRequirements({
-      positions: [position({ id: "pos-desk", name: "Desk", applicableLocationIds: ["loc-desk"], frequency: freq("times_per_week", 3) })],
+  it("distributes times_per_week across the week's open days", () => {
+    // Full open week (Mon–Sun), 3×/week -> 3 distinct days, one block each.
+    const dates = Array.from({ length: 7 }, (_, i) => addDaysStr(MONDAY, i));
+    const { requirements } = buildCoverageRequirements({
+      positions: [position({ id: "pos-desk", applicableLocationIds: ["loc-desk"], frequency: freq("times_per_week", 3) })],
       tasks: [],
       operatingHours: [hours("loc-desk")],
-      dates: [MONDAY],
+      dates,
     });
-    expect(requirements).toHaveLength(0);
-    expect(skipped.some((s) => s.includes("week"))).toBe(true);
+    expect(requirements).toHaveLength(3);
+    const days = new Set(requirements.map((r) => r.date));
+    expect(days.size).toBe(3); // spread across three distinct days
+  });
+
+  it("distributes times_per_week per week across a multi-week range", () => {
+    const dates = Array.from({ length: 14 }, (_, i) => addDaysStr(MONDAY, i));
+    const { requirements } = buildCoverageRequirements({
+      positions: [position({ id: "pos-desk", applicableLocationIds: ["loc-desk"], frequency: freq("times_per_week", 2) })],
+      tasks: [],
+      operatingHours: [hours("loc-desk")],
+      dates,
+    });
+    expect(requirements).toHaveLength(4); // 2 per week × 2 weeks
+  });
+
+  it("only counts open, weekday-eligible days when distributing weekly", () => {
+    // Weekdays only open; frequency limited to Mon/Wed/Fri; 5×/week caps onto 3 days.
+    const dates = Array.from({ length: 7 }, (_, i) => addDaysStr(MONDAY, i));
+    const { requirements } = buildCoverageRequirements({
+      positions: [position({ id: "pos-desk", applicableLocationIds: ["loc-desk"], frequency: freq("times_per_week", 5, [1, 3, 5]) })],
+      tasks: [],
+      operatingHours: [hours("loc-desk", [1, 2, 3, 4, 5])],
+      dates,
+    });
+    const days = new Set(requirements.map((r) => r.date));
+    expect(days.size).toBe(3); // only Mon/Wed/Fri are eligible
+    expect(requirements).toHaveLength(5); // all 5 placed, round-robin onto the 3 days
   });
 });
 
@@ -156,6 +185,22 @@ describe("buildCoverageRequirements — tasks", () => {
       expect(r.taskIds).toEqual(["task-shelving"]);
       expect(r.end - r.start).toBe(30);
     }
+  });
+
+  it("auto-hosts a task at its schedule type's primary position (no explicit link)", () => {
+    const { requirements } = buildCoverageRequirements({
+      positions: [
+        position({ id: "pos-stacks-lead", applicableLocationIds: ["loc-stacks"], order: 0 }),
+        position({ id: "pos-stacks-2", applicableLocationIds: ["loc-stacks"], order: 5 }),
+      ],
+      // No applicablePositionIds — the task should land on the schedule type only.
+      tasks: [task({ id: "task-shelving", applicableLocationIds: ["loc-stacks"], frequency: freq("times_per_day", 1) })],
+      operatingHours: [hours("loc-stacks")],
+      dates: [MONDAY],
+    });
+    expect(requirements).toHaveLength(1);
+    expect(requirements[0]?.positionId).toBe("pos-stacks-lead"); // lowest order wins
+    expect(requirements[0]?.taskIds).toEqual(["task-shelving"]);
   });
 
   it("skips a task with no active linked position", () => {

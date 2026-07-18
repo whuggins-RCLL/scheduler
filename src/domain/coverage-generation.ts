@@ -11,8 +11,13 @@
  *   - `per_operational_hour`: staffed continuously whenever the schedule type is
  *     open — one requirement spanning each open interval.
  *   - `times_per_day`: N discrete blocks spread across the open day.
- *   - `times_per_week`: a weekly total, not a per-day count — deferred here (the
- *     weekly distributor is future work) and reported in `skipped`.
+ *   - `times_per_week`: a weekly total, distributed across the week's open days
+ *     (evenly when the count fits, round-robin when it exceeds the open days).
+ *
+ * Tasks generate demand at their schedule type's positions automatically: a task
+ * is hosted by the primary position of each schedule type it applies to (an
+ * explicit `applicablePositionIds` list narrows the eligible hosts). A schedule
+ * type with no active position to host the task is reported in `skipped`.
  *
  * Pure and deterministic: identical inputs produce identical requirements, and
  * requirement ids are derived from their contents so re-running is stable.
@@ -21,13 +26,14 @@ import type {
   ISODate,
   OperatingHours,
   Position,
+  SchedulingFrequency,
   Task,
   TimeInterval,
 } from "./types";
 import type { CoverageRequirement } from "./scheduling";
-import { appliesOnDate, occurrencesOnDate } from "./frequency";
+import { appliesOnDate } from "./frequency";
 import { deskOpenIntervalsForDate } from "./desk-coverage";
-import { mergeIntervals } from "./time";
+import { addDays, mergeIntervals, weekdayOf } from "./time";
 
 // `deskOpenIntervalsForDate` resolves a location's open intervals for a date
 // (dated exception overrides weekly hours). It is schedule-type agnostic despite
@@ -52,6 +58,17 @@ export interface CoverageGenerationResult {
 
 const DEFAULT_BLOCK_MINUTES = 60;
 
+/** A normalized unit of demand: who/where, how many, how long, how often. */
+interface DemandSource {
+  locationId: string;
+  positionId: string;
+  count: number;
+  blockMinutes: number;
+  taskId?: string;
+  freq: SchedulingFrequency;
+  label: string;
+}
+
 /** Schedule types a position is staffed on (many-to-many, legacy fallback). */
 function scheduleTypeIdsForPosition(p: Position): string[] {
   if (p.applicableLocationIds.length > 0) return p.applicableLocationIds;
@@ -65,6 +82,11 @@ function staffingFor(p: Position): number {
 
 function totalMinutes(intervals: TimeInterval[]): number {
   return intervals.reduce((sum, iv) => sum + Math.max(0, iv.end - iv.start), 0);
+}
+
+/** Monday (ISO date) of the week containing `date`. */
+function mondayOf(date: ISODate): ISODate {
+  return addDays(date, -((weekdayOf(date) + 6) % 7));
 }
 
 /**
@@ -92,13 +114,20 @@ function spreadBlocks(open: TimeInterval[], count: number, blockMinutes: number)
 }
 
 /**
- * Expand position and task cadences into dated coverage requirements the
- * scheduling engine can fill.
+ * Distribute `count` weekly occurrences across `dayCount` open days, returning
+ * the per-day occurrence counts. Even when the count fits; round-robin (some
+ * days carry an extra) when it exceeds the number of open days.
  */
+function distributeAcrossDays(count: number, dayCount: number): number[] {
+  const per = new Array<number>(dayCount).fill(0);
+  if (dayCount <= 0 || count <= 0) return per;
+  for (let i = 0; i < count; i++) per[Math.floor((i * dayCount) / count)] += 1;
+  return per;
+}
+
 export function buildCoverageRequirements(input: CoverageGenerationInput): CoverageGenerationResult {
   const blockDefault = input.defaultBlockMinutes ?? DEFAULT_BLOCK_MINUTES;
   const hoursByLocation = new Map(input.operatingHours.map((h) => [h.locationId, h]));
-  const positionById = new Map(input.positions.map((p) => [p.id, p]));
   const requirements: CoverageRequirement[] = [];
   const skippedSet = new Set<string>();
 
@@ -126,64 +155,113 @@ export function buildCoverageRequirements(input: CoverageGenerationInput): Cover
     });
   };
 
-  const expand = (
-    date: ISODate,
-    locationId: string,
-    positionId: string,
-    freq: Position["frequency"],
-    count: number,
-    blockMinutes: number,
-    taskId: string | undefined,
-    label: string,
-  ) => {
-    const open = openFor(locationId, date);
+  // Active positions available to host work at each schedule type, primary first.
+  const activePositions = input.positions.filter((p) => p.active);
+  const positionsByLocation = new Map<string, Position[]>();
+  for (const pos of activePositions) {
+    for (const loc of scheduleTypeIdsForPosition(pos)) {
+      const list = positionsByLocation.get(loc) ?? [];
+      list.push(pos);
+      positionsByLocation.set(loc, list);
+    }
+  }
+  for (const list of positionsByLocation.values()) list.sort((a, b) => a.order - b.order);
+  const scheduleTypesWithPositions = [...positionsByLocation.keys()];
+
+  // --- Normalize positions and tasks into demand sources ---
+  const sources: DemandSource[] = [];
+
+  for (const pos of activePositions) {
+    if (!pos.frequency) continue;
+    for (const locationId of scheduleTypeIdsForPosition(pos)) {
+      sources.push({
+        locationId,
+        positionId: pos.id,
+        count: staffingFor(pos),
+        blockMinutes: pos.minAssignmentMinutes || blockDefault,
+        freq: pos.frequency,
+        label: pos.name,
+      });
+    }
+  }
+
+  for (const task of input.tasks) {
+    if (!task.active || !task.frequency) continue;
+    // Schedule types the task runs on (empty list = every type that has a post).
+    const locations = task.applicableLocationIds.length > 0
+      ? task.applicableLocationIds
+      : scheduleTypesWithPositions;
+    let placed = false;
+    for (const locationId of locations) {
+      const candidates = positionsByLocation.get(locationId) ?? [];
+      // An explicit position list narrows the eligible hosts; otherwise the
+      // schedule type's primary position hosts the task automatically.
+      const host = task.applicablePositionIds.length > 0
+        ? candidates.find((p) => task.applicablePositionIds.includes(p.id))
+        : candidates[0];
+      if (!host) continue;
+      placed = true;
+      sources.push({
+        locationId,
+        positionId: host.id,
+        count: Math.max(1, task.minAssignees || 1),
+        blockMinutes: task.estimatedMinutes || blockDefault,
+        taskId: task.id,
+        freq: task.frequency,
+        label: task.name,
+      });
+    }
+    if (!placed) {
+      skippedSet.add(`${task.name}: no active position at its schedule type(s) to host the task`);
+    }
+  }
+
+  // --- Expand each demand source across the requested dates ---
+  for (const src of sources) {
+    if (src.freq.mode === "times_per_week") {
+      expandWeekly(src);
+    } else {
+      for (const date of input.dates) expandDaily(src, date);
+    }
+  }
+
+  function expandDaily(src: DemandSource, date: ISODate) {
+    if (!appliesOnDate(src.freq, date)) return;
+    const open = openFor(src.locationId, date);
     if (open.length === 0) return; // closed that day
-    switch (freq!.mode) {
-      case "per_operational_hour":
-        for (const iv of mergeIntervals(open)) push(date, locationId, positionId, iv, count, taskId);
-        break;
-      case "times_per_day": {
-        const occ = occurrencesOnDate(freq, date, totalMinutes(open) / 60);
-        for (const block of spreadBlocks(open, occ, blockMinutes)) {
-          push(date, locationId, positionId, block, count, taskId);
+    if (src.freq.mode === "per_operational_hour") {
+      for (const iv of mergeIntervals(open)) push(date, src.locationId, src.positionId, iv, src.count, src.taskId);
+      return;
+    }
+    // times_per_day
+    for (const block of spreadBlocks(open, Math.max(0, Math.round(src.freq.count)), src.blockMinutes)) {
+      push(date, src.locationId, src.positionId, block, src.count, src.taskId);
+    }
+  }
+
+  function expandWeekly(src: DemandSource) {
+    // Group the requested dates into weeks, then spread the weekly count across
+    // each week's open, weekday-eligible days.
+    const byWeek = new Map<string, ISODate[]>();
+    for (const date of input.dates) {
+      if (!appliesOnDate(src.freq, date)) continue;
+      if (openFor(src.locationId, date).length === 0) continue;
+      const key = mondayOf(date);
+      const list = byWeek.get(key) ?? [];
+      list.push(date);
+      byWeek.set(key, list);
+    }
+    if (byWeek.size === 0) {
+      skippedSet.add(`${src.label}: ${src.freq.count}×/week — no open days in range to place it`);
+      return;
+    }
+    for (const days of byWeek.values()) {
+      const perDay = distributeAcrossDays(Math.max(0, Math.round(src.freq.count)), days.length);
+      days.forEach((date, i) => {
+        for (const block of spreadBlocks(openFor(src.locationId, date), perDay[i]!, src.blockMinutes)) {
+          push(date, src.locationId, src.positionId, block, src.count, src.taskId);
         }
-        break;
-      }
-      case "times_per_week":
-        skippedSet.add(`${label}: ${freq!.count}×/week not yet distributed across the week`);
-        break;
-    }
-  };
-
-  for (const date of input.dates) {
-    // Position coverage — staff a post per its cadence.
-    for (const pos of input.positions) {
-      if (!pos.active || !pos.frequency || !appliesOnDate(pos.frequency, date)) continue;
-      const count = staffingFor(pos);
-      for (const locationId of scheduleTypeIdsForPosition(pos)) {
-        expand(date, locationId, pos.id, pos.frequency, count, pos.minAssignmentMinutes || blockDefault, undefined, pos.name);
-      }
-    }
-
-    // Task demand — parallel work performed at a resolved position.
-    for (const task of input.tasks) {
-      if (!task.active || !task.frequency || !appliesOnDate(task.frequency, date)) continue;
-      const position = task.applicablePositionIds
-        .map((id) => positionById.get(id))
-        .find((p): p is Position => Boolean(p && p.active));
-      if (!position) {
-        skippedSet.add(`${task.name}: no active position linked, cannot place task coverage`);
-        continue;
-      }
-      const positionLocations = scheduleTypeIdsForPosition(position);
-      const locations = task.applicableLocationIds.length > 0
-        ? positionLocations.filter((l) => task.applicableLocationIds.includes(l))
-        : positionLocations;
-      const count = Math.max(1, task.minAssignees || 1);
-      const block = task.estimatedMinutes || blockDefault;
-      for (const locationId of locations) {
-        expand(date, locationId, position.id, task.frequency, count, block, task.id, task.name);
-      }
+      });
     }
   }
 
