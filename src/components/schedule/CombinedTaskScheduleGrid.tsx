@@ -15,7 +15,7 @@ import {
   saveGridPreferences,
   visibleColumns,
 } from "@/lib/schedule-grid-preferences";
-import { positionsForScheduleType, tasksForScheduleType } from "@/lib/schedule-type-links";
+import { positionsForScheduleType, tasksMappedToScheduleType } from "@/lib/schedule-type-links";
 import { taskColorVar, timeRange } from "@/lib/ui";
 import type { Shift } from "@/domain/types";
 import { ShiftDialog } from "@/components/schedule/ShiftDialog";
@@ -59,11 +59,12 @@ export function CombinedTaskScheduleGrid({
       ?? db.positions.find((p) => /desk/i.test(p.name))?.id;
   }, [db.positions, deskLocationId, deskPositionId]);
 
-  // Columns are scoped to the schedule type when one is given: only its
-  // assigned tasks, a desk-coverage column when it has desk positions, and no
-  // break columns (breaks belong to the Breaks & Lunches schedule type).
+  // Columns are scoped to the schedule type when one is given: ONLY the tasks
+  // explicitly mapped to it (a task with no mapping is not shown here — it must
+  // be mapped to a schedule type to appear), a desk-coverage column when it has
+  // desk positions, and no break columns (breaks live on their own type).
   const scopedTasks = useMemo(
-    () => (scheduleTypeId ? tasksForScheduleType(db.tasks, scheduleTypeId) : db.tasks),
+    () => (scheduleTypeId ? tasksMappedToScheduleType(db.tasks, scheduleTypeId) : db.tasks),
     [db.tasks, scheduleTypeId],
   );
   const columnOpts = useMemo(() => {

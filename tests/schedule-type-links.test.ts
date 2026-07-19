@@ -5,6 +5,7 @@ import {
   positionScheduleTypeIds,
   taskAppliesToScheduleType,
   tasksByScheduleType,
+  tasksMappedToScheduleType,
 } from "../src/lib/schedule-type-links";
 import type { Location, Position, Task } from "../src/domain/types";
 
@@ -89,6 +90,12 @@ describe("schedule type links", () => {
   it("treats empty task location list as universal", () => {
     expect(taskAppliesToScheduleType(tasks[1], "loc-desk")).toBe(true);
     expect(taskAppliesToScheduleType(tasks[0], "loc-stacks")).toBe(false);
+  });
+
+  it("tasksMappedToScheduleType returns only explicitly-mapped tasks (empty is not universal)", () => {
+    // t1 mapped to loc-desk, t2 has no mapping.
+    expect(tasksMappedToScheduleType(tasks, "loc-desk").map((t) => t.id)).toEqual(["t1"]);
+    expect(tasksMappedToScheduleType(tasks, "loc-stacks").map((t) => t.id)).toEqual([]); // unmapped t2 stays hidden
   });
 
   it("groups tasks into schedule type sections", () => {

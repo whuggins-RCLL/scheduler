@@ -45,6 +45,16 @@ export function tasksForScheduleType(tasks: Task[], locationId: string): Task[] 
   return tasks.filter((t) => t.active && taskAppliesToScheduleType(t, locationId));
 }
 
+/**
+ * Tasks EXPLICITLY mapped to a schedule type. Unlike `tasksForScheduleType`,
+ * this does not treat an empty mapping as "applies everywhere" — a task must be
+ * mapped to the schedule type to be returned. Used by the per-type boards so
+ * they show only what has been assigned to that board.
+ */
+export function tasksMappedToScheduleType(tasks: Task[], locationId: string): Task[] {
+  return tasks.filter((t) => t.active && t.applicableLocationIds.includes(locationId));
+}
+
 export function employeesWithScheduleTypeAccess(employees: EmployeeProfile[], locationId: string): EmployeeProfile[] {
   return employees.filter((e) => e.active && e.eligibleLocationIds.includes(locationId));
 }
