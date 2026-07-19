@@ -498,6 +498,29 @@ button.tl-block:hover { background: color-mix(in srgb, var(--pos, var(--cardinal
 .tl-block .tl-name { font-weight: 600; }
 .tl-block .tl-pos { color: var(--muted); font-size: 0.68rem; }
 
+/* ---- Concurrency board: one column, expands only where shifts overlap ---- */
+.cboard-hint { margin: 0 0 0.4rem; font-size: 0.78rem; }
+.cboard-grid { display: grid; grid-template-columns: 60px 1fr; gap: 0; }
+.cboard-rail { position: relative; }
+.cboard-hour { position: absolute; right: 6px; transform: translateY(-50%); font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+.cboard-lanes { position: relative; border-left: 1px solid var(--border); border-top: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.cboard-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); }
+.cboard-gap { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--error) 12%, transparent) 0 6px, transparent 6px 12px); pointer-events: none; }
+.cboard-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.86rem; }
+.cboard-block {
+  position: absolute; overflow: hidden; border-left: 4px solid var(--type, var(--cardinal)); border-radius: 8px;
+  padding: 0.22rem 0.45rem; background: color-mix(in srgb, var(--type, var(--cardinal)) 14%, var(--surface));
+  color: var(--ink); text-align: left; font-size: 0.74rem; display: flex; flex-direction: column; gap: 1px; line-height: 1.2;
+}
+button.cboard-block { cursor: pointer; }
+button.cboard-block:hover { background: color-mix(in srgb, var(--type, var(--cardinal)) 24%, var(--surface)); }
+.cboard-block.is-open { border-left-color: var(--open-shift); background: color-mix(in srgb, var(--open-shift) 12%, var(--surface)); }
+.cboard-block.is-draft { border-style: dashed; }
+.cboard-block .cboard-time { font-weight: 650; font-size: 0.7rem; }
+.cboard-block .cboard-name { font-weight: 600; }
+.cboard-block .cboard-pos { color: var(--muted); font-size: 0.68rem; }
+.cboard-block .cboard-tasks { color: var(--muted); font-size: 0.66rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---- Dashboard week columns ---- */
 .desk-week { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 0.5rem; overflow-x: auto; }
 .desk-week-col { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; background: var(--surface); min-width: 120px; }

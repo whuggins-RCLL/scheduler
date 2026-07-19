@@ -201,6 +201,9 @@ export function AdminOverview() {
   };
 
   const sampleLoaded = db.employees.some((e) => e.id === "emp-sample-riley");
+  // Active tasks with no schedule-type mapping are hidden from every board until
+  // an admin places them, so surface the count as a call to action.
+  const unmappedTasks = db.tasks.filter((t) => t.active && t.applicableLocationIds.length === 0).length;
   const visibleSections = SECTIONS.map((section) => ({
     ...section,
     cards: section.cards.filter((c) => canSee(c.access)),
@@ -222,11 +225,26 @@ export function AdminOverview() {
           <div className="admin-feature-title">
             Schedule map
             <span className="badge info">{db.locations.filter((l) => l.active).length + db.positions.filter((p) => p.active).length + db.tasks.filter((t) => t.active).length} items</span>
+            {unmappedTasks > 0 && (
+              <span className="badge warn">
+                {unmappedTasks} task{unmappedTasks === 1 ? " needs" : "s need"} placing
+              </span>
+            )}
           </div>
           <p className="muted admin-feature-caption">
             An interactive map of the whole scheduling setup — see and edit how schedule types, positions, and
             tasks connect, how much coverage each generates, and where staffing gaps are. Changes sync with every
             settings screen.
+            {unmappedTasks > 0 && (
+              <>
+                {" "}
+                <strong>
+                  {unmappedTasks} active task{unmappedTasks === 1 ? " is" : "s are"} not mapped to any schedule type
+                </strong>{" "}
+                and {unmappedTasks === 1 ? "stays" : "stay"} hidden from the boards until you place{" "}
+                {unmappedTasks === 1 ? "it" : "them"}.
+              </>
+            )}
           </p>
         </div>
         <span className="admin-feature-cta" aria-hidden>Open map →</span>
