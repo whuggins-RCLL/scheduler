@@ -217,7 +217,8 @@ function TaskDialog({
           <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
             <legend style={{ fontWeight: 600, fontSize: "0.88rem" }}>Schedule types</legend>
             <p className="muted" style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.85rem" }}>
-              Select which schedule types this task applies to. Leave all unchecked to allow any type.
+              Select which schedule types this task belongs to. A task with nothing checked stays unmapped and
+              is hidden from every schedule board until you place it on at least one type.
             </p>
             {locations.length === 0 ? (
               <p className="muted">No active schedule types yet.</p>

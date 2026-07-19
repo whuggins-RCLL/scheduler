@@ -10,10 +10,10 @@ import {
 } from "@/lib/schedule-view";
 import type { Shift } from "@/domain/types";
 import { ShiftDialog } from "@/components/schedule/ShiftDialog";
-import { CombinedTaskScheduleGrid } from "@/components/schedule/CombinedTaskScheduleGrid";
+import { ConcurrencyScheduleBoard } from "./ConcurrencyScheduleBoard";
 import { DayTimeline } from "./DayTimeline";
 
-type DeskView = "timeline" | "grid";
+type DeskView = "timeline" | "board";
 
 export function DeskScheduleBoard({
   embedded = false,
@@ -28,7 +28,7 @@ export function DeskScheduleBoard({
   const deskLocation = db.locations.find((l) => l.id === "loc-desk") ?? db.locations.find((l) => /desk/i.test(l.name));
   const [date, setDate] = useState<string>(todayISO());
   const [locationId, setLocationId] = useState<string>(fixedLocationId ?? deskLocation?.id ?? "");
-  const [deskView, setDeskView] = useState<DeskView>("grid");
+  const [deskView, setDeskView] = useState<DeskView>("board");
   const [editing, setEditing] = useState<Shift | null>(null);
 
   const empName = (id: string | null) => (id ? db.employees.find((e) => e.id === id)?.preferredName ?? "Unknown" : "Open shift");
@@ -66,7 +66,7 @@ export function DeskScheduleBoard({
         </p>
         <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
           <div className="pill-toggle" role="group" aria-label="Desk view mode">
-            <button type="button" aria-pressed={deskView === "grid"} onClick={() => setDeskView("grid")}>Task grid</button>
+            <button type="button" aria-pressed={deskView === "board"} onClick={() => setDeskView("board")}>Schedule</button>
             <button type="button" aria-pressed={deskView === "timeline"} onClick={() => setDeskView("timeline")}>Timeline</button>
           </div>
           {!fixedLocationId && filterLocations.length >= 1 && (
@@ -92,21 +92,13 @@ export function DeskScheduleBoard({
       </div>
 
       <div className="mt">
-        {deskView === "grid" ? (
-          <CombinedTaskScheduleGrid
-            embedded
+        {deskView === "board" ? (
+          <ConcurrencyScheduleBoard
             date={date}
             shifts={shifts}
-            deskLocationId={locationId || deskLocation?.id || "loc-desk"}
-            deskLabel={
-              filterLocations.find((l) => l.id === locationId)?.shortName
-                ? `${filterLocations.find((l) => l.id === locationId)!.shortName} coverage`
-                : deskLocation?.shortName
-                  ? `${deskLocation.shortName} desk`
-                  : "Borrowing Desk"
-            }
             scheduleTypeId={locationId || undefined}
             onSelectShift={onSelect}
+            emptyLabel={isToday ? "No shifts scheduled today." : `No shifts on ${fullDayLabel(date)}.`}
           />
         ) : (
           <DayTimeline
