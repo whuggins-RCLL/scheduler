@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { syncPublishedScheduleToCalendars } from "@/lib/integrations/calendar-client";
 import { buildSchedulerHelper } from "@/domain/scheduling";
 import { addDays, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import type { Shift } from "@/domain/types";
@@ -59,13 +61,31 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
     const res = store.runGeneration(schedule.id, { seed });
     setMessage(res.explanation);
   }
-  function doPublish() {
+  async function doPublish() {
     const res = store.publishSchedule(schedule.id);
-    setMessage(
-      res.published
-        ? "Schedule published. Assigned employees were notified."
-        : `Cannot publish: ${res.blocking.length} blocking compliance issue(s) must be resolved first.`,
-    );
+    if (!res.published) {
+      setMessage(`Cannot publish: ${res.blocking.length} blocking compliance issue(s) must be resolved first.`);
+      return;
+    }
+    setMessage("Schedule published. Assigned employees were notified.");
+    // Push the just-published shifts to every connected assignee's Google
+    // Calendar immediately (no-op unless the integration is configured).
+    if (isFirebaseConfigured) {
+      const result = await syncPublishedScheduleToCalendars(schedule.id, {
+        shifts: res.db.shifts,
+        schedules: res.db.schedules,
+        positions: res.db.positions,
+        locations: res.db.locations,
+        tasks: res.db.tasks,
+      });
+      if (result.ok && (result.synced > 0 || result.disconnected > 0)) {
+        setMessage(
+          `Schedule published. Notified assigned employees and synced ${result.synced} Google Calendar${result.synced === 1 ? "" : "s"}` +
+            (result.disconnected ? ` (${result.disconnected} need to reconnect)` : "") +
+            ".",
+        );
+      }
+    }
   }
 
   return (
@@ -102,7 +122,7 @@ export function ScheduleWorkspace({ scope = "week" }: { scope?: "day" | "week" |
                 />
               </label>
               <button className="button" onClick={doGenerate}>Generate draft</button>
-              <button className="button primary" onClick={doPublish} disabled={hardCount > 0}>
+              <button className="button primary" onClick={() => void doPublish()} disabled={hardCount > 0}>
                 Publish
               </button>
             </div>

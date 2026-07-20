@@ -86,3 +86,48 @@ export function planUserCalendarSync(input: CalendarSyncInput): CalendarSyncPlan
   const upsertIds = new Set(upserts.map((e) => e.googleEventId));
   return { upserts, deletions: deletions.filter((id) => !upsertIds.has(id)) };
 }
+
+export interface PublishedScheduleSyncInput {
+  scheduleId: string;
+  shifts: Shift[];
+  positions: NamedRef[];
+  locations: NamedRef[];
+  tasks: NamedRef[];
+  appBaseUrl: string;
+  timeZone: string;
+  scheduleNames?: Record<string, string>;
+}
+
+export interface UserSyncPlan extends CalendarSyncPlan {
+  userId: string;
+}
+
+/**
+ * Plan the calendar sync for every assignee of a single published schedule —
+ * used to push shifts to all connected assignees the moment a manager
+ * publishes. Reuses the per-user planner, scoped to just this schedule, and
+ * returns one entry per assignee that has anything to upsert or delete.
+ */
+export function planPublishedScheduleSync(input: PublishedScheduleSyncInput): UserSyncPlan[] {
+  const assignees = new Set<string>();
+  for (const s of input.shifts) {
+    if (s.scheduleId === input.scheduleId && s.employeeId) assignees.add(s.employeeId);
+  }
+
+  const plans: UserSyncPlan[] = [];
+  for (const userId of assignees) {
+    const plan = planUserCalendarSync({
+      userId,
+      shifts: input.shifts,
+      publishedScheduleIds: [input.scheduleId],
+      positions: input.positions,
+      locations: input.locations,
+      tasks: input.tasks,
+      appBaseUrl: input.appBaseUrl,
+      timeZone: input.timeZone,
+      scheduleNames: input.scheduleNames,
+    });
+    if (plan.upserts.length || plan.deletions.length) plans.push({ userId, ...plan });
+  }
+  return plans;
+}

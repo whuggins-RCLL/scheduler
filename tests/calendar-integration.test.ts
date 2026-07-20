@@ -10,7 +10,7 @@ import {
   shiftSourceId,
   shiftToSyncEvent,
 } from "../src/lib/integrations/calendar";
-import { planUserCalendarSync } from "../src/lib/integrations/calendar-sync";
+import { planPublishedScheduleSync, planUserCalendarSync } from "../src/lib/integrations/calendar-sync";
 import type { Shift } from "../src/domain/types";
 
 function shift(overrides: Partial<Shift> = {}): Shift {
@@ -183,5 +183,49 @@ describe("planUserCalendarSync", () => {
       ...refs,
     });
     expect(plan.upserts.map((e) => e.sourceId)).toEqual([shiftSourceId("new")]);
+  });
+});
+
+describe("planPublishedScheduleSync", () => {
+  const refs = {
+    positions: [{ id: "pos-desk", name: "Service Desk" }],
+    locations: [{ id: "loc-main", name: "Main Library" }],
+    tasks: [{ id: "t1", name: "Reshelving" }],
+    appBaseUrl: "https://scheduler.example.edu",
+    timeZone: "America/Los_Angeles",
+  };
+
+  it("plans one entry per assignee of the target schedule only", () => {
+    const plans = planPublishedScheduleSync({
+      scheduleId: "sched-pub",
+      shifts: [
+        shift({ id: "a", employeeId: "u1", scheduleId: "sched-pub" }),
+        shift({ id: "b", employeeId: "u2", scheduleId: "sched-pub" }),
+        shift({ id: "c", employeeId: "u1", scheduleId: "sched-pub" }), // same user, second shift
+        shift({ id: "d", employeeId: "u3", scheduleId: "other" }), // different schedule
+        shift({ id: "e", employeeId: null, scheduleId: "sched-pub" }), // open/unassigned
+      ],
+      ...refs,
+    });
+    const byUser = Object.fromEntries(plans.map((p) => [p.userId, p]));
+    expect(Object.keys(byUser).sort()).toEqual(["u1", "u2"]);
+    expect(byUser.u1.upserts.map((e) => e.sourceId).sort()).toEqual(
+      [shiftSourceId("a"), shiftSourceId("c")].sort(),
+    );
+    expect(byUser.u2.upserts.map((e) => e.sourceId)).toEqual([shiftSourceId("b")]);
+  });
+
+  it("omits assignees with nothing to sync and emits deletions for cancellations", () => {
+    const plans = planPublishedScheduleSync({
+      scheduleId: "sched-pub",
+      shifts: [
+        shift({ id: "x", employeeId: "u1", scheduleId: "sched-pub", status: "cancelled" }),
+      ],
+      ...refs,
+    });
+    expect(plans).toHaveLength(1);
+    expect(plans[0].userId).toBe("u1");
+    expect(plans[0].upserts).toEqual([]);
+    expect(plans[0].deletions).toEqual([googleEventId(shiftSourceId("x"))]);
   });
 });
