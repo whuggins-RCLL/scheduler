@@ -84,18 +84,23 @@ requests no read access to anyone's calendar.
   - *Per-user pull* — the signed-in user's shifts sync when they open the
     scheduler, on connect, and via **Sync now** (`/sync`, writes only the
     caller's own calendar).
-  - *Push on publish* — when a manager publishes a schedule, their client
-    computes the plan for every assignee (`planPublishedScheduleSync`) and posts
-    it to `/publish-sync`. That route is **manager/admin-gated** (verified from
-    the caller's role claims) and writes each assignee's shifts using that
-    person's own stored token — only for those who have connected; everyone else
-    is skipped. So a connected employee's calendar updates the moment the
-    schedule goes out, without waiting for them to open the app.
-  - The push runs from the publishing manager's browser. If it's interrupted
-    (tab closed mid-run), the per-user pull still catches any stragglers. Moving
-    the push into a Firestore-triggered Cloud Function would make it fully
-    server-side, but that first requires schedules/shifts to be persisted to
-    Firestore (they are currently in-memory only), so it's a larger follow-up.
+  - *Push on publish (server-side)* — the `syncCalendarOnPublish` Cloud Function
+    (`functions/src/calendar-publish.ts`) fires on the schedules Firestore
+    trigger the instant a schedule becomes (or is re-)published. It reads the
+    schedule's shifts, plans every assignee (`planPublishedScheduleSync`), and
+    writes to each **connected** assignee's calendar using that person's own
+    stored token. Because it runs in Cloud Functions it's reliable and retried —
+    independent of whether the publishing manager's browser stays open. The gate
+    `shouldSyncOnScheduleWrite` is pure + unit-tested; the trigger writes nothing
+    back to the schedule doc, so it never self-refires. Requires schedules/shifts
+    to be persisted to Firestore (that persistence is a separate change) plus
+    `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` (and `APP_BASE_URL`
+    for event links) in the functions environment.
+  - *Push on publish (client)* — when a manager publishes, their client also
+    computes the plan and posts it to the **manager/admin-gated** `/publish-sync`
+    route. Deterministic event ids make the client and server pushes idempotent,
+    so they never duplicate; the client push is a belt-and-suspenders fallback
+    for environments where the Function isn't deployed.
 
 ### Setup checklist (one-time, to switch it on)
 
