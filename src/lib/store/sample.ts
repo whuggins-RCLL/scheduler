@@ -231,7 +231,7 @@ export function applySampleData(db: Database, weekStart: string, now: string): D
       email: p.email.toLowerCase(),
       displayName: p.name,
       state: "active",
-      roles: [{ role: "EMPLOYEE" }],
+      roles: [{ role: "LIBRARY_STAFF" }],
       createdAt: now,
       updatedAt: now,
     } satisfies UserAccount);

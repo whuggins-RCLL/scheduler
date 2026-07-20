@@ -143,7 +143,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="nav-toggle-bar" aria-hidden />
             </button>
             <strong className="topbar-title">
-              {primaryRole(currentUser) === "EMPLOYEE" ? "Employee workspace" : "Manager workspace"}
+              {primaryRole(currentUser) === "LIBRARY_STAFF" ? "Library staff workspace" : "Manager workspace"}
             </strong>
           </div>
           <div className="topbar-actions">

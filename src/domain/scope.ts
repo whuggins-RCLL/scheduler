@@ -12,9 +12,9 @@ import { isStudentWorker, studentAvailabilityEditable } from "./student-availabi
 
 /** Highest-privilege role held, for coarse UI gating. */
 export function primaryRole(user: Pick<UserAccount, "roles">): Role {
-  const order: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "AUDITOR", "VIEWER", "EMPLOYEE"];
+  const order: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "AUDITOR", "VIEWER", "LIBRARY_STAFF"];
   for (const r of order) if (user.roles.some((g) => g.role === r)) return r;
-  return "EMPLOYEE";
+  return "LIBRARY_STAFF";
 }
 
 export function hasRole(user: Pick<UserAccount, "roles">, role: Role): boolean {
@@ -90,11 +90,11 @@ const STAFF_CLASSIFICATIONS: EmploymentClassification[] = [
 /**
  * Whether the viewer may see the combined student-availability grid.
  *
- * Schedulers, managers, and admins always may. Staff-level employees may too.
+ * Schedulers, managers, and admins always may. Library-staff accounts may too.
  * Student workers and view-only accounts (VIEWER) may NOT — they never see the
- * pooled student schedule. Classification is authoritative: an EMPLOYEE-role
+ * pooled student schedule. Classification is authoritative: a LIBRARY_STAFF-role
  * account that is a `student_worker` is still hidden. Unknown classification
- * defaults to deny for employee-tier accounts.
+ * defaults to deny for library-staff-tier accounts.
  */
 export { isStudentWorker } from "./student-availability";
 
@@ -140,6 +140,6 @@ export function canViewStudentAvailability(
   if (classification === "student_worker") return false;
   if (hasRole(viewer, "VIEWER")) return false;
   if (hasRole(viewer, "AUDITOR")) return true;
-  if (!hasRole(viewer, "EMPLOYEE")) return false;
+  if (!hasRole(viewer, "LIBRARY_STAFF")) return false;
   return classification !== undefined && STAFF_CLASSIFICATIONS.includes(classification);
 }

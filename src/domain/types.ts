@@ -19,7 +19,7 @@ export type Role =
   | "SUPER_ADMIN"
   | "MANAGER"
   | "SCHEDULER"
-  | "EMPLOYEE"
+  | "LIBRARY_STAFF"
   | "VIEWER"
   | "AUDITOR";
 

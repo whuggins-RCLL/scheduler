@@ -1,5 +1,5 @@
 import { APPROVED_EMAIL_DOMAINS, BOOTSTRAP_ADMINS } from "./config";
-export type Role = "SUPER_ADMIN"|"MANAGER"|"SCHEDULER"|"EMPLOYEE"|"VIEWER"|"AUDITOR";
+export type Role = "SUPER_ADMIN"|"MANAGER"|"SCHEDULER"|"LIBRARY_STAFF"|"VIEWER"|"AUDITOR";
 export type AccountState = "invited"|"pending_approval"|"active"|"temporarily_inactive"|"archived"|"access_revoked";
 export function normalizeEmail(email: string){return email.trim().toLowerCase();}
 export function isApprovedDomain(email: string){const e=normalizeEmail(email); return APPROVED_EMAIL_DOMAINS.some(d=>e.endsWith(`@${d}`));}

@@ -169,7 +169,7 @@ describe("global exceptions", () => {
           email: "namig@stanford.edu",
           displayName: "Namig Abbasov",
           state: "active",
-          roles: [{ role: "EMPLOYEE" }],
+          roles: [{ role: "LIBRARY_STAFF" }],
           createdAt: NOW,
           updatedAt: NOW,
         },

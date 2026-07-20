@@ -65,7 +65,7 @@ describe("AI scheduler helper", () => {
 
   it("keeps AI scheduling tools scoped to management roles", () => {
     const db = buildFixture();
-    const employee = db.users.find((u) => u.roles.some((r) => r.role === "EMPLOYEE"))!;
+    const employee = db.users.find((u) => u.roles.some((r) => r.role === "LIBRARY_STAFF"))!;
     const manager = db.users.find((u) => u.roles.some((r) => r.role === "MANAGER"))!;
 
     expect(canManage(employee)).toBe(false);

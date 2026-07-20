@@ -146,7 +146,7 @@ describe("edit permissions", () => {
     email: "s@test",
     displayName: "Student",
     state: "active",
-    roles: [{ role: "EMPLOYEE" }],
+    roles: [{ role: "LIBRARY_STAFF" }],
     createdAt: "",
     updatedAt: "",
   };

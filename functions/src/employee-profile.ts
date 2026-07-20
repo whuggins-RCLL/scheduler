@@ -1,7 +1,10 @@
 /** Pure employee-profile defaults used by the user-document trigger. */
 
 const MANAGER_ROLES = new Set(["SUPER_ADMIN", "MANAGER", "SCHEDULER"]);
-const STAFF_ROLES = new Set([...MANAGER_ROLES, "EMPLOYEE"]);
+const STAFF_ROLES = new Set([...MANAGER_ROLES, "LIBRARY_STAFF"]);
+
+/** Legacy role names mapped to their current equivalent, applied on read. */
+const LEGACY_ROLE_ALIASES: Record<string, string> = { EMPLOYEE: "LIBRARY_STAFF" };
 
 export interface UserDocument {
   email?: unknown;
@@ -12,11 +15,14 @@ export interface UserDocument {
 export function roleNames(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((entry) => {
-    if (typeof entry === "string") return [entry];
-    if (entry && typeof entry === "object" && typeof (entry as { role?: unknown }).role === "string") {
-      return [(entry as { role: string }).role];
-    }
-    return [];
+    const name =
+      typeof entry === "string"
+        ? entry
+        : entry && typeof entry === "object" && typeof (entry as { role?: unknown }).role === "string"
+          ? (entry as { role: string }).role
+          : undefined;
+    if (name === undefined) return [];
+    return [LEGACY_ROLE_ALIASES[name] ?? name];
   });
 }
 

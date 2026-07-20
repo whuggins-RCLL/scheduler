@@ -188,7 +188,7 @@ function samplePersona(db: Database, mode: Exclude<ViewAs, "self">, now: string)
       email: match.email,
       displayName: match.preferredName ?? match.legalName,
       state: account?.state ?? "active",
-      roles: [{ role: "EMPLOYEE" }],
+      roles: [{ role: "LIBRARY_STAFF" }],
       createdAt: account?.createdAt ?? now,
       updatedAt: account?.updatedAt ?? now,
     };
@@ -198,7 +198,7 @@ function samplePersona(db: Database, mode: Exclude<ViewAs, "self">, now: string)
     email: `${mode}@example.stanford.edu`,
     displayName: wantStudent ? "Sample student" : "Sample staff",
     state: "active",
-    roles: [{ role: "EMPLOYEE" }],
+    roles: [{ role: "LIBRARY_STAFF" }],
     createdAt: now,
     updatedAt: now,
   };
@@ -618,7 +618,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setDb((d) => actions.expireStaleCoverage(d, { ...clock, iso: now() }, actorId)),
       approveUser: (userId) => {
         setDb((d) => {
-          const withRole = actions.setUserRoles(d, userId, [{ role: "EMPLOYEE" }], actorId, now());
+          const withRole = actions.setUserRoles(d, userId, [{ role: "LIBRARY_STAFF" }], actorId, now());
           return actions.setUserState(withRole, userId, "active", actorId, now());
         });
         if (isFirebaseConfigured) void writeUserApproval(userId);

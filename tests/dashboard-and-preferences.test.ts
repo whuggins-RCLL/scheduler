@@ -19,23 +19,23 @@ describe("canViewStudentAvailability", () => {
   });
 
   it("allows staff-level employees and auditors", () => {
-    expect(canViewStudentAvailability(roles("EMPLOYEE"), "non_exempt_staff")).toBe(true);
-    expect(canViewStudentAvailability(roles("EMPLOYEE"), "exempt_staff")).toBe(true);
-    expect(canViewStudentAvailability(roles("EMPLOYEE"), "manager")).toBe(true);
+    expect(canViewStudentAvailability(roles("LIBRARY_STAFF"), "non_exempt_staff")).toBe(true);
+    expect(canViewStudentAvailability(roles("LIBRARY_STAFF"), "exempt_staff")).toBe(true);
+    expect(canViewStudentAvailability(roles("LIBRARY_STAFF"), "manager")).toBe(true);
     expect(canViewStudentAvailability(roles("AUDITOR"))).toBe(true);
   });
 
   it("hides the grid from student workers, viewers, and unknown classifications", () => {
-    expect(canViewStudentAvailability(roles("EMPLOYEE"), "student_worker")).toBe(false);
-    expect(canViewStudentAvailability(roles("EMPLOYEE"))).toBe(false);
+    expect(canViewStudentAvailability(roles("LIBRARY_STAFF"), "student_worker")).toBe(false);
+    expect(canViewStudentAvailability(roles("LIBRARY_STAFF"))).toBe(false);
     expect(canViewStudentAvailability(roles("VIEWER"))).toBe(false);
     // A student worker who somehow also holds a viewer role is still hidden.
-    expect(canViewStudentAvailability(roles("EMPLOYEE", "VIEWER"), "student_worker")).toBe(false);
+    expect(canViewStudentAvailability(roles("LIBRARY_STAFF", "VIEWER"), "student_worker")).toBe(false);
   });
 
   it("hides the grid when sampling the student experience without a stored profile", () => {
-    const student = resolveEmployeeProfile([], { id: "view-student", displayName: "Sample student", email: "s@example.test", state: "active", roles: [{ role: "EMPLOYEE" }], createdAt: "", updatedAt: "" }, "student");
-    expect(canViewStudentAvailability({ roles: [{ role: "EMPLOYEE" }] }, student.classification)).toBe(false);
+    const student = resolveEmployeeProfile([], { id: "view-student", displayName: "Sample student", email: "s@example.test", state: "active", roles: [{ role: "LIBRARY_STAFF" }], createdAt: "", updatedAt: "" }, "student");
+    expect(canViewStudentAvailability({ roles: [{ role: "LIBRARY_STAFF" }] }, student.classification)).toBe(false);
   });
 });
 

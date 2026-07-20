@@ -32,7 +32,7 @@ describe("firestore user role normalization", () => {
 describe("bootstrapRepairNeeded (break-glass self-heal)", () => {
   it("never repairs a non-bootstrap account", () => {
     expect(bootstrapRepairNeeded({ state: "pending_approval", roles: [] }, false)).toBe(false);
-    expect(bootstrapRepairNeeded({ state: "active", roles: [{ role: "EMPLOYEE" }] }, false)).toBe(false);
+    expect(bootstrapRepairNeeded({ state: "active", roles: [{ role: "LIBRARY_STAFF" }] }, false)).toBe(false);
   });
 
   it("leaves a correct bootstrap admin alone", () => {
@@ -43,7 +43,7 @@ describe("bootstrapRepairNeeded (break-glass self-heal)", () => {
 
   it("repairs a bootstrap admin whose document lost its role", () => {
     expect(bootstrapRepairNeeded({ state: "active", roles: [] }, true)).toBe(true);
-    expect(bootstrapRepairNeeded({ state: "active", roles: [{ role: "EMPLOYEE" }] }, true)).toBe(true);
+    expect(bootstrapRepairNeeded({ state: "active", roles: [{ role: "LIBRARY_STAFF" }] }, true)).toBe(true);
   });
 
   it("repairs a bootstrap admin who is not active", () => {

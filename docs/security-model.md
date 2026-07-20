@@ -32,7 +32,7 @@ Two tiers:
    (`canViewEmployee`, `visibleEmployees`, `canManage`, `canPublishSchedule`,
    `canOverrideCompliance`, `canEditRoles`).
 
-Roles: `SUPER_ADMIN`, `MANAGER`, `SCHEDULER`, `EMPLOYEE`, `VIEWER`, `AUDITOR`.
+Roles: `SUPER_ADMIN`, `MANAGER`, `SCHEDULER`, `LIBRARY_STAFF`, `VIEWER`, `AUDITOR`.
 A person may hold multiple roles, and a role may apply only to a unit.
 
 ## Server-side enforcement
@@ -86,7 +86,7 @@ header documents the store-key → collection-name mapping.
 
 `npm run test:rules` currently asserts the rules source enforces the key
 invariants. Full behavioral emulator tests (via `@firebase/rules-unit-testing`
-against `firebase emulators:exec`) should prove that an EMPLOYEE cannot: promote
+against `firebase emulators:exec`) should prove that a LIBRARY_STAFF account cannot: promote
 themselves, read private manager notes, read others' confidential exceptions,
 publish/unpublish a daily note, modify published schedules, assign themselves
 unqualified work, override compliance, or access unauthorized departments. These

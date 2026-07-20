@@ -152,7 +152,7 @@ export function buildFixture(): Database {
     { id: "emp-riley", legalName: "Riley Osei", preferredName: "Riley", email: "riley.osei@example.test", classification: "casual", employmentPercentage: 0.25, targetWeeklyHours: 10 },
   ];
   for (const f of fic) {
-    db.users.push(user(f.id, f.preferredName ?? f.legalName, f.email, [{ role: "EMPLOYEE" }]));
+    db.users.push(user(f.id, f.preferredName ?? f.legalName, f.email, [{ role: "LIBRARY_STAFF" }]));
     db.employees.push(baseProfile(f));
   }
 

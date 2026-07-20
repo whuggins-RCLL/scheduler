@@ -12,7 +12,7 @@ function account(overrides: Partial<UserAccount> = {}): UserAccount {
     email: "person@stanford.edu",
     displayName: "Person Example",
     state: "active",
-    roles: [{ role: "EMPLOYEE" }],
+    roles: [{ role: "LIBRARY_STAFF" }],
     createdAt: "2026-07-15T00:00:00.000Z",
     updatedAt: "2026-07-15T00:00:00.000Z",
     ...overrides,

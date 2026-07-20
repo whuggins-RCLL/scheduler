@@ -8,7 +8,7 @@ import { StaffProfileEditor } from "./StaffProfileEditor";
 import { isAdmin, primaryRole } from "@/domain/scope";
 import type { Role } from "@/domain/types";
 
-const ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "EMPLOYEE", "VIEWER", "AUDITOR"];
+const ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "LIBRARY_STAFF", "VIEWER", "AUDITOR"];
 
 export function UsersAdmin() {
   const { db, currentUser, realUser, approveUser, setUserState, setUserRoles } = useStore();
@@ -81,7 +81,7 @@ export function UsersAdmin() {
                     <td><span className="badge warn">{u.state.replace("_", " ")}</span></td>
                     <td>
                       <div className="row">
-                        <button className="button sm primary" onClick={() => approveUser(u.id)}>Approve as employee</button>
+                        <button className="button sm primary" onClick={() => approveUser(u.id)}>Approve as library staff</button>
                         <button className="button sm danger" onClick={() => setUserState(u.id, "access_revoked")}>Deny</button>
                       </div>
                     </td>
