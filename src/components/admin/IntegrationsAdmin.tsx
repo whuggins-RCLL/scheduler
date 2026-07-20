@@ -25,33 +25,21 @@ export function IntegrationsAdmin() {
 
       <section className="card" aria-labelledby="google-heading">
         <div className="spread">
-          <h2 id="google-heading">Google Workspace &amp; Calendar</h2>
-          <span className="badge warn">Not configured</span>
+          <h2 id="google-heading">Shared library calendar</h2>
+          <span className="badge info">Viewing only</span>
         </div>
         <p>
-          Planned model: one-way free/busy import from staff calendars plus a one-way publish of assigned
-          shifts back to Google Calendar. OAuth setup is required before this can connect.
+          The shared Google operations calendar is wired for <strong>viewing</strong>. To list its events in
+          the app, add the secret iCal feed as <code>GOOGLE_CALENDAR_ICAL_URL</code> in Vercel (Google Calendar
+          → Settings → &ldquo;Secret address in iCal format&rdquo;). It is read server-side and never committed.
         </p>
-        <p className="muted">Required environment variables:</p>
-        <ul className="list-reset stack" style={{ gap: "0.25rem" }}>
-          <li><code>GOOGLE_OAUTH_CLIENT_ID</code></li>
-          <li><code>GOOGLE_OAUTH_CLIENT_SECRET</code></li>
-        </ul>
         <p className="muted mt">
-          The shared library operations calendar is already wired for viewing. To pull events into the app,
-          add the secret iCal feed as <code>GOOGLE_CALENDAR_ICAL_URL</code> in Vercel (Google Calendar →
-          Settings → &ldquo;Secret address in iCal format&rdquo;). It is read server-side and never committed.
+          <strong>Personal calendar sync is postponed.</strong> Letting each person sync their published
+          shifts to their own Google Calendar needs a Google Cloud OAuth app, which isn&rsquo;t being set up in
+          the Stanford Workspace right now, so that option is not available.
         </p>
         <div className="mt row">
           <Link className="button" href="/calendar">Open library calendar</Link>
-          <button
-            className="button primary"
-            disabled
-            aria-label="Connect Google Workspace — unavailable until OAuth credentials are configured"
-            title="Unavailable until OAuth credentials are configured"
-          >
-            Connect
-          </button>
         </div>
       </section>
 
