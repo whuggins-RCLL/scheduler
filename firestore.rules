@@ -80,6 +80,11 @@ service cloud.firestore {
                  .hasOnly(['preferredName', 'pronouns', 'notificationPrefs', 'updatedAt']));
       allow delete: if false;
     }
+    // Personal Google Calendar OAuth tokens. Secrets — written and read only by
+    // the server (Admin SDK bypasses rules). No client may ever touch them.
+    match /organizations/{orgId}/calendarConnections/{userId} {
+      allow read, write: if false;
+    }
 
     // ---- Availability & exceptions ----
     // Owners manage their own; managers/admins may edit on an employee's behalf

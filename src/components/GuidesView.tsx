@@ -146,8 +146,8 @@ const CALENDAR_STEPS: Step[] = [
     body: <>Go to <Link href="/settings">Settings → Google Calendar</Link> and choose <strong>Connect</strong>. This is a one-time, per-person link between your account and your own Google Calendar.</>,
   },
   {
-    title: "Your published shifts sync automatically",
-    body: <>Once connected, every shift you&apos;re assigned lands on your Google Calendar with its time, location, and tasks — and updates if the schedule changes. No copying and pasting.</>,
+    title: "Your published shifts appear on your calendar",
+    body: <>Once connected, the shifts you&apos;re assigned are written to your Google Calendar with their time, location, and tasks. They refresh when you open the scheduler or press <strong>Sync now</strong> — and it&apos;s one-way, so the app only adds your shifts and never reads the rest of your calendar.</>,
   },
 ];
 

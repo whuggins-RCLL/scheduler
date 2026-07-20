@@ -1,10 +1,157 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { hoursLabel } from "@/lib/ui";
+import type { EmployeeProfile } from "@/domain/types";
+import {
+  disconnectCalendar,
+  fetchCalendarReadiness,
+  startCalendarConnect,
+  syncMyCalendar,
+  type CalendarReadiness,
+} from "@/lib/integrations/calendar-client";
 
 function humanize(s: string): string {
   return s.replace(/_/g, " ").replace(/(^|\s)\S/g, (m) => m.toUpperCase());
+}
+
+type Note = { kind: "ok" | "err" | "info"; text: string } | null;
+
+function GoogleCalendarSettings({ profile }: { profile: EmployeeProfile }) {
+  const { db, currentUser } = useStore();
+  const [readiness, setReadiness] = useState<CalendarReadiness | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<Note>(null);
+
+  const runSync = useCallback(async () => {
+    setBusy(true);
+    try {
+      const result = await syncMyCalendar(currentUser.id, {
+        shifts: db.shifts,
+        schedules: db.schedules,
+        positions: db.positions,
+        locations: db.locations,
+        tasks: db.tasks,
+      });
+      if (result.ok) {
+        setNote({ kind: "ok", text: `Synced ${result.upserted} shift${result.upserted === 1 ? "" : "s"} to your Google Calendar.` });
+      } else if (result.reason === "not_connected") {
+        setNote({ kind: "info", text: "Connect your Google Calendar first." });
+      } else if (result.reason === "not_configured") {
+        setNote({ kind: "info", text: "Calendar sync isn't finished being set up by an administrator yet." });
+      } else {
+        setNote({ kind: "err", text: "Couldn't sync right now. Please try again." });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [currentUser.id, db.shifts, db.schedules, db.positions, db.locations, db.tasks]);
+
+  useEffect(() => {
+    void fetchCalendarReadiness().then(setReadiness).catch(() => setReadiness(null));
+  }, []);
+
+  // Surface the OAuth round-trip result (?calendar=connected|error) and kick an
+  // initial sync so existing shifts populate right after connecting.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("calendar");
+    if (!status) return;
+    params.delete("calendar");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    if (status === "connected") {
+      setNote({ kind: "ok", text: "Google Calendar connected. Syncing your shifts…" });
+      void runSync();
+    } else if (status === "error") {
+      setNote({ kind: "err", text: "Google Calendar connection failed. Please try again." });
+    }
+  }, [runSync]);
+
+  async function onConnect() {
+    setBusy(true);
+    setNote(null);
+    const result = await startCalendarConnect();
+    if (!result.ok) {
+      setBusy(false);
+      if (result.reason === "unauthenticated") {
+        setNote({ kind: "err", text: "Sign in with Google before connecting your calendar." });
+      } else if (result.reason === "not_configured") {
+        setNote({ kind: "info", text: "An administrator still needs to finish the one-time Google setup for the library." });
+      } else {
+        setNote({ kind: "err", text: "Couldn't start the connection. Please try again." });
+      }
+    }
+    // On success the browser redirects to Google, so no further UI update here.
+  }
+
+  async function onDisconnect() {
+    setBusy(true);
+    setNote(null);
+    const ok = await disconnectCalendar();
+    setBusy(false);
+    setNote(
+      ok
+        ? { kind: "ok", text: "Disconnected. Shifts previously added by the scheduler will stop updating." }
+        : { kind: "err", text: "Couldn't disconnect right now. Please try again." },
+    );
+  }
+
+  const connected = profile.googleCalendarConnected;
+  const notReady = readiness !== null && !readiness.ready;
+
+  return (
+    <section className="card" aria-labelledby="calendar">
+      <h2 id="calendar">Google Calendar</h2>
+      <div className="spread">
+        <div className="row" style={{ alignItems: "center", gap: "0.5rem" }}>
+          {connected ? <span className="badge ok">Connected</span> : <span className="badge">Not connected</span>}
+          <span className="muted">
+            {connected
+              ? "Your published shifts sync to your personal Google Calendar."
+              : "Connect to add your published shifts to your personal Google Calendar."}
+          </span>
+        </div>
+        <div className="row">
+          {connected ? (
+            <>
+              <button type="button" className="button sm" onClick={() => void runSync()} disabled={busy}>
+                {busy ? "Working…" : "Sync now"}
+              </button>
+              <button type="button" className="button sm danger" onClick={() => void onDisconnect()} disabled={busy}>
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="button sm primary"
+              onClick={() => void onConnect()}
+              disabled={busy || notReady}
+              aria-describedby={notReady ? "calendar-note" : undefined}
+            >
+              {busy ? "Working…" : "Connect"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {note && (
+        <p role="status" className={`badge ${note.kind === "info" ? "info" : note.kind}`} style={{ marginTop: "0.6rem", whiteSpace: "normal" }}>
+          {note.text}
+        </p>
+      )}
+
+      {notReady && (
+        <p id="calendar-note" className="hint mt" role="note">
+          Personal calendar sync activates once an administrator completes the one-time Google connection for the
+          library{readiness && readiness.missing.length ? ` (pending: ${readiness.missing.join(", ")})` : ""}. The
+          shared library calendar and your in-app schedule work in the meantime.
+        </p>
+      )}
+    </section>
+  );
 }
 
 export function SettingsView() {
@@ -47,36 +194,7 @@ export function SettingsView() {
             </dl>
           </section>
 
-          <section className="card" aria-labelledby="calendar">
-            <h2 id="calendar">Google Calendar</h2>
-            <div className="spread">
-              <div className="row" style={{ alignItems: "center", gap: "0.5rem" }}>
-                {profile.googleCalendarConnected ? (
-                  <span className="badge ok">Connected</span>
-                ) : (
-                  <span className="badge">Not connected</span>
-                )}
-                <span className="muted">
-                  {profile.googleCalendarConnected
-                    ? "Your published shifts sync to your personal calendar."
-                    : "Connect to sync your published shifts to your personal calendar."}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="button sm"
-                disabled
-                aria-disabled="true"
-                aria-describedby="calendar-note"
-              >
-                {profile.googleCalendarConnected ? "Disconnect" : "Connect"}
-              </button>
-            </div>
-            <p id="calendar-note" className="hint mt" role="note">
-              Requires Google OAuth configuration (see Integrations). Calendar connection is not yet wired,
-              so this control is disabled.
-            </p>
-          </section>
+          <GoogleCalendarSettings profile={profile} />
 
           <section className="card" aria-labelledby="notifications">
             <h2 id="notifications">Notification preferences</h2>

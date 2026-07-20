@@ -48,22 +48,69 @@ The shared Google operations calendar is wired for **viewing today**:
   ICS parser, and returns upcoming events. Graceful "not configured" and
   unreachable-feed states; the secret URL is never logged or returned.
 
-## Google Workspace / Calendar (staff OAuth)
+## Personal Google Calendar sync (one-way publish)
 
-Status: **adapter + mock**; live OAuth requires credentials (not configured in
-this environment). Planned model, simplest-first:
+Status: **built** — a typed adapter + working mock ship today; the live Google
+provider activates automatically once credentials are configured (below). Each
+user connects their **own** Google Calendar from **Settings**; their **published**
+shifts are written to it. It is strictly one-way (shifts out only) — the app
+requests no read access to anyone's calendar.
 
-1. One-way **publish** of assigned shifts to a personal/selected calendar
-   (event carries position, location, times, tasks, break info, schedule link,
-   version, and human-readable change info).
-2. **Free/busy import** into scheduling as a *constraint* (never auto-equated to
-   leave — employees/managers classify or override it).
-3. Optional two-way sync only after the one-way model is reliable.
-4. **ICS** subscription/export as a fallback.
+### How it works
 
-Privacy: minimum OAuth scopes; managers see busy/free only, not private event
-titles; token revocation handled; incremental sync where supported.
-Env: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
+- **Adapter** — `src/lib/integrations/calendar.ts` defines `CalendarProvider`
+  with a `MockCalendarProvider` (local/dev + tests, no network) and a
+  `GoogleCalendarProvider` (real OAuth + Calendar API). `getCalendarProvider()`
+  returns Google when `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` are
+  set, else the mock. The pure event mapping (`shiftToSyncEvent`) and planner
+  (`src/lib/integrations/calendar-sync.ts`, `planUserCalendarSync`) are unit
+  tested in `tests/calendar-integration.test.ts`.
+- **Events** carry position, location, tasks, meal break, notes, a link back to
+  the schedule, and the published version. Times are emitted as naive local
+  datetimes plus the library IANA timezone, so Google handles DST. Each shift
+  maps to a **deterministic** Google event id, so re-syncing updates in place
+  (idempotent) and a cancelled shift is removed.
+- **OAuth routes** (`src/app/api/integrations/calendar/google/*`):
+  `connect` (returns the consent URL for the signed-in caller), `callback`
+  (exchanges the code, stores tokens, marks the profile connected), `disconnect`
+  (revokes + clears), `sync` (applies a plan to the caller's calendar), and
+  `status` (non-secret readiness for the admin/settings screens). All degrade to
+  an honest "not configured" response when credentials are absent.
+- **Tokens** are secrets: stored via the Firebase Admin SDK in
+  `organizations/{org}/calendarConnections/{uid}`, which `firestore.rules`
+  denies to every client. The caller is authenticated by verifying their
+  Firebase ID token; the OAuth `state` is HMAC-signed to prevent CSRF.
+- **Triggering** is currently client-driven: the signed-in user's shifts sync
+  when they open the scheduler, on connect, and via **Sync now**. Because the
+  server only ever writes to the authenticated caller's own calendar, this is
+  safe. A Cloud Function that reuses `planUserCalendarSync` to push on publish
+  for *all* assigned users is the natural production enhancement.
+
+### Setup checklist (one-time, to switch it on)
+
+1. **Google Cloud project** (ideally under the Stanford Workspace org): enable
+   the **Google Calendar API**.
+2. **OAuth consent screen**: set **User type = Internal** (limits it to Stanford
+   accounts and avoids public-app verification). Scope needed:
+   `https://www.googleapis.com/auth/calendar.events`.
+3. **OAuth client** (Application type = *Web application*). Register the redirect
+   URI **exactly**: `https://<your-domain>/api/integrations/calendar/google/callback`
+   (the Integrations admin screen prints the exact value for the current host).
+   Copy the generated Client ID and Client Secret.
+4. **Vercel env vars**: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
+   Optionally `CALENDAR_STATE_SECRET` (a random string; defaults to the client
+   secret) and `APP_BASE_URL` (defaults to the request origin).
+5. **Firebase Admin credentials** so tokens persist server-side: either
+   `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON as a string) or
+   `GOOGLE_APPLICATION_CREDENTIALS` (path to the JSON). Production Firebase must
+   also be configured (`NEXT_PUBLIC_FIREBASE_*`).
+6. **Deploy `firestore.rules`** (adds the locked-down `calendarConnections`
+   collection).
+
+When all are present, the Integrations admin card flips to **Ready** and the
+per-user **Connect** button in Settings becomes active. Privacy: minimum scope
+(`calendar.events` — write only), token revocation on disconnect, no secrets
+committed.
 
 ## Import / export
 

@@ -7,6 +7,12 @@ import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import { addDays, WEEKDAY_LABELS, weekdayOf } from "@/domain/time";
 import { firstName, hoursLabel, humanDate, positionColorVar, timeRange } from "@/lib/ui";
 import { fullDayLabel, mondayOf, todayISO } from "@/lib/schedule-view";
+import { PRODUCT_NAME } from "@/lib/config";
+import {
+  disconnectCalendar,
+  startCalendarConnect,
+  syncMyCalendar,
+} from "@/lib/integrations/calendar-client";
 import { DayTimeline } from "../dashboard/DayTimeline";
 
 function greeting(): string {
@@ -36,10 +42,10 @@ function CalendarHelp() {
         <div className="calendar-help-panel" role="region" aria-label="Calendar connection instructions">
           <ol className="calendar-help-steps">
             <li>Click <strong>Connect Google Calendar</strong> above and sign in with your Stanford Google account when prompted.</li>
-            <li>Grant permission for Cardinal Shift to add events to your calendar. Only published shifts are synced — drafts stay internal.</li>
+            <li>Grant permission for {PRODUCT_NAME} to add events to your calendar. Only published shifts are synced — drafts stay internal.</li>
             <li>After connecting, new published shifts appear automatically. Existing published shifts sync within a few minutes.</li>
             <li>To use Apple Calendar or Outlook instead, subscribe to the iCal feed from Settings once calendar sync is enabled.</li>
-            <li>To disconnect, click <strong>Disconnect</strong>. Your calendar events from Cardinal Shift will be removed.</li>
+            <li>To disconnect, click <strong>Disconnect</strong>. Your calendar events from {PRODUCT_NAME} will be removed.</li>
           </ol>
         </div>
       )}
@@ -48,7 +54,7 @@ function CalendarHelp() {
 }
 
 export function PersonalScheduleView() {
-  const { db, currentUser, viewAs, saveEmployeeProfile } = useStore();
+  const { db, currentUser, viewAs } = useStore();
   const profile = useMemo(
     () => resolveEmployeeProfile(db.employees, currentUser, viewAs),
     [db.employees, currentUser, viewAs],
@@ -82,13 +88,28 @@ export function PersonalScheduleView() {
   const empName = () => displayName;
 
   async function toggleCalendar() {
-    const stored = db.employees.find((e) => e.id === currentUser.id);
-    if (!stored) return;
     setConnecting(true);
     try {
-      await saveEmployeeProfile({
-        ...stored,
-        googleCalendarConnected: !stored.googleCalendarConnected,
+      if (profile.googleCalendarConnected) {
+        await disconnectCalendar();
+      } else {
+        // Redirects to Google's consent screen; returns to /settings on success.
+        await startCalendarConnect();
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function syncNow() {
+    setConnecting(true);
+    try {
+      await syncMyCalendar(currentUser.id, {
+        shifts: db.shifts,
+        schedules: db.schedules,
+        positions: db.positions,
+        locations: db.locations,
+        tasks: db.tasks,
       });
     } finally {
       setConnecting(false);
@@ -226,6 +247,17 @@ export function PersonalScheduleView() {
                   ? "Disconnect Google Calendar"
                   : "Connect Google Calendar"}
             </button>
+            {profile.googleCalendarConnected && (
+              <button
+                type="button"
+                className="button sm mt"
+                style={{ marginLeft: "0.4rem" }}
+                onClick={() => void syncNow()}
+                disabled={connecting}
+              >
+                Sync now
+              </button>
+            )}
             <CalendarHelp />
           </section>
 
