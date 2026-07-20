@@ -20,35 +20,8 @@ function longDate(): string {
   return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 
-function CalendarHelp() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="calendar-help">
-      <button
-        type="button"
-        className="button sm ghost calendar-help-trigger"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        How to connect your calendar
-      </button>
-      {open && (
-        <div className="calendar-help-panel" role="region" aria-label="Calendar connection instructions">
-          <ol className="calendar-help-steps">
-            <li>Click <strong>Connect Google Calendar</strong> above and sign in with your Stanford Google account when prompted.</li>
-            <li>Grant permission for Cardinal Shift to add events to your calendar. Only published shifts are synced — drafts stay internal.</li>
-            <li>After connecting, new published shifts appear automatically. Existing published shifts sync within a few minutes.</li>
-            <li>To use Apple Calendar or Outlook instead, subscribe to the iCal feed from Settings once calendar sync is enabled.</li>
-            <li>To disconnect, click <strong>Disconnect</strong>. Your calendar events from Cardinal Shift will be removed.</li>
-          </ol>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function PersonalScheduleView() {
-  const { db, currentUser, viewAs, saveEmployeeProfile } = useStore();
+  const { db, currentUser, viewAs } = useStore();
   const profile = useMemo(
     () => resolveEmployeeProfile(db.employees, currentUser, viewAs),
     [db.employees, currentUser, viewAs],
@@ -61,7 +34,6 @@ export function PersonalScheduleView() {
     [weekStart],
   );
   const [selectedDate, setSelectedDate] = useState(today);
-  const [connecting, setConnecting] = useState(false);
 
   const myShifts = useMemo(
     () =>
@@ -80,20 +52,6 @@ export function PersonalScheduleView() {
   const pos = (id: string) => db.positions.find((p) => p.id === id);
   const loc = (id: string) => db.locations.find((l) => l.id === id);
   const empName = () => displayName;
-
-  async function toggleCalendar() {
-    const stored = db.employees.find((e) => e.id === currentUser.id);
-    if (!stored) return;
-    setConnecting(true);
-    try {
-      await saveEmployeeProfile({
-        ...stored,
-        googleCalendarConnected: !stored.googleCalendarConnected,
-      });
-    } finally {
-      setConnecting(false);
-    }
-  }
 
   return (
     <div className="stack personal-schedule">
@@ -202,33 +160,6 @@ export function PersonalScheduleView() {
         </div>
 
         <aside className="stack">
-          <section className="card personal-calendar-card" aria-labelledby="calendar-sync">
-            <h2 id="calendar-sync" style={{ marginTop: 0 }}>Your calendar</h2>
-            <p className="muted" style={{ fontSize: "0.88rem" }}>
-              Keep your personal calendar up to date with published shifts — no more copying times by hand.
-            </p>
-            <div className="personal-calendar-status">
-              {profile.googleCalendarConnected ? (
-                <span className="badge ok">Google Calendar connected</span>
-              ) : (
-                <span className="badge">Not connected</span>
-              )}
-            </div>
-            <button
-              type="button"
-              className={`button ${profile.googleCalendarConnected ? "" : "primary"} mt`}
-              onClick={() => void toggleCalendar()}
-              disabled={connecting || !db.employees.some((e) => e.id === currentUser.id)}
-            >
-              {connecting
-                ? "Updating…"
-                : profile.googleCalendarConnected
-                  ? "Disconnect Google Calendar"
-                  : "Connect Google Calendar"}
-            </button>
-            <CalendarHelp />
-          </section>
-
           <section className="card" aria-labelledby="quick-actions">
             <h2 id="quick-actions" style={{ marginTop: 0 }}>Quick actions</h2>
             <div className="personal-actions">

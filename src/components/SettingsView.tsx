@@ -15,7 +15,7 @@ export function SettingsView() {
     <div className="stack">
       <div className="page-head">
         <h1>Settings</h1>
-        <p className="muted">Your profile, calendar connection, and notification preferences.</p>
+        <p className="muted">Your profile and notification preferences.</p>
       </div>
 
       {!profile ? (
@@ -45,37 +45,6 @@ export function SettingsView() {
                 <dd style={{ margin: 0 }}>{hoursLabel(profile.targetWeeklyHours * 60)}</dd>
               </div>
             </dl>
-          </section>
-
-          <section className="card" aria-labelledby="calendar">
-            <h2 id="calendar">Google Calendar</h2>
-            <div className="spread">
-              <div className="row" style={{ alignItems: "center", gap: "0.5rem" }}>
-                {profile.googleCalendarConnected ? (
-                  <span className="badge ok">Connected</span>
-                ) : (
-                  <span className="badge">Not connected</span>
-                )}
-                <span className="muted">
-                  {profile.googleCalendarConnected
-                    ? "Your published shifts sync to your personal calendar."
-                    : "Connect to sync your published shifts to your personal calendar."}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="button sm"
-                disabled
-                aria-disabled="true"
-                aria-describedby="calendar-note"
-              >
-                {profile.googleCalendarConnected ? "Disconnect" : "Connect"}
-              </button>
-            </div>
-            <p id="calendar-note" className="hint mt" role="note">
-              Requires Google OAuth configuration (see Integrations). Calendar connection is not yet wired,
-              so this control is disabled.
-            </p>
           </section>
 
           <section className="card" aria-labelledby="notifications">

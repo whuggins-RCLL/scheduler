@@ -62,7 +62,6 @@ export function TeamView() {
                   <th scope="col">Classification</th>
                   <th scope="col">Target weekly hours</th>
                   <th scope="col">Qualified positions</th>
-                  <th scope="col">Google Calendar</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,13 +85,6 @@ export function TeamView() {
                             <span key={id} className="chip">{posName(id)}</span>
                           ))}
                         </div>
-                      )}
-                    </td>
-                    <td>
-                      {e.googleCalendarConnected ? (
-                        <span className="badge ok">Connected</span>
-                      ) : (
-                        <span className="badge">Not connected</span>
                       )}
                     </td>
                   </tr>
