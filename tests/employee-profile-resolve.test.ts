@@ -9,7 +9,7 @@ function user(overrides: Partial<UserAccount> = {}): UserAccount {
     email: "test@example.com",
     displayName: "Test User",
     state: "active",
-    roles: [{ role: "EMPLOYEE" }],
+    roles: [{ role: "LIBRARY_STAFF" }],
     createdAt: "",
     updatedAt: "",
     ...overrides,

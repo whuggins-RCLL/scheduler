@@ -42,11 +42,11 @@ const VALID_ROLES = new Set<Role>([
   "SUPER_ADMIN",
   "MANAGER",
   "SCHEDULER",
-  "EMPLOYEE",
+  "LIBRARY_STAFF",
   "VIEWER",
   "AUDITOR",
 ]);
-const STAFF_ROLES = new Set<Role>(["SUPER_ADMIN", "MANAGER", "SCHEDULER", "EMPLOYEE"]);
+const STAFF_ROLES = new Set<Role>(["SUPER_ADMIN", "MANAGER", "SCHEDULER", "LIBRARY_STAFF"]);
 
 const app = initializeApp(
   process.env.GOOGLE_APPLICATION_CREDENTIALS

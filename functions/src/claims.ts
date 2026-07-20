@@ -23,11 +23,20 @@ export const VALID_ROLES = [
   "SUPER_ADMIN",
   "MANAGER",
   "SCHEDULER",
-  "EMPLOYEE",
+  "LIBRARY_STAFF",
   "VIEWER",
   "AUDITOR",
 ] as const;
 export type Role = (typeof VALID_ROLES)[number];
+
+/**
+ * Legacy role names that have since been renamed, mapped to their current
+ * equivalent. Applied while reading stored roles so accounts provisioned before
+ * the rename keep their access without a separate data migration.
+ */
+const LEGACY_ROLE_ALIASES: Record<string, Role> = {
+  EMPLOYEE: "LIBRARY_STAFF",
+};
 
 /** The only account state that carries live permissions. */
 export const ACTIVE_STATE = "active";
@@ -50,13 +59,15 @@ export function normalizeRoleNames(roles: unknown): Role[] {
   if (!Array.isArray(roles)) return [];
   const names = new Set<Role>();
   for (const entry of roles) {
-    const name =
+    const raw =
       typeof entry === "string"
         ? entry
         : entry && typeof entry === "object"
           ? (entry as { role?: unknown }).role
           : undefined;
-    if (typeof name === "string" && (VALID_ROLES as readonly string[]).includes(name)) {
+    if (typeof raw !== "string") continue;
+    const name = LEGACY_ROLE_ALIASES[raw] ?? raw;
+    if ((VALID_ROLES as readonly string[]).includes(name)) {
       names.add(name as Role);
     }
   }

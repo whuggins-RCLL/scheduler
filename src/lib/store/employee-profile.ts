@@ -2,7 +2,7 @@ import type { EmployeeProfile, Role, UserAccount } from "@/domain/types";
 import { DEFAULT_MANAGER_DEPARTMENT_ID } from "./departments";
 
 const MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER"];
-const STAFF_ROLES: Role[] = [...MANAGER_ROLES, "EMPLOYEE"];
+const STAFF_ROLES: Role[] = [...MANAGER_ROLES, "LIBRARY_STAFF"];
 
 export function hasStaffRole(user: Pick<UserAccount, "roles">): boolean {
   return user.roles.some((grant) => STAFF_ROLES.includes(grant.role));

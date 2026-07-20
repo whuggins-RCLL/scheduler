@@ -10,7 +10,7 @@ const ROLE_DESCRIPTIONS: { role: Role; description: string }[] = [
   { role: "SUPER_ADMIN", description: "Full org-wide access: manage users, roles, configuration, and every schedule." },
   { role: "MANAGER", description: "Manage staff, schedules, leave, and compliance overrides within their scope." },
   { role: "SCHEDULER", description: "Build and adjust schedules within scope without full user administration." },
-  { role: "EMPLOYEE", description: "View own schedule, submit availability, request leave and shift swaps." },
+  { role: "LIBRARY_STAFF", description: "View own schedule, submit availability, request leave and shift swaps." },
   { role: "VIEWER", description: "Read-only visibility into schedules and rosters; no editing." },
   { role: "AUDITOR", description: "Read-only access to the append-only audit log for oversight and review." },
 ];

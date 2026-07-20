@@ -30,7 +30,19 @@ import { ORGANIZATION_ID } from "@/lib/config";
 import { isBootstrapAdmin, normalizeEmail } from "@/lib/authz";
 import { getDb } from "@/lib/firebase";
 
-const VALID_ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "EMPLOYEE", "VIEWER", "AUDITOR"];
+const VALID_ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "LIBRARY_STAFF", "VIEWER", "AUDITOR"];
+
+/**
+ * Legacy role names mapped to their current equivalent. Applied when reading
+ * stored roles so accounts provisioned before a rename keep working without a
+ * separate data migration.
+ */
+const LEGACY_ROLE_ALIASES: Record<string, Role> = { EMPLOYEE: "LIBRARY_STAFF" };
+
+function canonicalRole(raw: string): Role | undefined {
+  const name = LEGACY_ROLE_ALIASES[raw] ?? raw;
+  return (VALID_ROLES as string[]).includes(name) ? (name as Role) : undefined;
+}
 
 function usersCollectionPath() {
   return `organizations/${ORGANIZATION_ID}/users`;
@@ -60,12 +72,12 @@ export function normalizeRoles(raw: unknown): RoleGrant[] {
   const grants: RoleGrant[] = [];
   for (const entry of raw) {
     if (typeof entry === "string") {
-      if ((VALID_ROLES as string[]).includes(entry)) grants.push({ role: entry as Role });
+      const role = canonicalRole(entry);
+      if (role) grants.push({ role });
     } else if (entry && typeof entry === "object" && typeof (entry as RoleGrant).role === "string") {
       const g = entry as RoleGrant;
-      if ((VALID_ROLES as string[]).includes(g.role)) {
-        grants.push(g.scope ? { role: g.role, scope: g.scope } : { role: g.role });
-      }
+      const role = canonicalRole(g.role);
+      if (role) grants.push(g.scope ? { role, scope: g.scope } : { role });
     }
   }
   return grants;
@@ -187,13 +199,13 @@ export async function writeUserState(userId: string, state: AccountState): Promi
   await updateDoc(doc(db, usersCollectionPath(), userId), { state, updatedAt: serverTimestamp() });
 }
 
-/** Approve a pending account as an employee in one Firestore write. */
+/** Approve a pending account as library staff in one Firestore write. */
 export async function writeUserApproval(userId: string): Promise<void> {
   const db = getDb();
   if (!db) return;
   await updateDoc(doc(db, usersCollectionPath(), userId), {
     state: "active",
-    roles: ["EMPLOYEE"],
+    roles: ["LIBRARY_STAFF"],
     updatedAt: serverTimestamp(),
   });
 }

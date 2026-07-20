@@ -16,10 +16,15 @@ describe("normalizeRoleNames", () => {
   });
 
   it("reads the RoleGrant shape", () => {
-    expect(normalizeRoleNames([{ role: "SCHEDULER" }, { role: "EMPLOYEE" }])).toEqual([
-      "EMPLOYEE",
+    expect(normalizeRoleNames([{ role: "SCHEDULER" }, { role: "LIBRARY_STAFF" }])).toEqual([
+      "LIBRARY_STAFF",
       "SCHEDULER",
     ]);
+  });
+
+  it("maps the legacy EMPLOYEE role name to LIBRARY_STAFF", () => {
+    expect(normalizeRoleNames(["EMPLOYEE"])).toEqual(["LIBRARY_STAFF"]);
+    expect(normalizeRoleNames([{ role: "EMPLOYEE" }])).toEqual(["LIBRARY_STAFF"]);
   });
 
   it("drops unknown roles and non-array input", () => {
@@ -113,13 +118,13 @@ describe("reconcileClaims", () => {
   it("preserves unrelated existing claims", () => {
     const r = reconcileClaims({
       existingClaims: { provider: "google", tier: "gold" },
-      userDoc: { state: "active", roles: ["EMPLOYEE"] },
+      userDoc: { state: "active", roles: ["LIBRARY_STAFF"] },
       orgId: ORG,
     });
     expect(r.claims).toEqual({
       provider: "google",
       tier: "gold",
-      roles: ["EMPLOYEE"],
+      roles: ["LIBRARY_STAFF"],
       orgId: ORG,
     });
   });

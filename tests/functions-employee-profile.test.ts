@@ -7,13 +7,19 @@ import {
 
 describe("employee-profile provisioning trigger", () => {
   it("accepts both string and structured role storage", () => {
-    expect(roleNames(["EMPLOYEE", { role: "MANAGER" }, null])).toEqual(["EMPLOYEE", "MANAGER"]);
+    expect(roleNames(["LIBRARY_STAFF", { role: "MANAGER" }, null])).toEqual(["LIBRARY_STAFF", "MANAGER"]);
   });
 
-  it("provisions active employees and administrators, but not archived or viewer accounts", () => {
+  it("maps the legacy EMPLOYEE role name to LIBRARY_STAFF", () => {
+    expect(roleNames(["EMPLOYEE", { role: "EMPLOYEE" }])).toEqual(["LIBRARY_STAFF", "LIBRARY_STAFF"]);
+  });
+
+  it("provisions active library staff and administrators, but not archived or viewer accounts", () => {
+    expect(shouldHaveEmployeeProfile({ state: "active", roles: ["LIBRARY_STAFF"] })).toBe(true);
+    // Legacy role name still provisions (backward compatible).
     expect(shouldHaveEmployeeProfile({ state: "active", roles: ["EMPLOYEE"] })).toBe(true);
     expect(shouldHaveEmployeeProfile({ state: "active", roles: ["SUPER_ADMIN"] })).toBe(true);
-    expect(shouldHaveEmployeeProfile({ state: "archived", roles: ["EMPLOYEE"] })).toBe(false);
+    expect(shouldHaveEmployeeProfile({ state: "archived", roles: ["LIBRARY_STAFF"] })).toBe(false);
     expect(shouldHaveEmployeeProfile({ state: "active", roles: ["VIEWER"] })).toBe(false);
   });
 
@@ -31,7 +37,7 @@ describe("employee-profile provisioning trigger", () => {
     expect(defaultEmployeeProfileData("employee-1", {
       email: "employee@stanford.edu",
       displayName: "Employee",
-      roles: ["EMPLOYEE"],
+      roles: ["LIBRARY_STAFF"],
     })).toMatchObject({
       active: true,
       setupComplete: false,
