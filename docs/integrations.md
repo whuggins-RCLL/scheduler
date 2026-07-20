@@ -80,11 +80,22 @@ requests no read access to anyone's calendar.
   `organizations/{org}/calendarConnections/{uid}`, which `firestore.rules`
   denies to every client. The caller is authenticated by verifying their
   Firebase ID token; the OAuth `state` is HMAC-signed to prevent CSRF.
-- **Triggering** is currently client-driven: the signed-in user's shifts sync
-  when they open the scheduler, on connect, and via **Sync now**. Because the
-  server only ever writes to the authenticated caller's own calendar, this is
-  safe. A Cloud Function that reuses `planUserCalendarSync` to push on publish
-  for *all* assigned users is the natural production enhancement.
+- **Triggering** happens two ways, both reusing the same pure planner:
+  - *Per-user pull* — the signed-in user's shifts sync when they open the
+    scheduler, on connect, and via **Sync now** (`/sync`, writes only the
+    caller's own calendar).
+  - *Push on publish* — when a manager publishes a schedule, their client
+    computes the plan for every assignee (`planPublishedScheduleSync`) and posts
+    it to `/publish-sync`. That route is **manager/admin-gated** (verified from
+    the caller's role claims) and writes each assignee's shifts using that
+    person's own stored token — only for those who have connected; everyone else
+    is skipped. So a connected employee's calendar updates the moment the
+    schedule goes out, without waiting for them to open the app.
+  - The push runs from the publishing manager's browser. If it's interrupted
+    (tab closed mid-run), the per-user pull still catches any stragglers. Moving
+    the push into a Firestore-triggered Cloud Function would make it fully
+    server-side, but that first requires schedules/shifts to be persisted to
+    Firestore (they are currently in-memory only), so it's a larger follow-up.
 
 ### Setup checklist (one-time, to switch it on)
 
