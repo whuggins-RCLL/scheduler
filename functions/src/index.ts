@@ -43,6 +43,7 @@ import {
   planWeeklyDraft,
   seedForWeek,
 } from "./weekly-draft";
+import { handlePublishedSchedule, shouldSyncOnScheduleWrite } from "./calendar-publish";
 import { DEFAULT_TIMEZONE } from "../../src/lib/config";
 import { addDays, todayInTimeZone } from "../../src/domain/time";
 import { emptyDatabase } from "../../src/lib/store/types";
@@ -347,5 +348,32 @@ export const generateWeeklyDraft = onSchedule(
       unfilled: plan.result.unfilled.length,
       hardFindings: plan.result.findings.filter((f) => f.severity === "hard").length,
     });
+  },
+);
+
+/**
+ * Push a published schedule to every connected assignee's Google Calendar the
+ * instant it's published. Server-side and reliable (Cloud Functions retries),
+ * so it fires regardless of whether the publishing manager's browser is open —
+ * the definitive version of the client-side publish push. Reuses the app's pure
+ * planner + Google provider; deterministic event ids make the two idempotent.
+ *
+ * Requires GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET (and, for event
+ * links, APP_BASE_URL) in the functions environment; a no-op until configured.
+ */
+export const syncCalendarOnPublish = onDocumentWritten(
+  "organizations/{orgId}/schedules/{scheduleId}",
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!shouldSyncOnScheduleWrite(before, after)) return;
+
+    const { orgId, scheduleId } = event.params as { orgId: string; scheduleId: string };
+    try {
+      const summary = await handlePublishedSchedule(getFirestore(), orgId, scheduleId);
+      logger.info("syncCalendarOnPublish", { scheduleId, ...summary });
+    } catch (err) {
+      logger.error("syncCalendarOnPublish failed", err);
+    }
   },
 );
