@@ -37,7 +37,7 @@ export function PreviewAdmin() {
                   <h2 id={`${person.id}-preview`} style={{ marginTop: "0.5rem" }}>{person.preferredName ?? person.legalName}</h2>
                   <p className="muted">{person.classification.replaceAll("_", " ")} · target {person.targetWeeklyHours}h/week</p>
                 </div>
-                <Link className="button sm" href="/tours">Open tour</Link>
+                <Link className="button sm" href="/guides">Open guides</Link>
               </div>
 
               <div className="preview-phone" aria-label={`${label} dashboard preview`}>
