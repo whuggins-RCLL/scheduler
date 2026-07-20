@@ -17,7 +17,7 @@ const employeeLinks: [string, string][] = [
   ["/swaps", "Swaps"],
   ["/tasks", "Tasks"],
   ["/calendar", "Calendar"],
-  ["/tours", "Tours"],
+  ["/guides", "Guides"],
 ];
 
 const managerLinks: [string, string][] = [

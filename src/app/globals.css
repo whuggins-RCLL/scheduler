@@ -902,10 +902,96 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
   .schedule-hub-head .pill-toggle button { flex: 1; text-align: center; padding-inline: 0.5rem; font-size: 0.82rem; }
 }
 
-/* ---- Tours and previews ---- */
-.tour-list { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 1rem; }
-.tour-step { display: grid; grid-template-columns: 38px 1fr; gap: 0.85rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
-.tour-number { width: 32px; height: 32px; border-radius: 999px; display: inline-grid; place-items: center; background: var(--brand-solid); color: #fff; font-weight: 700; }
+/* ---- Guides ---- */
+.guide-page { gap: 1.5rem; }
+
+/* Hero + jump-to nav */
+.guide-hero { padding: 2.1rem 2.2rem; }
+.guide-hero-sub { max-width: 60ch; color: var(--ink-2); font-size: 1.02rem; line-height: 1.6; margin: 0.15rem 0 0; }
+.guide-toc { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.3rem; }
+.guide-toc-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.85rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
+  text-decoration: none; color: var(--ink);
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-border);
+  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.guide-toc-link:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); background: var(--surface); }
+:root[data-reduce-transparency="true"] .guide-toc-link { background: var(--surface); }
+
+/* Section scaffolding */
+.guide-section { scroll-margin-top: 1.25rem; }
+.guide-section-head { margin-bottom: 1.4rem; }
+.guide-eyebrow { text-transform: uppercase; letter-spacing: 0.09em; font-size: 0.72rem; font-weight: 700; color: var(--cardinal); }
+.guide-section-title { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.3rem; }
+.guide-section-title h2 { margin: 0; font-size: 1.5rem; letter-spacing: -0.01em; }
+.guide-foryou { font-weight: 600; }
+.guide-lede { max-width: 62ch; color: var(--ink-2); font-size: 1rem; line-height: 1.6; margin: 0.55rem 0 0; }
+.guide-subhead { margin: 1.9rem 0 0.9rem; font-size: 1.05rem; }
+
+/* Four-step "how it works" flow */
+.guide-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.guide-flow-step {
+  position: relative; padding: 1.25rem; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.guide-flow-icon {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
+  font-size: 1.35rem; margin-bottom: 0.7rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cardinal) 22%, transparent), color-mix(in srgb, var(--palo-alto) 18%, transparent));
+  border: 1px solid var(--glass-border);
+}
+.guide-flow-step h3 { margin: 0 0 0.35rem; font-size: 0.98rem; letter-spacing: -0.01em; }
+.guide-flow-step p { margin: 0; color: var(--ink-2); font-size: 0.9rem; line-height: 1.55; }
+
+/* Numbered walkthrough steps */
+.guide-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: guide; position: relative; }
+.guide-step { display: grid; grid-template-columns: 40px 1fr; gap: 1rem; padding: 0.35rem 0 1.35rem; position: relative; }
+.guide-step:not(:last-child)::before {
+  content: ""; position: absolute; left: 19px; top: 40px; bottom: 0; width: 2px;
+  background: linear-gradient(var(--border-strong), transparent);
+}
+.guide-step-num {
+  width: 40px; height: 40px; border-radius: 999px; display: inline-grid; place-items: center;
+  background: var(--brand-solid); color: #fff; font-weight: 700; font-size: 0.95rem; z-index: 1;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cardinal) 35%, transparent);
+}
+.guide-step-body h3 { margin: 0.35rem 0 0.35rem; font-size: 1.02rem; letter-spacing: -0.01em; }
+.guide-step-body p { margin: 0; color: var(--ink-2); line-height: 1.6; }
+.guide-step-body a { color: var(--cardinal); font-weight: 600; }
+
+/* Callouts (tip / note / default) */
+.guide-callout {
+  display: flex; gap: 0.85rem; align-items: flex-start; margin: 1.5rem 0 0;
+  padding: 1rem 1.15rem; border-radius: var(--radius-sm);
+  background: var(--info-bg); border: 1px solid color-mix(in srgb, var(--info) 22%, transparent);
+  border-left: 3px solid var(--info);
+}
+.guide-callout p { margin: 0; color: var(--ink); line-height: 1.55; font-size: 0.94rem; }
+.guide-callout-icon { font-size: 1.2rem; line-height: 1.4; }
+.guide-callout-tip { background: var(--success-bg); border-color: color-mix(in srgb, var(--success) 22%, transparent); border-left-color: var(--success); }
+.guide-callout-note { background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 24%, transparent); border-left-color: var(--warning); }
+
+/* Glossary */
+.guide-glossary { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin: 0; }
+.guide-term { padding: 0.9rem 1rem; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.guide-term dt { font-weight: 700; margin-bottom: 0.2rem; }
+.guide-term dd { margin: 0; color: var(--ink-2); font-size: 0.9rem; line-height: 1.5; }
+
+/* CTAs + help footer */
+.guide-cta { margin-top: 1.5rem; }
+.guide-cta-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+.guide-cta-row .guide-cta { margin-top: 0; }
+.guide-help { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }
+.guide-help h2 { margin: 0 0 0.3rem; font-size: 1.2rem; }
+.guide-help p { margin: 0; max-width: 60ch; }
+
+@media (max-width: 720px) {
+  .guide-hero { padding: 1.5rem 1.35rem; }
+  .guide-section-title h2 { font-size: 1.3rem; }
+}
+
+/* ---- Previews ---- */
 .preview-frame { overflow: hidden; }
 .preview-phone { margin-top: 1rem; border: 1px solid var(--border-strong); border-radius: 22px; padding: 1rem; background: var(--paper); box-shadow: inset 0 0 0 6px var(--surface); }
 .preview-bar { margin: -0.25rem auto 1rem; width: 42%; text-align: center; font-size: 0.75rem; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; }
