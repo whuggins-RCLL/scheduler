@@ -140,6 +140,9 @@ h3 { font-size: 1rem; }
 p { margin: 0 0 0.75rem; }
 a { color: var(--cardinal); text-underline-offset: 2px; }
 small { font-size: 0.82rem; }
+/* Long tokens (env var names, URLs, redirect URIs) must wrap rather than push
+   the layout wider than the screen. */
+code, kbd, samp { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
 
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 
@@ -151,7 +154,10 @@ small { font-size: 0.82rem; }
 .skip:focus { left: 1rem; top: 1rem; }
 
 .muted { color: var(--muted); }
-.stack { display: grid; gap: 1rem; }
+/* Single shared column, clamped to minmax(0,1fr) so a wide row (a table, a
+   schedule grid) can't stretch every sibling past the viewport — it scrolls
+   inside its own overflow wrapper instead. */
+.stack { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
 .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .spread { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .mt { margin-top: 1rem; }
@@ -200,9 +206,9 @@ main { padding: 1.75rem; max-width: 1240px; margin: 0 auto; }
 .card.pad-lg { padding: 1.5rem; }
 .card-link { text-decoration: none; color: inherit; transition: box-shadow 0.15s, transform 0.15s; display: block; }
 .card-link:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-.grid-2 { display: grid; gap: 1.25rem; grid-template-columns: 1fr 1fr; }
-.grid-hero { display: grid; gap: 1.25rem; grid-template-columns: 1.6fr 1fr; align-items: start; }
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); }
+.grid-2 { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.grid-hero { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; }
 .metric { font-size: 1.9rem; font-weight: 720; letter-spacing: -0.02em; }
 .metric-label { color: var(--muted); font-size: 0.85rem; }
 
@@ -221,7 +227,7 @@ main { padding: 1.75rem; max-width: 1240px; margin: 0 auto; }
 .qual-section-meta { display: block; font-size: 0.85rem; font-weight: 400; margin-top: 0.15rem; }
 .qual-category { padding: 0 1.25rem 1.25rem; }
 .qual-category-title { margin: 0 0 0.75rem; font-size: 0.95rem; font-weight: 650; }
-.qual-task-grid { display: grid; gap: 0.85rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.qual-task-grid { display: grid; gap: 0.85rem; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
 .qual-task-card {
   border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem;
   background: color-mix(in srgb, var(--surface) 96%, var(--bg));
@@ -708,7 +714,7 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
   background: linear-gradient(135deg, var(--cardinal-tint), var(--surface-2));
 }
 
-.dash-columns { display: grid; grid-template-columns: 1.55fr 1fr; gap: 1.25rem; align-items: start; }
+.dash-columns { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 
 /* Collapsible dashboard cards */
 .collapsible-card { padding: 0; overflow: hidden; }
@@ -778,7 +784,7 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .hours-row .hours-label { color: var(--muted); font-size: 0.82rem; font-weight: 500; }
 
 /* Quick link tiles */
-.link-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+.link-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 0.75rem; }
 .link-tile { display: grid; gap: 0.2rem; padding: 1rem; border-radius: var(--radius-sm); text-decoration: none; color: inherit; transition: transform 0.15s, box-shadow 0.15s; }
 .link-tile:hover { transform: translateY(-2px); box-shadow: var(--glass-shadow); }
 .link-tile .tile-icon { font-size: 1.4rem; }
@@ -930,7 +936,7 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .guide-subhead { margin: 1.9rem 0 0.9rem; font-size: 1.05rem; }
 
 /* Four-step "how it works" flow */
-.guide-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.guide-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
 .guide-flow-step {
   position: relative; padding: 1.25rem; border-radius: var(--radius-sm);
   background: var(--surface-2); border: 1px solid var(--border);
@@ -973,7 +979,7 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .guide-callout-note { background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 24%, transparent); border-left-color: var(--warning); }
 
 /* Glossary */
-.guide-glossary { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin: 0; }
+.guide-glossary { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); margin: 0; }
 .guide-term { padding: 0.9rem 1rem; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
 .guide-term dt { font-weight: 700; margin-bottom: 0.2rem; }
 .guide-term dd { margin: 0; color: var(--ink-2); font-size: 0.9rem; line-height: 1.5; }
@@ -1034,7 +1040,7 @@ button.desk-chip:hover { background: color-mix(in srgb, var(--pos, var(--cardina
 .personal-stat-label { font-size: 0.82rem; color: var(--muted); }
 .personal-schedule-columns {
   display: grid;
-  grid-template-columns: 1.55fr 1fr;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
 }
