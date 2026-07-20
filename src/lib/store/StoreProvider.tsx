@@ -58,6 +58,19 @@ import {
   writeGlobalException,
 } from "./firestore-global-exceptions";
 import { bootstrapTasks, deleteTask as deleteTaskDoc, subscribeTasks, writeTask } from "./firestore-tasks";
+import {
+  subscribeSchedules,
+  subscribeShifts,
+  writeSchedule,
+  writeShiftsBatch,
+} from "./firestore-scheduling";
+import {
+  diffForSync,
+  scheduleSignature,
+  shiftSignature,
+  snapshotOf,
+  type SyncSnapshot,
+} from "./scheduling-sync";
 import { defaultTasks } from "./default-tasks";
 import { buildSeed, seedLocations } from "./seed";
 import { DEPARTMENTS } from "./departments";
@@ -215,6 +228,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const configBootstrapDone = useRef(false);
   const locationsBootstrapDone = useRef(false);
   const purgeDone = useRef(false);
+  // Reactive scheduling sync: what Firestore currently holds (id → signature),
+  // so the persist effect writes only local changes and never echoes.
+  const schedSnapshotRef = useRef<SyncSnapshot>(new Map());
+  const shiftSnapshotRef = useRef<SyncSnapshot>(new Map());
+  // The persist effect must not run until BOTH collections' initial snapshots
+  // have arrived, or a race could write the seed over real Firestore data.
+  const schedHydratedRef = useRef(false);
+  const shiftHydratedRef = useRef(false);
 
   // Retention sweep: once hydrated, purge schedules/shifts older than the
   // retention window (15 days). Runs once per session load.
@@ -268,6 +289,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let unsubscribePositions: () => void = () => {};
     let unsubscribeLocations: () => void = () => {};
     let unsubscribeDepartments: () => void = () => {};
+    let unsubscribeSchedules: () => void = () => {};
+    let unsubscribeShifts: () => void = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       unsubscribeUsers();
       unsubscribeProfiles();
@@ -278,6 +301,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribePositions();
       unsubscribeLocations();
       unsubscribeDepartments();
+      unsubscribeSchedules();
+      unsubscribeShifts();
       unsubscribeUsers = () => {};
       unsubscribeProfiles = () => {};
       unsubscribeAvailability = () => {};
@@ -287,6 +312,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribePositions = () => {};
       unsubscribeLocations = () => {};
       unsubscribeDepartments = () => {};
+      unsubscribeSchedules = () => {};
+      unsubscribeShifts = () => {};
+      schedHydratedRef.current = false;
+      shiftHydratedRef.current = false;
       if (!fbUser) {
         writeSessionCookies(null);
         setSessionUserId(null);
@@ -416,6 +445,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         (positions) => setDb((d) => ({ ...d, positions: unionById(d.positions, positions) })),
         () => { /* keep local */ },
       );
+      // Scheduling core. The snapshot ref is set to exactly what Firestore holds
+      // so the persist effect writes only local changes. Keep the in-memory seed
+      // until Firestore has been populated (a manager bootstraps it on first
+      // load via the persist effect, same as tasks/locations).
+      unsubscribeSchedules = subscribeSchedules(
+        (schedules) => {
+          schedSnapshotRef.current = snapshotOf(schedules, scheduleSignature);
+          schedHydratedRef.current = true;
+          setDb((d) => ({ ...d, schedules: schedules.length > 0 ? schedules : d.schedules }));
+        },
+        () => { schedHydratedRef.current = true; /* keep seed when unavailable */ },
+      );
+      unsubscribeShifts = subscribeShifts(
+        (shifts) => {
+          shiftSnapshotRef.current = snapshotOf(shifts, shiftSignature);
+          shiftHydratedRef.current = true;
+          setDb((d) => ({ ...d, shifts: shifts.length > 0 ? shifts : d.shifts }));
+        },
+        () => { shiftHydratedRef.current = true; /* keep seed when unavailable */ },
+      );
       setHydrated(true);
     });
 
@@ -430,9 +479,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribePositions();
       unsubscribeLocations();
       unsubscribeDepartments();
+      unsubscribeSchedules();
+      unsubscribeShifts();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reactive persistence for the scheduling core. Any local change to schedules
+  // or shifts is diffed against what Firestore holds and the changed docs are
+  // written (creates/updates only — never deletes). Gated to staff, since the
+  // rules only permit them to write; students read the published result. This
+  // also performs the first-load bootstrap: when Firestore is empty, the seed
+  // schedule/shifts are written once.
+  useEffect(() => {
+    if (!isFirebaseConfigured || !schedHydratedRef.current || !shiftHydratedRef.current) return;
+    const account = sessionUserId ? db.users.find((u) => u.id === sessionUserId) : undefined;
+    if (!account || !canManage(account)) return;
+
+    const sched = diffForSync(schedSnapshotRef.current, db.schedules, scheduleSignature);
+    if (sched.writes.length > 0) {
+      schedSnapshotRef.current = sched.next;
+      for (const s of sched.writes) void writeSchedule(s).catch(() => {});
+    }
+    const shift = diffForSync(shiftSnapshotRef.current, db.shifts, shiftSignature);
+    if (shift.writes.length > 0) {
+      shiftSnapshotRef.current = shift.next;
+      void writeShiftsBatch(shift.writes).catch(() => {});
+    }
+  }, [db.schedules, db.shifts, db.users, sessionUserId]);
 
   const now = () => new Date().toISOString();
   const actorId = sessionUserId ?? "system";
