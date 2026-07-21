@@ -31,12 +31,18 @@ import {
 import { WEEKDAY_LABELS, formatTime } from "@/domain/time";
 import type { AvailabilityKind, AvailabilityPattern, MealBreakMinutes } from "@/domain/types";
 
-const CYCLE: AvailabilityKind[] = ["unavailable", "available", "preferred"];
 const KIND_LABEL: Record<AvailabilityKind, string> = {
   unavailable: "Unavailable",
   available: "Available",
   preferred: "Preferred",
 };
+
+// Paint brushes offered in the editable grid, in palette order.
+const BRUSHES: { kind: AvailabilityKind; label: string; symbol: string }[] = [
+  { kind: "preferred", label: "Preferred", symbol: "★" },
+  { kind: "available", label: "Available", symbol: "✓" },
+  { kind: "unavailable", label: "Clear", symbol: "" },
+];
 
 const MEAL_OPTIONS: { value: MealBreakMinutes; label: string }[] = [
   { value: 30, label: "30 minutes" },
@@ -95,6 +101,10 @@ export function AvailabilityEditor() {
   const [approved, setApproved] = useState<Set<string>>(() => approvedBlocksToSet(existing?.approvedBlocks ?? []));
   const [note, setNote] = useState(existing?.note ?? "");
   const [mealBreak, setMealBreak] = useState<MealBreakMinutes | null>(existing?.mealBreakMinutes ?? null);
+  // The active "brush" the grid paints with. Clicking or dragging cells applies
+  // this kind, so Available and Preferred are each their own explicit mode
+  // instead of a hard-to-discover click-cycle.
+  const [brush, setBrush] = useState<AvailabilityKind>("available");
   const [saved, setSaved] = useState(false);
   const [approvalSaved, setApprovalSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -138,27 +148,8 @@ export function AvailabilityEditor() {
     setSaveError(null);
   }, [existing, targetEmployeeId]);
 
-  function cycle(day: number, slot: number) {
-    if (readOnly) return;
-    const key = `${day}-${slot}`;
-    setSaved(false);
-    setCells((c) => {
-      const cur = c[key] ?? "unavailable";
-      const nextKind = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
-      const next = { ...c, [key]: nextKind };
-      if (isStudent && nextKind === "unavailable") {
-        setApproved((a) => {
-          const copy = new Set(a);
-          copy.delete(key);
-          return copy;
-        });
-      }
-      return next;
-    });
-  }
-
-  // Directly set a single cell to a kind (used by drag painting, which fills a
-  // whole run with one value rather than cycling each cell individually).
+  // Directly set a single cell to a kind (used by both a plain click and drag
+  // painting, which fills a whole run with one value).
   function paintCell(day: number, slot: number, kind: AvailabilityKind) {
     if (readOnly) return;
     const key = `${day}-${slot}`;
@@ -188,76 +179,85 @@ export function AvailabilityEditor() {
     });
   }
 
-  // Drag-to-paint: press on a cell and drag across the grid to set many cells at
-  // once instead of clicking each half-hour block. A press that never leaves its
-  // starting cell falls through to the single-cell click handler (cycle/approve).
-  const dragRef = useRef<
-    | {
-        mode: "edit" | "approve";
-        value: AvailabilityKind;
-        approve: boolean;
-        startKey: string;
-        moved: boolean;
-      }
-    | null
-  >(null);
+  // Drag-to-paint: press on a cell and drag across the grid — in any direction:
+  // horizontal, vertical, or diagonal — to set many cells at once instead of
+  // clicking each half-hour block. We resolve the cell under the pointer with
+  // elementFromPoint (via data-day/data-slot) rather than per-cell enter events,
+  // so painting is not confined to a single row or column.
+  type DragState =
+    | { mode: "paint"; kind: AvailabilityKind; moved: boolean; startDay: number; startSlot: number }
+    | { mode: "approve"; approve: boolean; moved: boolean; startDay: number; startSlot: number };
+  const dragRef = useRef<DragState | null>(null);
   const draggedRef = useRef(false);
+
+  function applyAt(d: DragState, day: number, slot: number) {
+    if (d.mode === "approve") setApprovalState(day, slot, d.approve);
+    else paintCell(day, slot, d.kind);
+  }
 
   function beginDrag(day: number, slot: number) {
     const key = `${day}-${slot}`;
     const kind = cells[key] ?? "unavailable";
     const signedUp = kind === "available" || kind === "preferred";
     draggedRef.current = false;
+
     if (canApprove && signedUp) {
-      // Painting approvals for a signed-up student: fill or clear the run.
-      dragRef.current = { mode: "approve", value: kind, approve: !approved.has(key), startKey: key, moved: false };
+      // Manager reviewing a student: drag fills or clears approval across the run.
+      dragRef.current = { mode: "approve", approve: !approved.has(key), moved: false, startDay: day, startSlot: slot };
     } else if (!readOnly) {
-      // Editing own/other's grid: drag from an empty cell fills Available, drag
-      // from a marked cell clears it. Cycling to Preferred stays a single click.
-      dragRef.current = {
-        mode: "edit",
-        value: kind === "unavailable" ? "available" : "unavailable",
-        approve: false,
-        startKey: key,
-        moved: false,
-      };
+      // Editing a grid: drag paints the currently selected brush.
+      dragRef.current = { mode: "paint", kind: brush, moved: false, startDay: day, startSlot: slot };
     } else {
       dragRef.current = null;
+      return;
     }
-  }
 
-  function applyDrag(day: number, slot: number) {
-    const d = dragRef.current;
-    if (!d) return;
-    if (d.mode === "approve") setApprovalState(day, slot, d.approve);
-    else paintCell(day, slot, d.value);
-  }
-
-  function dragEnter(day: number, slot: number) {
-    const d = dragRef.current;
-    if (!d) return;
-    if (!d.moved) {
-      // First cell entered after press: commit the starting cell too so the
-      // whole gesture (start → here) paints, not just the cells we pass over.
-      d.moved = true;
-      draggedRef.current = true;
-      const [sDay, sSlot] = d.startKey.split("-").map(Number);
-      applyDrag(sDay, sSlot);
-    }
-    applyDrag(day, slot);
-  }
-
-  useEffect(() => {
-    function endDrag() {
+    const handleMove = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const cell = el && "closest" in el ? (el as Element).closest(".avail-cell") : null;
+      if (!cell) return;
+      const cd = Number(cell.getAttribute("data-day"));
+      const cs = Number(cell.getAttribute("data-slot"));
+      if (Number.isNaN(cd) || Number.isNaN(cs)) return;
+      if (!d.moved) {
+        // First move commits the starting cell too, so the whole gesture paints.
+        d.moved = true;
+        draggedRef.current = true;
+        applyAt(d, d.startDay, d.startSlot);
+      }
+      applyAt(d, cd, cs);
+    };
+    const endDrag = () => {
       dragRef.current = null;
-    }
-    window.addEventListener("pointerup", endDrag);
-    window.addEventListener("pointercancel", endDrag);
-    return () => {
+      window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
     };
-  }, []);
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+  }
+
+  // A plain click (no drag) applies the brush as a toggle: an empty cell takes
+  // the brush kind, and clicking a cell that already matches clears it.
+  function clickCell(day: number, slot: number) {
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
+    const key = `${day}-${slot}`;
+    const signedUp = cells[key] === "available" || cells[key] === "preferred";
+    if (canApprove && signedUp) {
+      toggleApproval(day, slot);
+      return;
+    }
+    if (readOnly) return;
+    const cur = cells[key] ?? "unavailable";
+    if (brush === "unavailable") paintCell(day, slot, "unavailable");
+    else paintCell(day, slot, cur === brush ? "unavailable" : brush);
+  }
 
   function setColumn(day: number, kind: AvailabilityKind) {
     if (readOnly) return;
@@ -348,8 +348,8 @@ export function AvailabilityEditor() {
         </h1>
         <p className="muted">
           {isStudent
-            ? "Sign up for the hours you can work at the library. Click a cell to sign up, or click and drag across cells to fill several half-hours at once. Your manager reviews and approves a subset for scheduling."
-            : "When you can cover the borrowing desk. Click a cell to cycle Unavailable → Available → Preferred, or click and drag across cells to mark several half-hours available at once."}
+            ? "Sign up for the hours you can work at the library. Pick Available or Preferred, then click or drag across cells to fill several half-hours at once. Your manager reviews and approves a subset for scheduling."
+            : "When you can cover the borrowing desk. Pick Preferred, Available, or Clear, then click or drag across cells — in any direction — to paint several half-hours at once."}
         </p>
       </div>
 
@@ -442,22 +442,43 @@ export function AvailabilityEditor() {
       </section>
 
       <div className="card">
-        <div className="row" style={{ marginBottom: "0.75rem", flexWrap: "wrap" }}>
-          <span className="badge">Legend</span>
-          {isStudent ? (
-            <>
-              <span className="chip" style={{ background: "color-mix(in srgb, var(--info) 15%, var(--surface))" }}>Signed up</span>
-              <span className="chip" style={{ background: "color-mix(in srgb, var(--palo-alto) 30%, var(--surface))" }}>Approved</span>
-            </>
-          ) : (
-            <>
-              <span className="chip" style={{ background: "color-mix(in srgb, var(--palo-alto) 22%, var(--surface))" }}>Preferred</span>
-              <span className="chip" style={{ background: "color-mix(in srgb, var(--info) 15%, var(--surface))" }}>Available</span>
-            </>
-          )}
-          <span className="chip">Unavailable</span>
-          {readOnly && <span className="badge warn">Read-only</span>}
-        </div>
+        {!readOnly ? (
+          <div className="row avail-palette" role="radiogroup" aria-label="Paint mode" style={{ marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+            <span className="badge">Paint</span>
+            {BRUSHES.map((b) => (
+              <button
+                key={b.kind}
+                type="button"
+                role="radio"
+                aria-checked={brush === b.kind}
+                className={`chip avail-brush ${b.kind}${brush === b.kind ? " selected" : ""}`}
+                onClick={() => setBrush(b.kind)}
+              >
+                {b.symbol && <span aria-hidden>{b.symbol}</span>} {b.label}
+              </button>
+            ))}
+            <span className="hint" style={{ flexBasis: "100%", margin: "0.35rem 0 0" }}>
+              Click a cell, or click and drag across cells — in any direction — to paint several half-hours at once.
+            </span>
+          </div>
+        ) : (
+          <div className="row" style={{ marginBottom: "0.75rem", flexWrap: "wrap" }}>
+            <span className="badge">Legend</span>
+            {isStudent ? (
+              <>
+                <span className="chip avail-brush available">✓ Signed up</span>
+                <span className="chip avail-brush approved">Approved</span>
+              </>
+            ) : (
+              <>
+                <span className="chip avail-brush preferred">★ Preferred</span>
+                <span className="chip avail-brush available">✓ Available</span>
+              </>
+            )}
+            <span className="chip">Unavailable</span>
+            <span className="badge warn">Read-only</span>
+          </div>
+        )}
 
         <div style={{ overflowX: "auto" }}>
           <div className="avail-grid" role="grid" aria-label="Weekly availability" aria-readonly={readOnly && !canApprove}>
@@ -467,7 +488,7 @@ export function AvailabilityEditor() {
                 {d}
                 {!readOnly && (
                   <div>
-                    <button type="button" className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "available")} aria-label={`Mark all ${d} available`}>all</button>
+                    <button type="button" className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, brush === "unavailable" ? "available" : brush)} aria-label={`Mark all ${d} ${brush === "unavailable" ? "available" : brush}`}>all</button>
                     <button type="button" className="button sm ghost" style={{ fontSize: "0.65rem", padding: "0 4px", minHeight: 20 }} onClick={() => setColumn(i, "unavailable")} aria-label={`Clear all ${d}`}>×</button>
                   </div>
                 )}
@@ -490,32 +511,21 @@ export function AvailabilityEditor() {
                       isStudent && isApproved ? "approved" : "",
                     ].filter(Boolean).join(" ");
 
-                    const handleClick = () => {
-                      // A drag already painted these cells; swallow the trailing click.
-                      if (draggedRef.current) {
-                        draggedRef.current = false;
-                        return;
-                      }
-                      if (canApprove && signedUp) toggleApproval(day, slot);
-                      else cycle(day, slot);
-                    };
-
                     return (
                       <button
                         key={key}
                         type="button"
                         role="gridcell"
+                        data-day={day}
+                        data-slot={slot}
                         className={cellClass}
-                        onClick={handleClick}
+                        onClick={() => clickCell(day, slot)}
                         onPointerDown={() => beginDrag(day, slot)}
-                        onPointerEnter={() => dragEnter(day, slot)}
                         disabled={readOnly && !(canApprove && signedUp)}
                         aria-disabled={readOnly && !(canApprove && signedUp)}
-                        aria-label={`${WEEKDAY_LABELS[day]} ${formatTime(slot)}: ${signedUp ? "signed up" : KIND_LABEL[kind]}${isApproved ? ", approved" : ""}`}
+                        aria-label={`${WEEKDAY_LABELS[day]} ${formatTime(slot)}: ${KIND_LABEL[kind]}${isApproved ? ", approved" : ""}`}
                       >
-                        {isStudent
-                          ? (isApproved ? "✓" : signedUp ? "·" : "")
-                          : (kind === "preferred" ? "★" : kind === "available" ? "✓" : "")}
+                        {kind === "preferred" ? "★" : kind === "available" ? "✓" : ""}
                       </button>
                     );
                   })}
