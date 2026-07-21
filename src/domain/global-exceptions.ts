@@ -203,3 +203,36 @@ export function leaveRecordsForEmployee(db: Database, employeeId: string): Leave
   const personal = personalLeaveRecordsForEmployee(db, employeeId);
   return [...globals, ...personal].sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
+
+export type ExceptionSortOrder = "asc" | "desc";
+
+/**
+ * Exceptions to *display* for one account: university-wide holidays and personal
+ * records interfiled by date, with entries that have already finished dropped
+ * ("purged" from view) so only current and upcoming exceptions remain. Sorted by
+ * start date — ascending (closest first) by default, or descending (furthest
+ * first) when requested.
+ *
+ * Distinct from {@link leaveRecordsForEmployee}, which keeps every record
+ * (including past ones) for scheduling and history and sorts newest-first.
+ */
+export function visibleLeaveRecordsForEmployee(
+  db: Database,
+  employeeId: string,
+  opts: { asOf?: string; order?: ExceptionSortOrder } = {},
+): LeaveRecord[] {
+  const asOf = opts.asOf ?? new Date().toISOString().slice(0, 10);
+  const order = opts.order ?? "asc";
+  const combined = [
+    ...globalLeaveRecordsForEmployee(db, employeeId),
+    ...personalLeaveRecordsForEmployee(db, employeeId),
+  ]
+    // An exception is "passed" only once its final day is behind us; one that
+    // ends today is still current and stays on the list.
+    .filter((record) => record.endDate >= asOf);
+  combined.sort((a, b) => {
+    const cmp = a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate);
+    return order === "asc" ? cmp : -cmp;
+  });
+  return combined;
+}

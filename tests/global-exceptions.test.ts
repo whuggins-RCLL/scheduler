@@ -13,6 +13,7 @@ import {
   globalLeaveRecordsForEmployee,
   isKnownInactiveAccount,
   leaveRecordsForEmployee,
+  visibleLeaveRecordsForEmployee,
 } from "@/domain/global-exceptions";
 import { humanDateRange } from "@/lib/ui";
 
@@ -270,5 +271,69 @@ describe("global exceptions", () => {
     const merged = leaveRecordsForEmployee(db, accountId);
     expect(merged.some((l) => l.globalExceptionId)).toBe(true);
     expect(merged.some((l) => l.id === "leave-personal-1")).toBe(true);
+  });
+
+  describe("visibleLeaveRecordsForEmployee", () => {
+    function withPersonal(startDate: string, endDate: string, id = "leave-personal-x") {
+      const db = buildSeed();
+      const accountId = db.users[0].id;
+      return {
+        accountId,
+        db: {
+          ...db,
+          leave: [
+            ...db.leave,
+            {
+              id,
+              employeeId: accountId,
+              leaveTypeId: "lt-unavailable",
+              startDate,
+              endDate,
+              partialDay: false,
+              status: "recorded" as const,
+              enteredBy: accountId,
+              createdAt: NOW,
+              updatedAt: NOW,
+            },
+          ],
+        },
+      };
+    }
+
+    it("drops exceptions that have already passed and keeps ones ending today", () => {
+      const { db, accountId } = withPersonal("2026-06-01", "2026-06-02", "leave-past");
+      const asOf = "2026-07-21";
+      const records = visibleLeaveRecordsForEmployee(db, accountId, { asOf });
+      expect(records.some((r) => r.id === "leave-past")).toBe(false);
+      expect(records.every((r) => r.endDate >= asOf)).toBe(true);
+
+      const endsToday = withPersonal("2026-07-20", asOf, "leave-today");
+      const withToday = visibleLeaveRecordsForEmployee(endsToday.db, endsToday.accountId, { asOf });
+      expect(withToday.some((r) => r.id === "leave-today")).toBe(true);
+    });
+
+    it("defaults to closest-first and reverses to furthest-first on request", () => {
+      const { db, accountId } = withPersonal("2026-09-15", "2026-09-15");
+      const asOf = "2026-07-21";
+      const asc = visibleLeaveRecordsForEmployee(db, accountId, { asOf });
+      for (let i = 1; i < asc.length; i++) {
+        expect(asc[i].startDate >= asc[i - 1].startDate).toBe(true);
+      }
+      const desc = visibleLeaveRecordsForEmployee(db, accountId, { asOf, order: "desc" });
+      expect(desc.map((r) => r.id)).toEqual([...asc.map((r) => r.id)].reverse());
+    });
+
+    it("interfiles a personal exception among the university holidays by date", () => {
+      const { db, accountId } = withPersonal("2026-10-01", "2026-10-01", "leave-mid");
+      const asOf = "2026-07-21";
+      const records = visibleLeaveRecordsForEmployee(db, accountId, { asOf });
+      const idx = records.findIndex((r) => r.id === "leave-mid");
+      expect(idx).toBeGreaterThan(-1);
+      // Neighbours on each side are university holidays — i.e. it is interfiled,
+      // not appended after a separate personal group.
+      const hasGlobalBefore = records.slice(0, idx).some((r) => r.globalExceptionId);
+      const hasGlobalAfter = records.slice(idx + 1).some((r) => r.globalExceptionId);
+      expect(hasGlobalBefore && hasGlobalAfter).toBe(true);
+    });
   });
 });
