@@ -25,7 +25,7 @@ import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { ORGANIZATION_ID } from "../src/lib/config";
-import { isApprovedDomain, isBootstrapAdmin, normalizeEmail } from "../src/lib/authz";
+import { accountIdForEmail, canonicalEmail, isApprovedDomain, isBootstrapAdmin, normalizeEmail } from "../src/lib/authz";
 
 const app = initializeApp(
   process.env.GOOGLE_APPLICATION_CREDENTIALS
@@ -63,8 +63,26 @@ async function main() {
         continue;
       }
 
-      const ref = db.doc(`organizations/${ORGANIZATION_ID}/users/${user.uid}`);
-      if ((await ref.get()).exists) {
+      // Key on the canonical email so both Stanford logins share one account.
+      const accountId = accountIdForEmail(email);
+      const canonical = canonicalEmail(email);
+      const ref = db.doc(`organizations/${ORGANIZATION_ID}/users/${accountId}`);
+      const snap = await ref.get();
+      if (snap.exists) {
+        const data = snap.data() ?? {};
+        const uids: string[] = Array.isArray(data.uids) ? data.uids : [];
+        const emails: string[] = Array.isArray(data.signInEmails) ? data.signInEmails : [];
+        if (!uids.includes(user.uid) || !emails.includes(email)) {
+          await ref.set(
+            {
+              uids: FieldValue.arrayUnion(user.uid),
+              signInEmails: FieldValue.arrayUnion(email),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+          console.log(`  ↳ linked ${email} (uid ${user.uid}) to ${accountId}`);
+        }
         existing++;
         continue;
       }
@@ -74,7 +92,10 @@ async function main() {
       const state = bootstrap ? "active" : "pending_approval";
 
       await ref.set({
-        email,
+        email: canonical,
+        canonicalEmail: canonical,
+        signInEmails: [email],
+        uids: [user.uid],
         displayName: user.displayName ?? email,
         state,
         roles,
@@ -85,7 +106,7 @@ async function main() {
         await auth.setCustomUserClaims(user.uid, { roles, orgId: ORGANIZATION_ID });
         admins++;
       }
-      console.log(`  ✓ ${email} → ${state}${bootstrap ? " (SUPER_ADMIN)" : ""}`);
+      console.log(`  ✓ ${email} → ${accountId} (${state})${bootstrap ? " (SUPER_ADMIN)" : ""}`);
       created++;
     }
     pageToken = page.pageToken;

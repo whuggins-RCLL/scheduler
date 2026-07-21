@@ -28,44 +28,84 @@ service cloud.firestore {
     // ---- Identity / role helpers (coarse checks via custom claims) ----
     function signedIn() { return request.auth != null; }
     function hasRole(role) { return signedIn() && request.auth.token.roles != null && role in request.auth.token.roles; }
+    // A person's ONE canonical account id, derived from their verified Google
+    // email so both Stanford logins (@law.stanford.edu and @stanford.edu) resolve
+    // to the same account: any *.stanford.edu sub-domain folds to stanford.edu.
+    // MUST stay in sync with canonicalizeStanfordEmail()/accountIdForEmail() in
+    // src/lib/config.ts + src/lib/authz.ts.
+    function canonicalEmail() {
+      let e = request.auth.token.email.lower();
+      let local = e.split('@')[0];
+      let domain = e.split('@')[1];
+      return (domain == 'stanford.edu' || domain.matches('.*[.]stanford[.]edu'))
+        ? local + '@stanford.edu'
+        : e;
+    }
+    // The canonical account id for the signed-in user (empty if no verified email).
+    function emailAccountId() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        ? canonicalEmail() : '';
+    }
+    // The person owns this record when its employeeId is their canonical account
+    // id — or their raw Firebase UID, which covers data written before the
+    // account-unification migration re-keyed it.
+    function owns(employeeId) {
+      return signedIn() && (employeeId == emailAccountId() || employeeId == request.auth.uid);
+    }
     // Break-glass: the bootstrap administrators are trusted by verified email, so
     // they are always admins even before their custom claims are set (e.g. before
     // `npm run seed` runs, or if it targeted the wrong project). This lets them
     // self-provision/repair their own user document and never lock themselves out.
+    // Compared canonically so either Stanford login is recognized.
     // KEEP IN SYNC with BOOTSTRAP_ADMINS in src/lib/config.ts.
     function bootstrapAdminEmails() {
       return [
-        'whuggins@law.stanford.edu',
-        'cadena@law.stanford.edu',
-        'blalfaro@law.stanford.edu',
+        'whuggins@stanford.edu',
+        'cadena@stanford.edu',
+        'blalfaro@stanford.edu',
         'gwilson@stanford.edu',
-        'bwilli@law.stanford.edu'
+        'bwilli@stanford.edu'
       ];
     }
     function isBootstrapAdmin() {
       return signedIn()
+        && request.auth.token.email != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in bootstrapAdminEmails();
+        && canonicalEmail() in bootstrapAdminEmails();
     }
     function isAdmin() { return hasRole('SUPER_ADMIN') || isBootstrapAdmin(); }
     function isManager() { return hasRole('MANAGER') || hasRole('SCHEDULER'); }
     function isStaff() { return isAdmin() || isManager(); }
-    function isSelf(userId) { return signedIn() && request.auth.uid == userId; }
+    // The account doc / profile / record belongs to the signed-in person when its
+    // key is their canonical account id (or legacy UID, pre-migration).
+    function isSelf(userId) { return signedIn() && (userId == emailAccountId() || userId == request.auth.uid); }
     // The field named `field` is unchanged between the current and incoming doc.
     function unchanged(field) { return request.resource.data[field] == resource.data[field]; }
 
     // ---- Accounts & profiles ----
     match /organizations/{orgId}/users/{userId} {
       allow read: if isStaff() || isSelf(userId);
-      // Self-registration: on first Google sign-in a person may create ONLY their
-      // own account, and only as pending with no roles — so administrators can
-      // see them and grant access. Everything else (approval, role assignment,
-      // suspension) stays admin-only.
+      // Self-registration: on first Google sign-in a person may create ONLY the
+      // account for their own canonical email, as pending with no roles — so
+      // administrators can see them and grant access. They may list only their own
+      // uid/email on it. Everything else (approval, roles, suspension) is admin-only.
       allow create: if isAdmin()
         || (isSelf(userId)
             && request.resource.data.state == 'pending_approval'
-            && request.resource.data.roles.size() == 0);
-      allow update: if isAdmin();
+            && request.resource.data.roles.size() == 0
+            && request.resource.data.uids.hasOnly([request.auth.uid])
+            && request.resource.data.signInEmails.hasOnly([request.auth.token.email.lower()]));
+      // Admins manage approval/roles/state. A person may otherwise only LINK the
+      // device they are on to their own account — adding their uid/email — and can
+      // never touch roles or state.
+      allow update: if isAdmin()
+        || (isSelf(userId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['uids', 'signInEmails', 'displayName', 'updatedAt'])
+            && request.resource.data.roles == resource.data.roles
+            && request.resource.data.state == resource.data.state);
       allow delete: if false;
     }
     match /organizations/{orgId}/employeeProfiles/{userId} {
@@ -85,28 +125,28 @@ service cloud.firestore {
     // Owners manage their own; managers/admins may edit on an employee's behalf
     // (e.g. recording a call-out). Not deletable — supersede instead.
     match /organizations/{orgId}/availabilityPatterns/{patternId} {
-      allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
-      allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
+      allow read: if isStaff() || owns(resource.data.employeeId);
+      allow create: if isStaff() || owns(request.resource.data.employeeId);
       allow update: if isStaff()
-        || (resource.data.employeeId == request.auth.uid
-            && request.resource.data.employeeId == request.auth.uid);
+        || (owns(resource.data.employeeId)
+            && request.resource.data.employeeId == resource.data.employeeId);
       allow delete: if false;
     }
     // Working-hours patterns are saved per term (Fall/Spring/…). Unlike
     // availability, an owner or manager may remove a saved schedule template;
     // the deletion is captured in the audit trail.
     match /organizations/{orgId}/workingHoursPatterns/{patternId} {
-      allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
-      allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
+      allow read: if isStaff() || owns(resource.data.employeeId);
+      allow create: if isStaff() || owns(request.resource.data.employeeId);
       allow update: if isStaff()
-        || (resource.data.employeeId == request.auth.uid
-            && request.resource.data.employeeId == request.auth.uid);
-      allow delete: if isStaff() || resource.data.employeeId == request.auth.uid;
+        || (owns(resource.data.employeeId)
+            && request.resource.data.employeeId == resource.data.employeeId);
+      allow delete: if isStaff() || owns(resource.data.employeeId);
     }
     match /organizations/{orgId}/leaveRecords/{leaveId} {
-      allow read: if isStaff() || resource.data.employeeId == request.auth.uid;
-      allow create: if isStaff() || request.resource.data.employeeId == request.auth.uid;
-      allow update: if isStaff() || resource.data.employeeId == request.auth.uid;
+      allow read: if isStaff() || owns(resource.data.employeeId);
+      allow create: if isStaff() || owns(request.resource.data.employeeId);
+      allow update: if isStaff() || owns(resource.data.employeeId);
       allow delete: if false;
     }
     match /organizations/{orgId}/globalExceptions/{exceptionId} {
@@ -124,8 +164,8 @@ service cloud.firestore {
       allow read: if isStaff() || (signedIn() && resource.data.published == true);
       allow create: if isAdmin() || (isManager() && request.resource.data.published == false);
       allow update: if isAdmin()
-        || (isManager() && resource.data.authorId == request.auth.uid && unchanged('published'));
-      allow delete: if isAdmin() || (isManager() && resource.data.authorId == request.auth.uid);
+        || (isManager() && owns(resource.data.authorId) && unchanged('published'));
+      allow delete: if isAdmin() || (isManager() && owns(resource.data.authorId));
     }
 
     // ---- Scheduling ----
@@ -145,8 +185,8 @@ service cloud.firestore {
     }
     match /organizations/{orgId}/swapRequests/{swapId} {
       allow read: if isStaff()
-        || resource.data.fromEmployeeId == request.auth.uid
-        || resource.data.toEmployeeId == request.auth.uid;
+        || owns(resource.data.fromEmployeeId)
+        || owns(resource.data.toEmployeeId);
       allow create: if signedIn();
       allow update: if isStaff(); // approvals/decisions are manager-gated
       allow delete: if false;

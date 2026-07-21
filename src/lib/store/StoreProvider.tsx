@@ -345,7 +345,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           /* not staff: self-only view already merged above */
         },
       );
-      const selfOnly = account && canManage(account) ? undefined : fbUser.uid;
+      // Non-managers only see their own records, filtered by their account id
+      // (the canonical-email key that `employeeId` uses) — not the raw Firebase
+      // UID, which no longer matches stored data after account unification.
+      const selfOnly = account && canManage(account) ? undefined : (account?.id ?? fbUser.uid);
       unsubscribeProfiles = subscribeEmployeeProfiles(
         (employees) =>
           setDb((d) => actions.syncAllGlobalExceptions({ ...d, employees }, "system", new Date().toISOString())),

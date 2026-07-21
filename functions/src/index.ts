@@ -33,6 +33,8 @@ import { reconcileClaims } from "./claims";
 import { defaultEmployeeProfileData, shouldHaveEmployeeProfile } from "./employee-profile";
 import {
   ORGANIZATION_ID,
+  accountIdForEmail,
+  canonicalizeStanfordEmail,
   isApprovedDomain,
   isBootstrapAdminEmail,
   normalizeEmail,
@@ -74,28 +76,40 @@ export const syncUserClaims = onDocumentWritten(
     const userDoc = after?.exists ? after.data() : undefined; // undefined => deleted
 
     const auth = getAuth();
-    let existingClaims: Record<string, unknown> | undefined;
-    try {
-      const user = await auth.getUser(userId);
-      existingClaims = user.customClaims ?? {};
-    } catch (err) {
-      // No matching auth user (e.g. a placeholder doc, or the auth user was
-      // deleted first). Nothing to reconcile.
-      logger.warn(`syncUserClaims: no auth user for ${userId}; skipping`, err);
-      return;
-    }
+    // Accounts are keyed on the canonical email and list every Firebase UID the
+    // person signs in with (`uids`); each UID needs the roles claim. Legacy docs
+    // predating the unification are keyed on — and have no `uids` for — the UID
+    // itself, so fall back to the document id to keep them working.
+    const linkedData = userDoc ?? previousUserDoc;
+    const uids: string[] =
+      Array.isArray(linkedData?.uids) && linkedData!.uids.length > 0
+        ? (linkedData!.uids as string[])
+        : [userId];
 
-    const { claims, changed } = reconcileClaims({ existingClaims, userDoc, orgId });
-    if (changed) {
-      await auth.setCustomUserClaims(userId, claims);
-      // Force existing sessions to pick up the new claims on their next refresh,
-      // so a demotion or revocation takes effect promptly instead of after ~1h.
-      await auth.revokeRefreshTokens(userId);
-      logger.info(`syncUserClaims: updated claims for ${userId}`, {
-        roles: claims.roles ?? [],
-      });
-    } else {
-      logger.debug(`syncUserClaims: claims already in sync for ${userId}`);
+    for (const uid of uids) {
+      let existingClaims: Record<string, unknown> | undefined;
+      try {
+        const user = await auth.getUser(uid);
+        existingClaims = user.customClaims ?? {};
+      } catch (err) {
+        // No matching auth user (e.g. a placeholder doc, the canonical-email doc
+        // id, or the auth user was deleted first). Nothing to reconcile for it.
+        logger.warn(`syncUserClaims: no auth user for ${uid}; skipping`, err);
+        continue;
+      }
+
+      const { claims, changed } = reconcileClaims({ existingClaims, userDoc, orgId });
+      if (changed) {
+        await auth.setCustomUserClaims(uid, claims);
+        // Force existing sessions to pick up the new claims on their next refresh,
+        // so a demotion or revocation takes effect promptly instead of after ~1h.
+        await auth.revokeRefreshTokens(uid);
+        logger.info(`syncUserClaims: updated claims for ${uid} (account ${userId})`, {
+          roles: claims.roles ?? [],
+        });
+      } else {
+        logger.debug(`syncUserClaims: claims already in sync for ${uid}`);
+      }
     }
 
     const profileRef = getFirestore().doc(`organizations/${orgId}/employeeProfiles/${userId}`);
@@ -151,14 +165,35 @@ async function provisionMissingUserDocs(orgId: string): Promise<ProvisionResult>
         result.skipped++;
         continue;
       }
-      const ref = db.doc(`organizations/${orgId}/users/${user.uid}`);
-      if ((await ref.get()).exists) {
+      // Key on the canonical email so a person's two Stanford logins share one
+      // account; link this UID/email onto whichever account already exists.
+      const accountId = accountIdForEmail(email);
+      const canonical = canonicalizeStanfordEmail(email);
+      const ref = db.doc(`organizations/${orgId}/users/${accountId}`);
+      const snap = await ref.get();
+      if (snap.exists) {
+        const data = snap.data() ?? {};
+        const uids: string[] = Array.isArray(data.uids) ? data.uids : [];
+        const emails: string[] = Array.isArray(data.signInEmails) ? data.signInEmails : [];
+        if (!uids.includes(user.uid) || !emails.includes(email)) {
+          await ref.set(
+            {
+              uids: FieldValue.arrayUnion(user.uid),
+              signInEmails: FieldValue.arrayUnion(email),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
         result.existing++;
         continue;
       }
       const bootstrap = isBootstrapAdminEmail(email);
       await ref.set({
-        email,
+        email: canonical,
+        canonicalEmail: canonical,
+        signInEmails: [email],
+        uids: [user.uid],
         displayName: user.displayName ?? email,
         state: bootstrap ? "active" : "pending_approval",
         roles: bootstrap ? ["SUPER_ADMIN", "MANAGER"] : [],
