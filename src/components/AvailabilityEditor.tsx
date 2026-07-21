@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import {
@@ -157,6 +157,108 @@ export function AvailabilityEditor() {
     });
   }
 
+  // Directly set a single cell to a kind (used by drag painting, which fills a
+  // whole run with one value rather than cycling each cell individually).
+  function paintCell(day: number, slot: number, kind: AvailabilityKind) {
+    if (readOnly) return;
+    const key = `${day}-${slot}`;
+    setSaved(false);
+    setCells((c) => (c[key] === kind ? c : { ...c, [key]: kind }));
+    if (isStudent && kind === "unavailable") {
+      setApproved((a) => {
+        if (!a.has(key)) return a;
+        const copy = new Set(a);
+        copy.delete(key);
+        return copy;
+      });
+    }
+  }
+
+  function setApprovalState(day: number, slot: number, approve: boolean) {
+    if (!canApprove) return;
+    const key = `${day}-${slot}`;
+    if (!isSlotSignedUp(signUpBlocks, day, slot)) return;
+    setApprovalSaved(false);
+    setApproved((a) => {
+      if (a.has(key) === approve) return a;
+      const copy = new Set(a);
+      if (approve) copy.add(key);
+      else copy.delete(key);
+      return copy;
+    });
+  }
+
+  // Drag-to-paint: press on a cell and drag across the grid to set many cells at
+  // once instead of clicking each half-hour block. A press that never leaves its
+  // starting cell falls through to the single-cell click handler (cycle/approve).
+  const dragRef = useRef<
+    | {
+        mode: "edit" | "approve";
+        value: AvailabilityKind;
+        approve: boolean;
+        startKey: string;
+        moved: boolean;
+      }
+    | null
+  >(null);
+  const draggedRef = useRef(false);
+
+  function beginDrag(day: number, slot: number) {
+    const key = `${day}-${slot}`;
+    const kind = cells[key] ?? "unavailable";
+    const signedUp = kind === "available" || kind === "preferred";
+    draggedRef.current = false;
+    if (canApprove && signedUp) {
+      // Painting approvals for a signed-up student: fill or clear the run.
+      dragRef.current = { mode: "approve", value: kind, approve: !approved.has(key), startKey: key, moved: false };
+    } else if (!readOnly) {
+      // Editing own/other's grid: drag from an empty cell fills Available, drag
+      // from a marked cell clears it. Cycling to Preferred stays a single click.
+      dragRef.current = {
+        mode: "edit",
+        value: kind === "unavailable" ? "available" : "unavailable",
+        approve: false,
+        startKey: key,
+        moved: false,
+      };
+    } else {
+      dragRef.current = null;
+    }
+  }
+
+  function applyDrag(day: number, slot: number) {
+    const d = dragRef.current;
+    if (!d) return;
+    if (d.mode === "approve") setApprovalState(day, slot, d.approve);
+    else paintCell(day, slot, d.value);
+  }
+
+  function dragEnter(day: number, slot: number) {
+    const d = dragRef.current;
+    if (!d) return;
+    if (!d.moved) {
+      // First cell entered after press: commit the starting cell too so the
+      // whole gesture (start → here) paints, not just the cells we pass over.
+      d.moved = true;
+      draggedRef.current = true;
+      const [sDay, sSlot] = d.startKey.split("-").map(Number);
+      applyDrag(sDay, sSlot);
+    }
+    applyDrag(day, slot);
+  }
+
+  useEffect(() => {
+    function endDrag() {
+      dragRef.current = null;
+    }
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+    return () => {
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+    };
+  }, []);
+
   function setColumn(day: number, kind: AvailabilityKind) {
     if (readOnly) return;
     setSaved(false);
@@ -246,8 +348,8 @@ export function AvailabilityEditor() {
         </h1>
         <p className="muted">
           {isStudent
-            ? "Sign up for the hours you can work at the library. Your manager reviews and approves a subset for scheduling."
-            : "When you can cover the borrowing desk. Click a cell to cycle Unavailable → Available → Preferred."}
+            ? "Sign up for the hours you can work at the library. Click a cell to sign up, or click and drag across cells to fill several half-hours at once. Your manager reviews and approves a subset for scheduling."
+            : "When you can cover the borrowing desk. Click a cell to cycle Unavailable → Available → Preferred, or click and drag across cells to mark several half-hours available at once."}
         </p>
       </div>
 
@@ -389,6 +491,11 @@ export function AvailabilityEditor() {
                     ].filter(Boolean).join(" ");
 
                     const handleClick = () => {
+                      // A drag already painted these cells; swallow the trailing click.
+                      if (draggedRef.current) {
+                        draggedRef.current = false;
+                        return;
+                      }
                       if (canApprove && signedUp) toggleApproval(day, slot);
                       else cycle(day, slot);
                     };
@@ -400,6 +507,8 @@ export function AvailabilityEditor() {
                         role="gridcell"
                         className={cellClass}
                         onClick={handleClick}
+                        onPointerDown={() => beginDrag(day, slot)}
+                        onPointerEnter={() => dragEnter(day, slot)}
                         disabled={readOnly && !(canApprove && signedUp)}
                         aria-disabled={readOnly && !(canApprove && signedUp)}
                         aria-label={`${WEEKDAY_LABELS[day]} ${formatTime(slot)}: ${signedUp ? "signed up" : KIND_LABEL[kind]}${isApproved ? ", approved" : ""}`}
@@ -418,7 +527,7 @@ export function AvailabilityEditor() {
 
         {canApprove && (
           <p className="muted" style={{ margin: "0.75rem 0 0", fontSize: "0.85rem" }}>
-            Click signed-up cells to approve or unapprove hours. Approved: {formatWeeklyHours(approvedMinutes)} / {STUDENT_MAX_WEEKLY_MINUTES / 60} hrs max.
+            Click a signed-up cell to approve or unapprove hours, or click and drag across signed-up cells to approve several at once. Approved: {formatWeeklyHours(approvedMinutes)} / {STUDENT_MAX_WEEKLY_MINUTES / 60} hrs max.
           </p>
         )}
 

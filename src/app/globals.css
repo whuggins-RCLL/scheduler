@@ -471,7 +471,7 @@ table.data tbody tr:hover { background: var(--surface-2); }
 .avail-head { font-size: 0.78rem; font-weight: 650; text-align: center; padding: 0.3rem; }
 .avail-rowlabel { font-size: 0.72rem; color: var(--muted); text-align: right; padding: 0.1rem 0.4rem; align-self: center; }
 .avail-rowlabel.half { font-size: 0.64rem; opacity: 0.6; }
-.avail-cell { border: 1px solid var(--border); border-radius: 6px; min-height: 24px; font-size: 0.68rem; padding: 1px 4px; cursor: pointer; background: var(--surface); color: var(--ink); }
+.avail-cell { border: 1px solid var(--border); border-radius: 6px; min-height: 24px; font-size: 0.68rem; padding: 1px 4px; cursor: pointer; background: var(--surface); color: var(--ink); touch-action: none; user-select: none; -webkit-user-select: none; }
 .avail-cell.half { border-top-style: dashed; }
 .avail-cell.preferred { background: color-mix(in srgb, var(--palo-alto) 22%, var(--surface)); border-color: var(--palo-alto); }
 .avail-cell.available { background: color-mix(in srgb, var(--info) 15%, var(--surface)); border-color: var(--info); }
