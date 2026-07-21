@@ -6,7 +6,8 @@ import { canManage, canSubmitAvailabilityException, isStudentWorker } from "@/do
 import { resolveEmployeeProfile } from "@/domain/employee-profile";
 import {
   isGlobalSyncedLeave,
-  leaveRecordsForEmployee,
+  visibleLeaveRecordsForEmployee,
+  type ExceptionSortOrder,
 } from "@/domain/global-exceptions";
 import { humanDateRange } from "@/lib/ui";
 import { formatTime12, parseTime } from "@/domain/time";
@@ -15,23 +16,7 @@ import { HOLIDAY_LEAVE_TYPE_ID } from "@/domain/global-exceptions";
 
 const UNAVAILABLE_TYPE_ID = "lt-unavailable";
 
-function ExceptionRow({ record }: { record: LeaveRecord }) {
-  const readOnly = isGlobalSyncedLeave(record);
-  const label = readOnly ? (record.note ?? "University holiday") : "Unavailable";
-  return (
-    <li className="spread">
-      <span>
-        {label} · {humanDateRange(record.startDate, record.endDate)}
-        {record.partialDay && record.start != null && record.end != null
-          ? ` · ${formatTime12(record.start)}–${formatTime12(record.end)}`
-          : " · All day"}
-      </span>
-      <span className={`badge ${readOnly ? "info" : "ok"}`}>
-        {readOnly ? "University-wide" : "saved"}
-      </span>
-    </li>
-  );
-}
+type ScopeFilter = "all" | "university" | "personal";
 
 function accountLabel(
   db: ReturnType<typeof useStore>["db"],
@@ -60,6 +45,8 @@ export function TimeOffPanel() {
   const [endTime, setEndTime] = useState("17:00");
   const [errors, setErrors] = useState<string[]>([]);
   const [confirmation, setConfirmation] = useState("");
+  const [sortOrder, setSortOrder] = useState<ExceptionSortOrder>("asc");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   useEffect(() => {
     setTargetAccountId(currentUser.id);
@@ -73,7 +60,17 @@ export function TimeOffPanel() {
     : false;
   const studentViewOnly = isStudent && forSelf;
 
-  const exceptions = leaveRecordsForEmployee(db, targetAccountId);
+  const today = new Date().toISOString().slice(0, 10);
+  // Interfiled (holidays + personal), already-passed entries dropped, sorted by date.
+  const visibleExceptions = visibleLeaveRecordsForEmployee(db, targetAccountId, {
+    asOf: today,
+    order: sortOrder,
+  });
+  const exceptions = visibleExceptions.filter((record) => {
+    if (scopeFilter === "university") return isGlobalSyncedLeave(record);
+    if (scopeFilter === "personal") return !isGlobalSyncedLeave(record);
+    return true;
+  });
 
   const activeAccounts = db.users
     .filter((u) => u.state === "active")
@@ -208,15 +205,78 @@ export function TimeOffPanel() {
       )}
 
       <hr className="divider" />
-      <h3>{forSelf ? "My exceptions" : "Exceptions list"}</h3>
-      {exceptions.length === 0 ? (
-        <p className="muted">No exceptions on file.</p>
-      ) : (
-        <ul className="list-reset stack" style={{ gap: "0.5rem" }}>
-          {exceptions.map((record) => (
-            <ExceptionRow key={record.id} record={record} />
+      <div className="spread" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+        <h3 style={{ margin: 0 }}>{forSelf ? "My exceptions" : "Exceptions list"}</h3>
+        <div className="pill-toggle" role="group" aria-label="Filter exceptions by scope">
+          {([
+            { value: "all", label: "All" },
+            { value: "university", label: "University" },
+            { value: "personal", label: "Personal" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              aria-pressed={scopeFilter === opt.value}
+              onClick={() => setScopeFilter(opt.value)}
+            >
+              {opt.label}
+            </button>
           ))}
-        </ul>
+        </div>
+      </div>
+      <p className="hint" style={{ margin: "0.4rem 0 0" }}>
+        University holidays and personal exceptions are combined by date. Past exceptions drop off automatically.
+      </p>
+
+      {exceptions.length === 0 ? (
+        <p className="muted mt">
+          {scopeFilter === "all"
+            ? "No current or upcoming exceptions."
+            : `No current or upcoming ${scopeFilter === "university" ? "university-wide" : "personal"} exceptions.`}
+        </p>
+      ) : (
+        <div className="table-wrap mt">
+          <table className="data">
+            <thead>
+              <tr>
+                <th scope="col">Exception</th>
+                <th scope="col" aria-sort={sortOrder === "asc" ? "ascending" : "descending"}>
+                  <button
+                    type="button"
+                    className="th-sort"
+                    onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
+                    aria-label={`Date, sorted ${sortOrder === "asc" ? "closest first" : "furthest first"}. Click to reverse.`}
+                  >
+                    Date <span aria-hidden>{sortOrder === "asc" ? "↑" : "↓"}</span>
+                  </button>
+                </th>
+                <th scope="col">Hours</th>
+                <th scope="col">Scope</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exceptions.map((record) => {
+                const global = isGlobalSyncedLeave(record);
+                return (
+                  <tr key={record.id}>
+                    <td>{leaveLabel(record)}</td>
+                    <td>{humanDateRange(record.startDate, record.endDate)}</td>
+                    <td>
+                      {record.partialDay && record.start != null && record.end != null
+                        ? `${formatTime12(record.start)}–${formatTime12(record.end)}`
+                        : "All day"}
+                    </td>
+                    <td>
+                      <span className={`badge ${global ? "info" : "ok"}`}>
+                        {global ? "University-wide" : "Personal"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
