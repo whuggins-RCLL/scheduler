@@ -16,6 +16,7 @@
 import type { User as FirebaseUser } from "firebase/auth";
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -27,7 +28,7 @@ import {
 } from "firebase/firestore";
 import type { AccountState, Role, RoleGrant, UserAccount } from "@/domain/types";
 import { ORGANIZATION_ID } from "@/lib/config";
-import { isBootstrapAdmin, normalizeEmail } from "@/lib/authz";
+import { accountIdForEmail, canonicalEmail, isBootstrapAdmin, normalizeEmail } from "@/lib/authz";
 import { getDb } from "@/lib/firebase";
 
 const VALID_ROLES: Role[] = ["SUPER_ADMIN", "MANAGER", "SCHEDULER", "LIBRARY_STAFF", "VIEWER", "AUDITOR"];
@@ -121,37 +122,60 @@ export function bootstrapRepairNeeded(
 }
 
 /**
- * Ensure a `users/{uid}` document exists (and is correct) for the signed-in
- * Firebase user, then return the resulting account.
+ * Ensure the account document exists (and is correct) for the signed-in Firebase
+ * user, then return the resulting account.
+ *
+ * The document is keyed on the person's CANONICAL email
+ * ({@link accountIdForEmail}), not the Firebase UID, so both of a person's
+ * Stanford logins (`@law.stanford.edu` and `@stanford.edu`) resolve to ONE shared
+ * account with one set of roles and one pool of exceptions/availability. Each
+ * login's UID and exact email are recorded on the account (`uids`,
+ * `signInEmails`) — the `syncUserClaims` Cloud Function reads `uids` to grant the
+ * roles custom claim to every device the person uses. Firestore rules authorize
+ * both this create and the self `arrayUnion` update via `emailAccountId()`, which
+ * derives the same canonical id from the verified token email.
  *
  * Bootstrap administrators are a break-glass identity: they must ALWAYS resolve
  * to an active SUPER_ADMIN, so their document is created — or repaired — on
- * sign-in even if a prior seed missed this project/UID or left them role-less.
- * This is safe because the same five emails are trusted by `firestore.rules`
- * (see `isBootstrapAdmin`), which is what authorizes this self-write. Everyone
- * else self-registers as `pending_approval` with no roles, and an existing
- * non-admin document is returned untouched (we never clobber assigned roles).
+ * sign-in even if a prior seed missed this project or left them role-less. This
+ * is safe because the same emails are trusted by `firestore.rules`. Everyone else
+ * self-registers as `pending_approval` with no roles, and an existing non-admin
+ * document keeps its assigned roles/state untouched.
  */
 export async function ensureUserAccount(fbUser: FirebaseUser): Promise<UserAccount | null> {
   const db = getDb();
   if (!db) return null;
   const email = normalizeEmail(fbUser.email ?? "");
+  const canonical = canonicalEmail(email);
+  const accountId = accountIdForEmail(email);
   const displayName = fbUser.displayName ?? email;
   const bootstrap = isBootstrapAdmin(email);
-  const ref = doc(db, usersCollectionPath(), fbUser.uid);
+  const ref = doc(db, usersCollectionPath(), accountId);
   const now = new Date().toISOString();
 
   const existing = await getDoc(ref);
   if (existing.exists()) {
     const account = mapDoc(existing.id, existing.data());
+    const data = existing.data();
+    const knownUids: string[] = Array.isArray(data.uids) ? data.uids : [];
+    const knownEmails: string[] = Array.isArray(data.signInEmails) ? data.signInEmails : [];
+    // Record this login's UID/email so the claims trigger reaches this device.
+    const linkPatch: DocumentData = {};
+    if (!knownUids.includes(fbUser.uid)) linkPatch.uids = arrayUnion(fbUser.uid);
+    if (!knownEmails.includes(email)) linkPatch.signInEmails = arrayUnion(email);
+
     // Self-heal a bootstrap admin whose document lost (or never had) its role.
     if (bootstrapRepairNeeded(account, bootstrap)) {
       await updateDoc(ref, {
+        ...linkPatch,
         state: "active",
         roles: roleNames(BOOTSTRAP_ROLES),
         updatedAt: serverTimestamp(),
       });
       return { ...account, state: "active", roles: BOOTSTRAP_ROLES, updatedAt: now };
+    }
+    if (Object.keys(linkPatch).length > 0) {
+      await updateDoc(ref, { ...linkPatch, updatedAt: serverTimestamp() });
     }
     return account;
   }
@@ -160,7 +184,10 @@ export async function ensureUserAccount(fbUser: FirebaseUser): Promise<UserAccou
   const state: AccountState = bootstrap ? "active" : "pending_approval";
 
   await setDoc(ref, {
-    email,
+    email: canonical,
+    canonicalEmail: canonical,
+    signInEmails: [email],
+    uids: [fbUser.uid],
     displayName,
     state,
     // Store the role-name list: it matches the custom-claims shape written by the
@@ -170,7 +197,7 @@ export async function ensureUserAccount(fbUser: FirebaseUser): Promise<UserAccou
     updatedAt: serverTimestamp(),
   });
 
-  return { id: fbUser.uid, email, displayName, state, roles, createdAt: now, updatedAt: now };
+  return { id: accountId, email: canonical, displayName, state, roles, createdAt: now, updatedAt: now };
 }
 
 /**

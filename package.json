@@ -10,6 +10,7 @@
     "seed": "tsx scripts/seed.ts",
     "backfill:claims": "tsx scripts/backfill-claims.ts",
     "backfill:users": "tsx scripts/backfill-users.ts",
+    "migrate:merge-accounts": "tsx scripts/merge-duplicate-accounts.ts",
     "backfill:workforce": "tsx scripts/backfill-workforce.ts",
     "backfill:task-schedule-types": "tsx scripts/backfill-task-schedule-types.ts"
   },

@@ -9,6 +9,32 @@ export const PRODUCT_TAGLINE = "Robert Crown Law Library workforce scheduling." 
 export const APPROVED_EMAIL_DOMAINS = ["stanford.edu", "law.stanford.edu"] as const;
 export const ORGANIZATION_ID = "rcll" as const;
 
+/** Root Stanford domain that every approved sub-domain folds into. */
+export const CANONICAL_EMAIL_DOMAIN = "stanford.edu" as const;
+
+/**
+ * Fold an email to the one canonical identity a person has, regardless of which
+ * Stanford sub-domain they signed in with. A SUNet ID is unique university-wide,
+ * so `whuggins@law.stanford.edu` and `whuggins@stanford.edu` are the same person
+ * and must resolve to the same account. Any `*.stanford.edu` sub-domain collapses
+ * to `stanford.edu`; anything else is returned lower-cased but otherwise as-is.
+ *
+ * Self-contained (no imports) so both `authz.ts` and the bootstrap-admin list
+ * below can use it without a circular import, and so it can mirror the Firestore
+ * rules' `canonicalEmail()` exactly.
+ */
+export function canonicalizeStanfordEmail(email: string): string {
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at < 0) return e;
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  if (domain === CANONICAL_EMAIL_DOMAIN || domain.endsWith(`.${CANONICAL_EMAIL_DOMAIN}`)) {
+    return `${local}@${CANONICAL_EMAIL_DOMAIN}`;
+  }
+  return e;
+}
+
 /** Primary IANA timezone for library operations (Pacific). */
 export const DEFAULT_TIMEZONE = "America/Los_Angeles" as const;
 
@@ -48,10 +74,12 @@ export const UNIVERSITY_HOLIDAY_SCHEDULE_URL =
  */
 export const TIMEKEEPING_URL =
   "https://idcs-03e6b91957d24ff4b4e573973a0ad407.identity.oraclecloud.com/ui/v1/signin";
+// Stored as canonical (@stanford.edu) identities so a bootstrap admin is
+// recognized whichever Stanford sub-domain they sign in with.
 export const BOOTSTRAP_ADMINS = [
   { name: "Will Huggins", email: "whuggins@law.stanford.edu" },
   { name: "Kay Cadena", email: "cadena@law.stanford.edu" },
   { name: "Brenda Alfaro-Campos", email: "blalfaro@law.stanford.edu" },
   { name: "George Wilson", email: "gwilson@stanford.edu" },
   { name: "Beth Williams", email: "bwilli@law.stanford.edu" },
-].map((admin) => ({ ...admin, email: admin.email.toLowerCase() }));
+].map((admin) => ({ ...admin, email: canonicalizeStanfordEmail(admin.email) }));
