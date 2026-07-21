@@ -31,6 +31,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { reconcileClaims } from "./claims";
 import { defaultEmployeeProfileData, shouldHaveEmployeeProfile } from "./employee-profile";
+import { runMergeDuplicateAccounts } from "./merge-accounts";
 import {
   ORGANIZATION_ID,
   accountIdForEmail,
@@ -238,6 +239,44 @@ export const provisionMissingUsers = onDocumentWritten(
       );
     } catch (err) {
       logger.error("provisionMissingUsers failed", err);
+      await after.ref.set(
+        {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+          completedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+  },
+);
+
+/**
+ * Trigger-driven "merge duplicate accounts": an administrator enqueues a
+ * `mergeDuplicateAccounts` maintenance request; this merges accounts that share a
+ * canonical Stanford email (the two-logins-one-person case) and re-points their
+ * records to the canonical id. Same request/response document pattern as
+ * `provisionMissingUsers` — no local tooling or public endpoint required.
+ */
+export const mergeDuplicateAccounts = onDocumentWritten(
+  "organizations/{orgId}/maintenance/{taskId}",
+  async (event) => {
+    const { orgId } = event.params as { orgId: string; taskId: string };
+    const after = event.data?.after;
+    if (!after?.exists) return;
+    const data = after.data() ?? {};
+    // Ignore other task types and our own result write-back (avoids a loop).
+    if (data.type !== "mergeDuplicateAccounts" || data.status !== "requested") return;
+
+    try {
+      const result = await runMergeDuplicateAccounts(orgId);
+      logger.info(`mergeDuplicateAccounts by ${data.requestedBy ?? "?"}`, result);
+      await after.ref.set(
+        { status: "done", result, completedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    } catch (err) {
+      logger.error("mergeDuplicateAccounts failed", err);
       await after.ref.set(
         {
           status: "error",
