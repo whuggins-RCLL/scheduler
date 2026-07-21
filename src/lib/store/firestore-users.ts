@@ -262,6 +262,14 @@ export interface ProvisionResult {
   skipped: number;
 }
 
+export interface MergeResult {
+  canonicalAccounts: number;
+  duplicatesMerged: number;
+  recordsRepointed: number;
+  profilesMerged: number;
+  legacyUsersRemoved: number;
+}
+
 /**
  * "Import sign-ins": enqueue a maintenance request (admins only, per rules) and
  * await the result the `provisionMissingUsers` trigger writes back. Uses a
@@ -296,6 +304,46 @@ export async function requestProvisionUsers(requestedBy: string): Promise<Provis
         if (!data) return;
         if (data.status === "done") finish(() => resolve(data.result as ProvisionResult));
         else if (data.status === "error") finish(() => reject(new Error(String(data.error ?? "Import failed"))));
+      },
+      (err) => finish(() => reject(err)),
+    );
+  });
+}
+
+/**
+ * "Merge duplicate accounts": enqueue a maintenance request (admins only, per
+ * rules) and await the result the `mergeDuplicateAccounts` trigger writes back.
+ * Merges accounts that share a canonical Stanford email — the same person signed
+ * in with both @law.stanford.edu and @stanford.edu — and re-points their records
+ * onto one account. Mirrors {@link requestProvisionUsers}.
+ */
+export async function requestMergeDuplicateAccounts(requestedBy: string): Promise<MergeResult> {
+  const db = getDb();
+  if (!db) throw new Error("Merging accounts is only available in the deployed app.");
+  const ref = await addDoc(collection(db, `organizations/${ORGANIZATION_ID}/maintenance`), {
+    type: "mergeDuplicateAccounts",
+    status: "requested",
+    requestedBy,
+    requestedAt: serverTimestamp(),
+  });
+
+  return new Promise<MergeResult>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsubscribe();
+      reject(new Error("Timed out waiting for the merge to finish. Check that Cloud Functions are deployed."));
+    }, 120_000);
+    const finish = (fn: () => void) => {
+      clearTimeout(timer);
+      unsubscribe();
+      fn();
+    };
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        const data = snap.data();
+        if (!data) return;
+        if (data.status === "done") finish(() => resolve(data.result as MergeResult));
+        else if (data.status === "error") finish(() => reject(new Error(String(data.error ?? "Merge failed"))));
       },
       (err) => finish(() => reject(err)),
     );
