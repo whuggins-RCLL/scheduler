@@ -101,6 +101,24 @@ gcloud auth application-default login
 npm run backfill:users
 ```
 
+### Backing up Firestore (production)
+
+Before running destructive maintenance scripts (for example
+`npm run migrate:merge-accounts`) or before a major migration, export a
+point-in-time JSON snapshot of the tenant and Auth users:
+
+```bash
+# Authenticate the Admin SDK first (either works):
+gcloud auth application-default login
+#   ...or: export GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
+npm run backup:firestore
+```
+
+By default the export is written to `backups/firestore-<timestamp>.json`
+(gitignored). Pass a custom path with `--output`, or skip Auth with `--no-auth`.
+The file includes every collection under `organizations/rcll/` plus each
+Firebase Auth user's uid, email, and custom claims (no password hashes).
+
 ### Repairing staff profiles and canonical duplicate accounts
 
 Authentication accounts and scheduling profiles are intentionally separate. A
