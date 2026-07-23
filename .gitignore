@@ -12,6 +12,9 @@
 *.tsbuildinfo
 .DS_Store
 
+# local Firestore exports (may contain operational data)
+/backups/
+
 # env files (never commit secrets)
 .env
 .env.local
