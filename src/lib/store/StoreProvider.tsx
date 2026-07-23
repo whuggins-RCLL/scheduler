@@ -19,7 +19,7 @@ import type {
 } from "@/domain/types";
 import type { GenerationMode, GenerationResult, ScheduleWeights } from "@/domain";
 import { canManage, canPublishSchedule, isAdmin } from "@/domain/scope";
-import { globalSyncFingerprint } from "@/domain/global-exceptions";
+import { globalSyncFingerprint, isGlobalSyncedLeave } from "@/domain/global-exceptions";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import { todayISO } from "@/lib/schedule-view";
 import * as actions from "./actions";
@@ -57,6 +57,7 @@ import {
   subscribeGlobalExceptions,
   writeGlobalException,
 } from "./firestore-global-exceptions";
+import { subscribeLeaveRecords, writeLeaveRecord } from "./firestore-leave";
 import { bootstrapTasks, deleteTask as deleteTaskDoc, subscribeTasks, writeTask } from "./firestore-tasks";
 import {
   subscribeSchedules,
@@ -285,6 +286,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let unsubscribeAvailability: () => void = () => {};
     let unsubscribeWorkingHours: () => void = () => {};
     let unsubscribeGlobalExceptions: () => void = () => {};
+    let unsubscribeLeave: () => void = () => {};
     let unsubscribeTasks: () => void = () => {};
     let unsubscribePositions: () => void = () => {};
     let unsubscribeLocations: () => void = () => {};
@@ -297,6 +299,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeAvailability();
       unsubscribeWorkingHours();
       unsubscribeGlobalExceptions();
+      unsubscribeLeave();
       unsubscribeTasks();
       unsubscribePositions();
       unsubscribeLocations();
@@ -308,6 +311,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeAvailability = () => {};
       unsubscribeWorkingHours = () => {};
       unsubscribeGlobalExceptions = () => {};
+      unsubscribeLeave = () => {};
       unsubscribeTasks = () => {};
       unsubscribePositions = () => {};
       unsubscribeLocations = () => {};
@@ -389,6 +393,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         () => {
           /* keep in-memory seed when Firestore is unavailable */
         },
+      );
+      // Personal availability exceptions. Firestore holds only personal records;
+      // university-wide holidays are derived from globalExceptions, so we replace
+      // the personal set and let syncAllGlobalExceptions re-materialize holidays.
+      unsubscribeLeave = subscribeLeaveRecords(
+        (records) =>
+          setDb((d) => actions.syncAllGlobalExceptions(
+            { ...d, leave: [...d.leave.filter(isGlobalSyncedLeave), ...records.filter((r) => !isGlobalSyncedLeave(r))] },
+            "system",
+            new Date().toISOString(),
+          )),
+        () =>
+          setDb((d) => actions.syncAllGlobalExceptions(
+            { ...d, leave: d.leave.filter(isGlobalSyncedLeave) },
+            "system",
+            new Date().toISOString(),
+          )),
+        selfOnly,
       );
       unsubscribeTasks = subscribeTasks(
         (tasks) => {
@@ -478,6 +500,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribeAvailability();
       unsubscribeWorkingHours();
       unsubscribeGlobalExceptions();
+      unsubscribeLeave();
       unsubscribeTasks();
       unsubscribePositions();
       unsubscribeLocations();
@@ -593,8 +616,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (isFirebaseConfigured) await writeSelfProfilePreferences(updated);
         setDb((d) => mergeEmployeeProfile(d, updated));
       },
-      submitLeave: (record, options) => setDb((d) => actions.submitLeave(d, record, actorId, now(), currentUser, options)),
-      cancelLeave: (id) => setDb((d) => actions.cancelLeave(d, id, actorId, now())),
+      submitLeave: (record, options) => {
+        // Stamp once so the in-memory record and the persisted document match.
+        const ts = now();
+        const persisted: LeaveRecord = {
+          ...record,
+          status: "recorded",
+          enteredBy: actorId,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        // Apply to memory first: the action re-checks permissions and throws
+        // (surfaced to the caller) before we ever write to Firestore.
+        setDb((d) => actions.submitLeave(d, persisted, actorId, ts, currentUser, options));
+        if (isFirebaseConfigured) {
+          void writeLeaveRecord(persisted).catch((error) => {
+            console.error("Failed to persist availability exception to Firestore", error);
+          });
+        }
+      },
+      cancelLeave: (id) => {
+        const ts = now();
+        const existing = db.leave.find((l) => l.id === id);
+        setDb((d) => actions.cancelLeave(d, id, actorId, ts));
+        // Cancellation is a soft update (the collection forbids deletes); persist
+        // the cancelled status. Global-synced holidays are never stored here.
+        if (isFirebaseConfigured && existing && !isGlobalSyncedLeave(existing)) {
+          void writeLeaveRecord({ ...existing, status: "cancelled", updatedAt: ts }).catch((error) => {
+            console.error("Failed to persist exception cancellation to Firestore", error);
+          });
+        }
+      },
       upsertGlobalException: (exception) => {
         if (isFirebaseConfigured) void writeGlobalException(exception);
         setDb((d) => actions.upsertGlobalException(d, exception, actorId, now()));
