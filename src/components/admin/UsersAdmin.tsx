@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store/StoreProvider";
 import { isFirebaseConfigured } from "@/lib/firebase";
-import { requestProvisionUsers } from "@/lib/store/firestore-users";
+import { requestMergeDuplicateAccounts, requestProvisionUsers } from "@/lib/store/firestore-users";
 import { StaffProfileEditor } from "./StaffProfileEditor";
 import { isAdmin, primaryRole } from "@/domain/scope";
 import type { Role } from "@/domain/types";
@@ -15,6 +15,7 @@ export function UsersAdmin() {
   const admin = isAdmin(currentUser);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [merging, setMerging] = useState(false);
 
   async function importSignins() {
     setImporting(true);
@@ -30,6 +31,27 @@ export function UsersAdmin() {
       setImportMsg({ kind: "err", text: `Import failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function mergeDuplicates() {
+    setMerging(true);
+    setImportMsg(null);
+    try {
+      const data = await requestMergeDuplicateAccounts(realUser.id);
+      // The live users subscription refreshes the tables automatically.
+      setImportMsg(
+        data.duplicatesMerged === 0
+          ? { kind: "ok", text: "No duplicate accounts found — everyone already has a single account." }
+          : {
+              kind: "ok",
+              text: `Merged ${data.duplicatesMerged} duplicate login${data.duplicatesMerged === 1 ? "" : "s"} into ${data.profilesMerged} account${data.profilesMerged === 1 ? "" : "s"}; re-pointed ${data.recordsRepointed} record${data.recordsRepointed === 1 ? "" : "s"} and removed ${data.legacyUsersRemoved} leftover entr${data.legacyUsersRemoved === 1 ? "y" : "ies"}.`,
+            },
+      );
+    } catch (e) {
+      setImportMsg({ kind: "err", text: `Merge failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setMerging(false);
     }
   }
 
@@ -50,11 +72,17 @@ export function UsersAdmin() {
         </p>
         {isFirebaseConfigured && (
           <div className="row" style={{ alignItems: "center", gap: "0.6rem", marginTop: "0.5rem" }}>
-            <button className="button sm" onClick={importSignins} disabled={importing}>
+            <button className="button sm" onClick={importSignins} disabled={importing || merging}>
               {importing ? "Importing…" : "Import sign-ins"}
             </button>
             <span className="muted" style={{ fontSize: "0.8rem" }}>
               Pull in anyone who has signed in with Google but isn&apos;t listed yet.
+            </span>
+            <button className="button sm" onClick={() => void mergeDuplicates()} disabled={merging || importing}>
+              {merging ? "Merging…" : "Merge duplicate accounts"}
+            </button>
+            <span className="muted" style={{ fontSize: "0.8rem" }}>
+              Combine anyone who signed in with both their @law.stanford.edu and @stanford.edu logins into one account.
             </span>
           </div>
         )}
